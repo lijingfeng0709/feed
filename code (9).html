@@ -1,0 +1,2362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>银河牧场 · 放置RPG（云存档版）</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>if(!window.supabase){document.write('<script src="https://unpkg.com/@supabase/supabase-js@2"><\/script>');}</script>
+<script>if(!window.supabase){document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.45.4/supabase.min.js"><\/script>');}</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft YaHei",sans-serif;background:#141729;color:#e8e8f0;font-size:14px;-webkit-tap-highlight-color:transparent}
+#app{max-width:1080px;margin:0 auto;padding:12px}
+h1{font-size:18px;padding:8px 0;color:#ffd479}
+.spdwrap{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#2a2413;border:1px solid #ffd47955;border-radius:8px;margin-bottom:10px;flex-wrap:wrap}
+.spdwrap .lb{color:#ffd479;font-size:14px;font-weight:bold}
+.spd{padding:6px 18px;background:#242a45;border:2px solid #3a4166;color:#9ab;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;transition:all .15s}
+.spd:hover{border-color:#ffd479;color:#ffd479}
+.spd.on{background:#ffd479;border-color:#ffd479;color:#141729;box-shadow:0 0 8px #ffd47966}
+.statbar{display:flex;gap:12px;padding:8px 10px;background:#1c2036;border-radius:6px;margin-bottom:10px;font-size:12px;flex-wrap:wrap;align-items:center}
+.statbar b{color:#ffd479}
+.tabs{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
+.tabs button{padding:8px 12px;background:#242a45;border:1px solid #3a4166;color:#ccc;cursor:pointer;border-radius:5px 5px 0 0;font-size:13px}
+.tabs button.active{background:#3a4166;color:#ffd479}
+.panel{background:#222742;border:1px solid #3a4166;border-radius:0 6px 6px 6px;padding:12px;min-height:430px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 10px;background:#242a45;margin-bottom:5px;border-radius:4px;flex-wrap:wrap}
+.name{color:#ffd479}
+.info{color:#9aa;font-size:12px}
+button.act{padding:4px 10px;background:#4a9eff;border:0;color:#fff;border-radius:4px;cursor:pointer;font-size:12px}
+button.act:hover{background:#6ab0ff}
+button.act:disabled{background:#555;cursor:not-allowed}
+button.sm{padding:3px 7px;font-size:11px}
+input,select{padding:3px 6px;background:#141729;border:1px solid #3a4166;color:#ffd479;border-radius:4px;font-size:12px}
+input[type=number]{width:70px}
+.bar{height:16px;background:#332;border-radius:8px;overflow:hidden;margin:4px 0}
+.bar>div{height:100%;background:#e55;transition:width .3s}
+.bar .xp{background:#5a5}
+.deadbar>div{background:#88f}
+.timerbar>div{background:#4af}
+#log{height:100px;overflow-y:auto;background:#141729;padding:6px;font-size:11px;color:#8f9;border-radius:4px;margin-top:10px}
+.hint{font-size:11px;color:#778;margin:6px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.card{background:#1c2036;border:1px solid #3a4166;border-radius:6px;padding:10px}
+.r0{color:#bbb}.r1{color:#6f6}.r2{color:#5af}.r3{color:#c5f}.r4{color:#fa0;text-shadow:0 0 6px #fa06}.r5{color:#f44;text-shadow:0 0 8px #f446}
+.zonebar{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px}
+.zonebar button{padding:4px 8px;background:#242a45;border:1px solid #3a4166;color:#9ab;border-radius:4px;cursor:pointer;font-size:11px}
+.zonebar button.on{background:#3a4166;color:#ffd479}
+.zonebar button.hz{border-color:#f805;color:#f80}
+.lvbtn{padding:2px 7px;background:#333;border:1px solid #555;color:#ccc;border-radius:3px;cursor:pointer;font-size:11px;margin-left:2px}
+.lvbtn.on{background:#4a9eff;border-color:#4a9eff;color:#fff}
+.lvbtn.lock{background:#222;color:#555;cursor:not-allowed}
+table{width:100%;border-collapse:collapse;font-size:12px}
+td,th{padding:4px 6px;border-bottom:1px solid #2c3152;text-align:left}
+.baggrid{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin:8px 0}
+.cell{height:46px;background:#1a1d2e;border:1px solid #2c3152;border-radius:4px;position:relative;cursor:pointer;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cell:hover{border-color:#4a9eff}
+.cell.sel{border-color:#ffd479;background:#2a2e45;box-shadow:0 0 4px #ffd47955}
+.cell .ic{font-size:20px;line-height:1}
+.cell .cnt{font-size:10px;color:#9aa;line-height:1.2}
+.cell .idx{position:absolute;top:1px;left:3px;font-size:8px;color:#3d4266}
+.pagenav{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.pagenav input{width:70px}
+#auth{position:fixed;inset:0;background:rgba(10,12,24,.96);display:flex;align-items:center;justify-content:center;z-index:999}
+#auth.hide{display:none}
+.authbox{background:#222742;border:1px solid #3a4166;border-radius:10px;padding:28px;width:340px}
+.authbox h2{color:#ffd479;font-size:18px;margin-bottom:6px}
+.authbox .sub{font-size:12px;color:#889;margin-bottom:14px}
+.authbox input{width:100%;margin-bottom:10px;padding:8px;font-size:13px}
+.authbox button{width:100%;padding:9px;margin-bottom:8px;font-size:14px}
+.authbox .msg{font-size:12px;min-height:16px;margin-bottom:6px}
+.authbox .msg.ok{color:#6f6}
+.authbox .msg.err{color:#f66}
+.aSwitch{display:flex;gap:6px;margin-bottom:14px}
+.aSwitch button{flex:1;padding:7px;background:#1a1d2e;border:1px solid #3a4166;color:#9ab;border-radius:5px;cursor:pointer}
+.aSwitch button.on{background:#3a4166;color:#ffd479}
+label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margin-bottom:10px;cursor:pointer}
+.deadtag{color:#8af;font-weight:bold;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.4}}
+.endless{background:#2a1535;border:1px solid #c5f5}
+.laneHead{background:#2a3048;border-left:3px solid #ffd479}
+.potGrid{display:flex;gap:5px;margin:4px 0 6px}
+.potCell{width:56px;height:56px;background:#1a1d2e;border:1px solid #2c3152;border-radius:5px;cursor:pointer;user-select:none;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.potCell:hover{border-color:#4a9eff}
+.potCell.sel{border-color:#ffd479;background:#2a2e45;box-shadow:0 0 4px #ffd47955}
+.potCell .ic{font-size:18px;line-height:1.1}
+.potCell .cnt{font-size:9px;color:#9aa;line-height:1.1}
+.potCell .cond{font-size:8px;color:#6af;line-height:1.1}
+.potCell.empty .ic{opacity:.35}
+.potRow{background:#1a2440;border-left:3px solid #49f;padding:4px 8px;gap:4px}
+.potRow select{max-width:140px}
+.cloudOk{color:#6f6}
+.cloudNo{color:#f66}
+.modal{position:fixed;inset:0;background:rgba(8,10,20,.78);display:none;align-items:center;justify-content:center;z-index:1000}
+.mcard{background:#1c2036;border:1px solid #4a5480;border-radius:12px;padding:20px;width:370px;max-width:92vw;max-height:82vh;overflow-y:auto;box-shadow:0 8px 40px #000a}
+.mcard h3{text-align:center;color:#e8e8f0;font-size:17px;margin-bottom:12px}
+.offLine{text-align:center;font-size:13px;color:#aab;margin:4px 0}
+.offLine b{color:#fff;font-size:14px}
+.lvTag{display:inline-block;background:#4a9eff;color:#fff;font-size:11px;padding:1px 8px;border-radius:3px;margin-left:6px;vertical-align:middle}
+.offSec{color:#ffd479;font-size:12px;font-weight:bold;margin:10px 0 5px;border-left:3px solid #ffd479;padding-left:6px}
+.offGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.offIt{background:#232842;border:1px solid #33395e;border-radius:6px;padding:6px 2px;display:flex;flex-direction:column;align-items:center}
+.offIt .ic{font-size:22px;line-height:1.2}
+.offIt .ct{font-size:10px;color:#ccd;margin-top:2px}
+.mClose{width:100%;padding:9px;margin-top:14px;background:#4a9eff;border:0;color:#fff;border-radius:6px;font-size:14px;cursor:pointer}
+.mClose:hover{background:#6ab0ff}
+.pickBtn{display:flex;align-items:center;gap:10px;width:100%;padding:12px;margin-bottom:10px;background:#232842;border:1px solid #3a4166;border-radius:8px;cursor:pointer;color:#e8e8f0;font-size:13px;text-align:left}
+.pickBtn:hover{border-color:#ffd479;background:#2a3050}
+.pickBtn .pic{font-size:26px}
+.pickBtn .pt{flex:1}
+.pickBtn .pt b{color:#ffd479;display:block;margin-bottom:2px}
+.pickBtn .pt span{color:#889;font-size:11px}
+.critTxt{color:#f80;font-weight:bold}
+.timerTxt{color:#4af;font-weight:bold}
+.buffTxt{color:#fa0;font-weight:bold}
+.adminTag{background:#f80;color:#141729;font-size:10px;padding:1px 6px;border-radius:3px;font-weight:bold}
+.helpSec{background:#1c2036;border:1px solid #3a4166;border-left:3px solid #ffd479;border-radius:6px;padding:10px 14px;margin-bottom:10px}
+.helpSec h4{color:#ffd479;font-size:14px;margin-bottom:6px}
+.helpSec p{font-size:12px;color:#aab;line-height:1.8;margin:2px 0}
+.helpSec p b{color:#e8e8f0}
+.helpSec .kw{color:#6f6}
+.helpSec .warn{color:#f80}
+.cfgRow{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#242a45;margin-bottom:4px;border-radius:4px;flex-wrap:wrap}
+.cfgRow .cName{color:#ffd479;min-width:130px;font-size:13px}
+.cfgRow .cIn{width:90px}
+.cfgRow .cDesc{color:#889;font-size:11px;flex:1;min-width:200px}
+.cfgSec{background:#1c2036;border:1px solid #4a5480;border-left:3px solid #ffd479;border-radius:6px;padding:10px 14px;margin-bottom:12px}
+.cfgSec h4{color:#ffd479;font-size:14px;margin-bottom:8px}
+.cfgHint{font-size:11px;color:#778;margin:4px 0 8px}
+.verTag{display:inline-block;background:#4a9eff;color:#fff;font-size:10px;padding:0 6px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.balBox{background:#2a2413;border:1px solid #ffd47944;border-radius:6px;padding:8px 12px;margin-top:8px}
+.balBox p{font-size:11px;color:#cbb;line-height:1.7;margin:2px 0}
+.balBox b{color:#ffd479}
+
+@media (max-width:768px){
+  body{font-size:13px}
+  #app{padding:8px}
+  h1{font-size:15px;padding:6px 0}
+  .spdwrap{padding:6px 8px;gap:5px;margin-bottom:8px}
+  .spd{padding:6px 12px;font-size:13px}
+  .statbar{gap:8px;padding:6px 8px;font-size:11px;margin-bottom:8px}
+  .statbar b{font-size:12px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{flex:0 0 auto;padding:10px 14px;font-size:13px}
+  .panel{padding:8px;min-height:280px}
+  .row{padding:7px 8px;gap:5px}
+  .info{font-size:11px}
+  button.act{padding:8px 12px;font-size:13px;min-height:34px}
+  button.act.sm{padding:6px 9px;min-height:28px;font-size:12px}
+  input,select{font-size:13px;padding:6px}
+  input[type=number]{width:64px}
+  #log{height:80px;font-size:11px}
+  .hint{font-size:10px}
+  .baggrid{grid-template-columns:repeat(6,1fr);gap:3px}
+  .cell{height:44px}
+  .cell .ic{font-size:18px}
+  .grid{grid-template-columns:1fr}
+  .grid3{grid-template-columns:1fr 1fr}
+  .offGrid{grid-template-columns:repeat(4,1fr)}
+  .mcard{width:94vw;padding:14px;max-height:86vh}
+  .mcard h3{font-size:15px}
+  .authbox{width:92vw;padding:20px}
+  .authbox input{padding:10px;font-size:15px}
+  .authbox button{padding:11px;font-size:15px}
+  .potCell{width:50px;height:50px}
+  .potRow select{max-width:110px}
+  table{font-size:11px}
+  td,th{padding:5px 4px}
+  .zonebar button{padding:6px 10px;font-size:11px}
+  .lvbtn{padding:5px 9px;font-size:11px}
+  .pagenav{gap:4px}
+  .pickBtn{padding:14px}
+  .mClose{padding:12px;font-size:15px}
+  .cfgRow .cName{min-width:110px;font-size:12px}
+  .cfgRow .cIn{width:72px}
+  .cfgRow .cDesc{min-width:140px}
+}
+</style>
+</head>
+<body>
+
+<div id="auth">
+  <div class="authbox">
+    <h2>🐄 银河牧场</h2>
+    <div class="sub">注册账号：云端同步存档（跨设备）｜游客：仅本机</div>
+    <div class="aSwitch">
+      <button id="aTabLogin" class="on" onclick="aMode='login';authUI()">登 录</button>
+      <button id="aTabReg" onclick="aMode='reg';authUI()">注 册</button>
+    </div>
+    <input id="aUser" placeholder="用户名（2~16字符）" maxlength="16">
+    <input id="aPass" type="password" placeholder="密码（至少6位，云端要求）">
+    <label class="ck" style="display:flex">
+      <input type="checkbox" id="aRemember" checked>记住账号和密码（打开页面自动填入，点登录即可）
+    </label>
+    <label class="ck" id="aMigRow" style="display:none">
+      <input type="checkbox" id="aMig" checked>继承当前游客进度
+    </label>
+    <div class="msg" id="aMsg"></div>
+    <button class="act" id="aGo" onclick="authGo()">登录</button>
+    <button class="act" style="background:#3a4166" onclick="authGuest()">游客试玩</button>
+    <div class="hint" id="aCloud"></div>
+  </div>
+</div>
+
+<div id="app" style="visibility:hidden">
+  <h1>🐄 银河牧场 Idle RPG</h1>
+  <div class="spdwrap" id="spdwrap"></div>
+  <div class="statbar" id="top"></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="panel" id="panel"></div>
+  <div id="log"></div>
+</div>
+
+<div class="modal" id="offModal">
+  <div class="mcard">
+    <h3>欢迎回来！</h3>
+    <div id="offBody"></div>
+    <button class="mClose" onclick="closeOff()">关闭</button>
+  </div>
+</div>
+
+<div class="modal" id="savePick">
+  <div class="mcard">
+    <h3>📂 检测到两份存档，请选择</h3>
+    <button class="pickBtn" onclick="chooseSave('cloud')">
+      <span class="pic">☁️</span>
+      <span class="pt"><b>云存档</b><span id="spCloud"></span></span>
+    </button>
+    <button class="pickBtn" onclick="chooseSave('local')">
+      <span class="pic">💾</span>
+      <span class="pt"><b>本地存档</b><span id="spLocal"></span></span>
+    </button>
+    <div class="hint" style="text-align:center">选择后进入游戏，之后的进度会自动同步到所选存档</div>
+  </div>
+</div>
+
+<input type="file" id="saveFile" accept=".json,application/json" style="display:none">
+
+<script>
+"use strict";
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(navigator.userAgent)
+  || (window.matchMedia && window.matchMedia("(max-width:768px)").matches);
+
+/* ============================================================
+   ★ 模块 A：Supabase 云存档 + 全局配置
+   ============================================================ */
+const SB_URL = "https://scveickilldhyskrndkg.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjdmVpY2tpbGxkaHlza3JuZGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5NjEyMzQsImV4cCI6MjEwNzUzNzIzNH0.pjqsxqEE5vUcLa_2tkU2V26akUAaQnpwNpITVohvR5w";
+const sb = (window.supabase && window.supabase.createClient) ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+const CLOUD_ON = () => !!sb;
+const sbEmail = (u) => u.toLowerCase() + "@ranch.local";
+const FLOOR_LIMIT = 600;
+const ADMIN_PREFIX = "qq247084";   /* 用户名前8位 = 管理员 */
+
+function sbErr(e) {
+  const msg = (e && (e.message || e.msg)) || String(e);
+  log("☁️ 云同步失败：" + msg);
+  if (typeof authMsg === "function") authMsg("❌ 云端错误：" + msg, false);
+}
+
+async function cloudSignUp(u, p) {
+  if (!CLOUD_ON()) { authMsg("❌ Supabase 库未加载（CDN 被墙或断网），请检查网络", false); return false; }
+  const { data, error } = await sb.auth.signUp({ email: sbEmail(u), password: p });
+  if (error) { sbErr(error); return false; }
+  if (data && !data.session && data.user && data.user.identities && data.user.identities.length === 0) {
+    authMsg("❌ 该邮箱已被注册（云端已有同名账号），请直接登录", false); return false;
+  }
+  if (data && !data.session) {
+    authMsg("❌ 云端要求邮箱验证：请到 Supabase → Authentication → Email 关闭 Confirm email", false); return false;
+  }
+  return true;
+}
+
+async function cloudSignIn(u, p) {
+  if (!CLOUD_ON()) return false;
+  const { error } = await sb.auth.signInWithPassword({ email: sbEmail(u), password: p });
+  if (error) { sbErr(error); return false; }
+  return true;
+}
+
+async function cloudSignOut() { if (!CLOUD_ON()) return; try { await sb.auth.signOut(); } catch (e) {} }
+
+async function cloudUid() {
+  if (!CLOUD_ON()) return null;
+  const { data } = await sb.auth.getSession();
+  return (data && data.session && data.session.user) ? data.session.user.id : null;
+}
+
+async function cloudSave() {
+  if (!CLOUD_ON()) return;
+  const id = await cloudUid();
+  if (!id) return;
+  const raw = localStorage.getItem(saveKeyOf(CUR));
+  if (!raw) return;
+  const { error } = await sb.from("saves").upsert({ id: id, data: JSON.parse(raw), version: 1 });
+  if (error) sbErr(error); else log("☁️ 存档已同步到云端");
+}
+
+async function cloudFetch() {
+  if (!CLOUD_ON()) return null;
+  const id = await cloudUid();
+  if (!id) return null;
+  const { data, error } = await sb.from("saves").select("data,updated_at").eq("id", id).maybeSingle();
+  if (error) { sbErr(error); return null; }
+  if (!data || !data.data) return null;
+  return data;
+}
+
+let PICK = null;
+async function enterGameCloud() {
+  let cloud = null;
+  if (CLOUD_ON()) cloud = await cloudFetch();
+  const localRaw = localStorage.getItem(saveKeyOf(CUR));
+  if (cloud && localRaw) { pickSave(cloud, localRaw); return; }
+  if (cloud) localStorage.setItem(saveKeyOf(CUR), JSON.stringify(cloud.data));
+  enterGame();
+}
+function pickSave(cloud, localRaw) {
+  hideAuth();
+  PICK = { cloud, localRaw };
+  try {
+    const ld = JSON.parse(localRaw);
+    $("spCloud").textContent = "云端保存时间：" + new Date(cloud.updated_at).toLocaleString();
+    $("spLocal").textContent = "本地保存时间：" + new Date(ld.S.lastTick || 0).toLocaleString();
+  } catch (e) { $("spCloud").textContent = ""; $("spLocal").textContent = ""; }
+  $("savePick").style.display = "flex";
+}
+function chooseSave(which) {
+  $("savePick").style.display = "none";
+  if (which === "cloud" && PICK) {
+    localStorage.setItem(saveKeyOf(CUR), JSON.stringify(PICK.cloud.data));
+    log("☁️ 已选择云存档（覆盖本地）");
+  } else {
+    log("💾 已选择本地存档");
+  }
+  PICK = null;
+  enterGame();
+}
+
+/* ============================================================
+   ★ 模块 B：本地账号系统 + 管理员识别
+   ============================================================ */
+const ACC_KEY = "mr_accounts";
+const SES_KEY = "mr_session";
+const REM_KEY = "mr_remember";
+const GCFG_KEY = "mr_gcfg";     /* 全局配置本地缓存 */
+let CUR = null;
+let LOGGED_IN = false;
+let aMode = "login";
+/* ★ 管理员判定：用户名前8位为 qq247084 */
+const isAdmin = () => !!CUR && CUR.toLowerCase().slice(0, ADMIN_PREFIX.length) === ADMIN_PREFIX;
+
+function hashPw(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return "h" + h.toString(36) + s.length; }
+function accs() { try { return JSON.parse(localStorage.getItem(ACC_KEY) || "{}"); } catch (e) { return {}; } }
+function saveAccs(a) { localStorage.setItem(ACC_KEY, JSON.stringify(a)); }
+function saveKeyOf(u) { return u === "guest" ? "mr_save_guest" : "mr_save_" + u; }
+
+function saveRemember(u, p) { try { localStorage.setItem(REM_KEY, btoa(encodeURIComponent(JSON.stringify({ u, p })))); } catch (e) {} }
+function getRemember() { try { const r = localStorage.getItem(REM_KEY); return r ? JSON.parse(decodeURIComponent(atob(r))) : null; } catch (e) { return null; } }
+function clearRemember() { localStorage.removeItem(REM_KEY); }
+
+function showAuth() {
+  $("auth").classList.remove("hide");
+  $("app").style.visibility = "hidden";
+  $("aCloud").innerHTML = CLOUD_ON() ? '<span class="cloudOk">☁️ 云存档已连接</span>' : '<span class="cloudNo">☁️ 云存档未连接（检查网络）</span>';
+}
+function hideAuth() { $("auth").classList.add("hide"); $("app").style.visibility = "visible"; }
+function authUI() {
+  $("aTabLogin").className = aMode === "login" ? "on" : "";
+  $("aTabReg").className = aMode === "reg" ? "on" : "";
+  $("aGo").textContent = aMode === "login" ? "登录" : "注册并进入";
+  $("aMigRow").style.display = (aMode === "reg" && localStorage.getItem("mr_save_guest")) ? "flex" : "none";
+  $("aMsg").textContent = ""; $("aMsg").className = "msg";
+}
+function authMsg(t, ok) { const e = $("aMsg"); e.textContent = t; e.className = "msg " + (ok ? "ok" : "err"); }
+
+async function authGo() {
+  const u = $("aUser").value.trim();
+  const p = $("aPass").value;
+  const A = accs();
+  if (aMode === "login") {
+    const localAcc = A[u];
+    if (localAcc && localAcc.ph !== undefined && localAcc.ph !== hashPw(p)) {
+      authMsg("❌ 密码错误"); return;
+    }
+    authMsg("⏳ 正在登录并同步云端存档…", true);
+    const ok = await cloudSignIn(u, p);
+    doLogin(u);
+    if ($("aRemember").checked) saveRemember(u, p); else clearRemember();
+    authMsg(ok ? "✅ 登录成功，云端已同步" : "✅ 本地登录成功（云同步未生效）", true);
+    setTimeout(ok ? enterGameCloud : enterGame, 300);
+  } else {
+    if (u.length < 2) { authMsg("❌ 用户名至少2个字符"); return; }
+    if (p.length < 6) { authMsg("❌ 密码至少6位（云端账号要求）"); return; }
+    if (A[u]) { authMsg("❌ 该用户名已被注册"); return; }
+    authMsg("⏳ 正在注册云端账号…", true);
+    const ok = await cloudSignUp(u, p);
+    if (!ok) {
+      const cur = $("aMsg").textContent || "";
+      if (!cur || cur.indexOf("⏳") === 0) authMsg("❌ 云端注册失败，请检查网络后重试", false);
+      return;
+    }
+    await cloudSignIn(u, p);
+    if ($("aMigRow").style.display !== "none" && $("aMig").checked && localStorage.getItem("mr_save_guest")) {
+      localStorage.setItem(saveKeyOf(u), localStorage.getItem("mr_save_guest"));
+    }
+    A[u] = { ph: hashPw(p), created: Date.now() };
+    saveAccs(A);
+    doLogin(u);
+    if ($("aRemember").checked) saveRemember(u, p); else clearRemember();
+    authMsg("✅ 注册成功，已自动登录（云同步开启）", true);
+    setTimeout(enterGameCloud, 300);
+  }
+}
+
+function authGuest() { doLogin("guest"); enterGame(); }
+function doLogin(u) { CUR = u; LOGGED_IN = true; localStorage.setItem(SES_KEY, u); }
+function logout() {
+  saveGame(); cloudSignOut();
+  CUR = null; LOGGED_IN = false;
+  localStorage.removeItem(SES_KEY);
+  clearRemember();
+  $("aUser").value = ""; $("aPass").value = "";
+  showAuth(); authUI();
+}
+function initAuth() {
+  showAuth(); authUI();
+  const rem = getRemember();
+  if (rem) {
+    $("aUser").value = rem.u;
+    $("aPass").value = rem.p;
+    $("aRemember").checked = true;
+    authMsg("✅ 已填入记住的账号密码，点击「登录」即可进入", true);
+  }
+}
+function enterGame() {
+  const had = loadGame();
+  if (!had) {
+    newGameState(); giveStarterGear(); refreshTasks(true);
+    log(`欢迎，${CUR === "guest" ? "游客" : CUR}！赠送新手装备一套。`);
+  } else { log(`欢迎回来，${CUR === "guest" ? "游客" : CUR}！`); }
+  if (isAdmin()) log("👑 已识别为管理员账号：管理员与数值配置页已解锁，全局配置可发布");
+  log(IS_MOBILE ? "📱 已识别为手机端，使用手机布局" : "🖥️ 已识别为电脑端，使用桌面布局");
+  if (!Object.keys(MK).length) mkSeed();
+  offline(); hideAuth(); renderSpd(); render();
+  /* 拉取全局配置（所有云端登录用户） */
+  fetchGlobalCfg().then(() => { if (LOGGED_IN) { S.monHp = curMon().hp; renderSpd(); render(); } });
+}
+
+/* ============================================================
+   ★ 模块 C：物品注册（含两种神水）
+   ============================================================ */
+const IT = {};
+const defIt = (id, n, ic, tp, val, heal, mp) => { IT[id] = { id, n, ic, tp, val, heal: heal || 0, mp: mp || 0 }; };
+defIt("milk","牛奶","🥛","mat",5); defIt("starMilk","星绒奶","🍶","mat",15);
+defIt("herb","草药","🌿","mat",6); defIt("flax","亚麻","🧵","mat",8);
+defIt("ore","矿石","🪨","mat",10); defIt("log","原木","🪵","mat",6);
+defIt("oak","橡木","🌲","mat",18); defIt("ingot","铁锭","🔩","mat",30);
+defIt("plank","木板","🟫","mat",22); defIt("cloth","布卷","🧶","mat",26);
+defIt("bread","面包","🍞","food",18,30); defIt("cake","蛋糕","🍰","food",55,80);
+defIt("spaceCake","太空蛋糕","🧁","food",200,260);
+defIt("tea","茶","🍵","drink",22,0,40); defIt("coffee","咖啡","☕","drink",65,0,120);
+defIt("effTea","效率茶","🫖","tea",260);
+defIt("sage","贤者之石","💎","spec",1500); defIt("box","紫盒子","🎁","spec",300);
+defIt("token","代币","🪙","spec",0);
+defIt("xianGu","仙骨","🦴","rare",2500); defIt("xianYu","仙玉","🟩","rare",4000);
+defIt("soul","灵魂","🫧","rare",6000); defIt("shenShi","神石","🪩","rare",9000);
+defIt("xpC1","经验咖啡Ⅰ","🥤","xp",600); defIt("xpC2","经验咖啡Ⅱ","🧋","xp",1800);
+defIt("xpC3","经验咖啡Ⅲ","🍺","xp",4500); defIt("xpC4","经验咖啡Ⅳ","🍾","xp",11000);
+defIt("hitPot","百发神水","🧪","pot",1000000);
+defIt("critPot","弑神狂暴水","💣","pot",1000000);
+const XPIT = { xpC1:{m:0.2,mm:15}, xpC2:{m:0.5,mm:15}, xpC3:{m:1.0,mm:20}, xpC4:{m:2.0,mm:20} };
+const POTBUFF = {
+  hitPot:  { k:"hit",     v:100,    mm:20 },
+  critPot: { k:"critDmg", v:100000, mm:20 }
+};
+const matStr = (m) => Object.entries(m).map(([k,v]) => `${IT[k].ic}${IT[k].n}×${v}`).join("＋");
+const RARE_MATS = { xianGu:1, xianYu:1, soul:1, shenShi:1 };
+
+/* ============================================================
+   ★ 模块 D：17 技能
+   ============================================================ */
+const SK = [
+  {id:"milking",n:"挤奶",ic:"🐄",cat:"收集"},{id:"gather",n:"采集",ic:"🌿",cat:"收集"},{id:"wood",n:"伐木",ic:"🪓",cat:"收集"},
+  {id:"smith",n:"铁匠",ic:"🔨",cat:"匠造"},{id:"carp",n:"木匠",ic:"🪚",cat:"匠造"},{id:"tailor",n:"裁缝",ic:"🧵",cat:"匠造"},
+  {id:"cook",n:"厨艺",ic:"🍳",cat:"厨艺"},{id:"brew",n:"冲泡",ic:"🫖",cat:"厨艺"},
+  {id:"alch",n:"炼金",ic:"⚗️",cat:"附魔"},{id:"enh",n:"强化",ic:"✨",cat:"附魔"},
+  {id:"acc",n:"攻击",ic:"🎯",cat:"战斗"},{id:"pow",n:"力量",ic:"💪",cat:"战斗"},{id:"def",n:"防御",ic:"🛡️",cat:"战斗"},
+  {id:"hp",n:"生命",ic:"❤️",cat:"战斗"},{id:"rng",n:"远程",ic:"🏹",cat:"战斗"},{id:"eva",n:"闪避",ic:"💨",cat:"战斗"},{id:"mag",n:"魔法",ic:"🔮",cat:"战斗"}
+];
+const SKM = {}; SK.forEach((s) => { SKM[s.id] = s; });
+
+/* ============================================================
+   ★ 模块 E：动作列表
+   ============================================================ */
+const ACT = [
+  {id:"milk1",sk:"milking",n:"挤牛奶",lv:1,xp:70,t:3,out:{milk:1}},
+  {id:"milk2",sk:"milking",n:"挤星绒牛",lv:20,xp:200,t:4,out:{starMilk:1}},
+  {id:"g1",sk:"gather",n:"采草药",lv:1,xp:65,t:3,out:{herb:1}},
+  {id:"g2",sk:"gather",n:"采亚麻",lv:12,xp:130,t:3.5,out:{flax:1}},
+  {id:"g3",sk:"gather",n:"采矿石",lv:25,xp:260,t:4,out:{ore:1}},
+  {id:"w1",sk:"wood",n:"砍原木",lv:1,xp:60,t:3,out:{log:1}},
+  {id:"w2",sk:"wood",n:"砍橡木",lv:15,xp:180,t:4,out:{oak:1}},
+  {id:"s1",sk:"smith",n:"锻铁锭",lv:1,xp:90,t:3,inp:{ore:2},out:{ingot:1}},
+  {id:"s2",sk:"smith",n:"锻造铁装（武器/手套/首饰）",lv:15,xp:260,t:5,inp:{ingot:3},outEq:"iron",slots:["weapon","gloves","ring"]},
+  {id:"s3",sk:"smith",n:"锻造钢装（武器/手套/首饰）",lv:40,xp:600,t:7,inp:{ingot:5},outEq:"steel",slots:["weapon","gloves","ring"]},
+  {id:"c1",sk:"carp",n:"制木板",lv:1,xp:85,t:3,inp:{log:2},out:{plank:1}},
+  {id:"c2",sk:"carp",n:"制猎风弓（远程武器）",lv:20,xp:300,t:5,inp:{plank:3},outEq:"bow",slots:["weapon"]},
+  {id:"c3",sk:"carp",n:"制星辰杖（魔法武器）",lv:45,xp:650,t:7,inp:{plank:4,oak:1},outEq:"staff",slots:["weapon"]},
+  {id:"t1",sk:"tailor",n:"纺布",lv:1,xp:85,t:3,inp:{flax:2},out:{cloth:1}},
+  {id:"t2",sk:"tailor",n:"缝皮革装（头盔/护甲/鞋子）",lv:18,xp:280,t:5,inp:{cloth:3},outEq:"leather",slots:["helmet","armor","boots"]},
+  {id:"t3",sk:"tailor",n:"缝星光装（头盔/护甲/鞋子）",lv:42,xp:620,t:7,inp:{cloth:4},outEq:"robe",slots:["helmet","armor","boots"]},
+  {id:"k1",sk:"cook",n:"烤面包",lv:1,xp:95,t:3,inp:{milk:1,herb:1},out:{bread:1}},
+  {id:"k2",sk:"cook",n:"做蛋糕",lv:15,xp:220,t:4,inp:{milk:2,bread:1},out:{cake:1}},
+  {id:"k3",sk:"cook",n:"太空蛋糕",lv:50,xp:700,t:6,inp:{starMilk:2,cake:1},out:{spaceCake:1}},
+  {id:"b1",sk:"brew",n:"泡茶",lv:1,xp:90,t:3,inp:{herb:1},out:{tea:1}},
+  {id:"b2",sk:"brew",n:"煮咖啡",lv:20,xp:240,t:4,inp:{herb:2,milk:1},out:{coffee:1}},
+  {id:"b3",sk:"brew",n:"效率茶",lv:40,xp:520,t:6,inp:{tea:2,starMilk:1},out:{effTea:1}},
+  {id:"b4",sk:"brew",n:"酿经验咖啡Ⅰ(+20%)",lv:30,xp:400,t:8,inp:{coffee:2,sage:1},out:{xpC1:2}},
+  {id:"b5",sk:"brew",n:"酿经验咖啡Ⅱ(+50%)",lv:50,xp:700,t:10,inp:{coffee:3,effTea:1},out:{xpC2:2}},
+  {id:"b6",sk:"brew",n:"酿经验咖啡Ⅲ(+100%)",lv:70,xp:1200,t:14,inp:{coffee:4,sage:2},out:{xpC3:1}},
+  {id:"b7",sk:"brew",n:"酿经验咖啡Ⅳ(+200%)",lv:90,xp:2000,t:18,inp:{coffee:5,sage:4,starMilk:5},out:{xpC4:1}},
+  {id:"b8",sk:"brew",n:"酿百发神水(命中100%/20分)",lv:85,xp:3000,t:30,inp:{coffee:10,sage:10,soul:2},out:{hitPot:1}},
+  {id:"b9",sk:"brew",n:"酿弑神狂暴水(暴伤+10万%/20分)",lv:95,xp:4500,t:40,inp:{starMilk:20,sage:10,shenShi:2},out:{critPot:1}},
+  {id:"a1",sk:"alch",n:"点金",lv:1,xp:100,t:4,inp:{herb:2},gold:15},
+  {id:"a2",sk:"alch",n:"材料转化",lv:25,xp:300,t:5,inp:{ore:3},out:{ingot:2}},
+  {id:"a3",sk:"alch",n:"贤者之石",lv:60,xp:900,t:10,inp:{ingot:3,starMilk:2},out:{sage:1}},
+  {id:"a4",sk:"alch",n:"炼仙骨",lv:75,xp:1500,t:20,inp:{sage:3,starMilk:10},out:{xianGu:1}},
+  {id:"a5",sk:"alch",n:"凝仙玉",lv:80,xp:1800,t:22,inp:{sage:2,effTea:5},out:{xianYu:1}},
+  {id:"a6",sk:"alch",n:"炼灵魂",lv:90,xp:2500,t:28,inp:{sage:5,spaceCake:10},out:{soul:1}},
+  {id:"a7",sk:"alch",n:"凝神石",lv:100,xp:3500,t:35,inp:{soul:2,sage:5},out:{shenShi:1}}
+];
+
+/* ============================================================
+   ★ 模块 F：装备定义（6槽位）
+   ============================================================ */
+const EQFAM = {
+  iron:{n:"铁",base:8}, steel:{n:"钢",base:26}, bow:{n:"猎风",base:20,dt:"ranged"},
+  staff:{n:"星辰",base:22,dt:"magic"}, leather:{n:"皮革",base:14}, robe:{n:"星光",base:30}
+};
+const SLOTS = [
+  {id:"weapon",n:"武器",ic:"⚔️"},{id:"helmet",n:"头盔",ic:"⛑️"},
+  {id:"armor",n:"护甲",ic:"🛡️"},{id:"boots",n:"鞋子",ic:"🥾"},
+  {id:"gloves",n:"手套",ic:"🧤"},{id:"ring",n:"首饰",ic:"💍"}
+];
+const EQIC = {weapon:"⚔️",helmet:"⛑️",armor:"🛡️",boots:"🥾",gloves:"🧤",ring:"💍"};
+
+/* ============================================================
+   ★ 模块 G：怪物定义（修仙十境界）
+   ============================================================ */
+const ELE = ["炼气","筑基","金丹","元婴","化神","炼虚","合体","大乘","渡劫","真仙"];
+const CRE = [
+  [["野猪","🐗"],["灰狼","🐺"],["毒蛇","🐍"],["山魈","👹"],["妖狐","🦊"],["黑熊","🐻"],["骷髅","💀"],["僵尸","🧟"],["鬼火","🔥"],["石鬼","🗿"]],
+  [["赤炎蜥","🦎"],["铁甲犀","🦏"],["噬魂蝠","🦇"],["千年藤妖","🌿"],["幽泉水鬼","💧"],["沙海毒蝎","🦂"],["风刃鹰","🦅"],["地穴魔蛛","🕷️"],["血目枭","🦉"],["腐骨尸王","🧟"]],
+  [["雷劫虎","🐯"],["玄冰蟒","🐍"],["烈焰鸦","🔥"],["噬金鼠","🐹"],["迷魂貂","🦦"],["九幽猫","🐈"],["断岳猿","🦍"],["缚魂傀儡","🎎"],["紫电貂","⚡"],["三首蛟","🐉"]],
+  [["青冥龙","🦕"],["碧眼尸魔","🧟"],["万蛊母虫","🐛"],["幽冥犬","🐕"],["摄魂使者","👁️"],["血河老祖","🩸"],["白骨将军","☠️"],["阴风鬼将","👻"],["九头蛇君","🐍"],["幻蝶仙子","🦋"]],
+  [["焚天麒麟","🔥"],["玄冥龟兽","🐢"],["金翅大鹏","🦅"],["吞天巨蟒","🐍"],["血魔鲨祖","🦈"],["灭世魔猿","🦍"],["幽冥火凤","🔥"],["紫金貔貅","🐅"],["混沌凶兽","🌀"],["天雷古兽","⚡"]],
+  [["虚空影魔","🌑"],["噬星妖兽","⭐"],["蚀魂阴灵","👻"],["九幽冥龙","🐉"],["灭魂使者","☠️"],["裂空巨兽","🕳️"],["轮回魔蝶","🦋"],["湮灭毒蛾","🦋"],["太阴玉蟾","🐸"],["夺魄妖姬","🎭"]],
+  [["合欢老魔","😈"],["炼狱魔君","👺"],["星辰巨兽","🌠"],["幽泉魔尊","🌊"],["万剑魔灵","⚔️"],["噬魂古兽","🦴"],["无相天魔","🎭"],["血月狼王","🐺"],["九婴古兽","🐍"],["焚岳魔猿","🌋"]],
+  [["大乘魔僧","🧘"],["天罚雷灵","⚡"],["寂灭使者","🕯️"],["九转蛟王","🐉"],["幽冥殿主","👑"],["血海魔尊","🌊"],["碎星魔将","💫"],["万鬼之主","👻"],["湮海神兽","🐋"],["弑仙魔猿","🐵"]],
+  [["渡劫魔龙","🐲"],["天劫雷兽","⚡"],["灭世黑凤","🦅"],["吞天蛤蟆","🐸"],["弑神剑灵","🗡️"],["九幽阎罗","👹"],["无量魔佛","😇"],["混沌古神","🌀"],["红莲业火","🔥"],["劫云魔主","☁️"]],
+  [["真仙剑侍","⚔️"],["仙宫神将","🏛️"],["天蓬元帅","🐷"],["哮天神犬","🐕"],["雷部正神","⚡"],["太上长老","🧓"],["无极天尊","🌀"],["紫薇大帝","👑"],["斗战胜佛","🐒"],["道祖虚影","☯️"]]
+];
+const RESPAWN_TIME = 30;
+/* ★ 难度/怪攻系数改读全局配置 CFG */
+function diff() { return cfg("diff"); }
+function atkCf() { return cfg("monAtkCf"); }
+function mon(i, lv) {
+  const L = lv - 1; const b = i; const D = diff();
+  const z = Math.min(9, (i/10)|0); const c = i%10;
+  return { i, lv, n: ELE[z] + "·" + CRE[z][c][0], ic: CRE[z][c][1],
+    hp: Math.floor(60*Math.pow(1.07,b)*Math.pow(1.7,L)*Math.pow(D,1.5)),
+    atk: Math.floor(4*Math.pow(1.045,b)*Math.pow(1.4,L)*Math.pow(D,1.2)*atkCf()),
+    evT: Math.floor(8*Math.pow(1.04,b)*Math.pow(D,0.6)), evS: Math.floor(10*Math.pow(1.04,b)*Math.pow(D,0.6)),
+    evB: Math.floor(7*Math.pow(1.04,b)*Math.pow(D,0.6)), evR: Math.floor(9*Math.pow(1.04,b)*Math.pow(D,0.6)),
+    evM: Math.floor(9*Math.pow(1.04,b)*Math.pow(D,0.6)),
+    xp: Math.floor(30*Math.pow(1.07,b)*Math.pow(1.5,L)*Math.pow(D,1.3)),
+    gold: Math.floor(8*Math.pow(1.06,b)*Math.pow(1.5,L)*Math.pow(D,1.1)),
+    drop: Math.min(0.9,(.18+i*.002)*(1+(D-1)*0.3)), rb: 0,
+    eqLv: LV_TIERS[Math.min(LV_TIERS.length-1, ((i/8)|0)+(lv>=4?1:0))] };
+}
+function endlessMon(f) {
+  const D = diff();
+  const mid = (f-1)%100;
+  const z = Math.min(9, (mid/10)|0); const c = mid%10;
+  const loop = Math.floor((f-1)/1000)+1;
+  const rb = f+(D-1)*25;
+  const seg = Math.floor((f-1)/100);
+  const w = (f-1)%100;
+  const hp = Math.floor(80*Math.pow(1.6,seg)*Math.pow(1.02,w)*Math.pow(D,1.5));
+  const atk = Math.floor(5*Math.pow(1.35,seg)*Math.pow(1.02,w)*Math.pow(D,1.2)*atkCf());
+  const evRaw = Math.pow(1.02,f)*Math.pow(D,0.6);
+  return { i:10000+f, lv:1, n:`∞${f}层 ${ELE[z]}·${CRE[z][c][0]}${loop>1?"×"+loop:""}`, ic:CRE[z][c][1],
+    hp, atk,
+    evT: Math.floor(Math.min(12000, 8*evRaw)),
+    evS: Math.floor(Math.min(15000, 10*evRaw)),
+    evB: Math.floor(Math.min(10500, 7*evRaw)),
+    evR: Math.floor(Math.min(13500, 9*evRaw)),
+    evM: Math.floor(Math.min(13500, 9*evRaw)),
+    xp: Math.floor(35*Math.pow(1.35,seg)*Math.pow(1.06,w)*Math.pow(D,1.3)),
+    gold: Math.floor(12*Math.pow(1.3,seg)*Math.pow(1.05,w)*Math.pow(D,1.1)),
+    drop: Math.min(0.95,0.28+0.003*f), rb,
+    eqLv: LV_TIERS[Math.min(LV_TIERS.length-1, Math.floor(f/12))] };
+}
+function xpNeed(lv) { return 400*lv; }
+function maxCleared(i) { for (let l = 5; l >= 1; l--) if (S.kills[i+"-"+l]) return l; return 0; }
+function unlocked(i, l) {
+  if (i === 0 && l === 1) return true;
+  if (l === 1) return maxCleared(i-1) >= 1;
+  return maxCleared(i) >= l-1 || maxCleared(i-1) >= l;
+}
+
+/* ============================================================
+   ★ 模块 H：游戏状态 + 全局数值配置（CFG）
+   ============================================================ */
+const PAGE_SIZE = 100, MAX_PAGES = 1000, SPEEDS = [1,3,5,10], DIFF_MIN = 0.3, DIFF_MAX = 5;
+let uid = 1;
+
+/* ★ 全局配置：管理员发布 → 云端 game_config 表 → 所有玩家同步
+   含：特殊属性范围、命中区间、技能上限、难度/怪攻/锻造系数 */
+const CFG_DEFAULT = {
+  critDmgMin: 200,   critDmgMax: 10000,
+  critMin: 2,        critMax: 50,
+  aspdMin: 10,       aspdMax: 200,
+  lsMin: 1,          lsMax: 20,
+  evCapPct: 100,
+  hitFloor: 5,
+  skillCap: 120,
+  diff: 1,           /* ★ 全局：怪物难度系数 */
+  monAtkCf: 1,       /* ★ 全局：怪物攻击力系数 */
+  forgeCf: 1         /* ★ 全局：锻造概率系数 */
+};
+let CFG = Object.assign({}, CFG_DEFAULT);
+let CFG_DIRTY = false;
+function cfg(k) { return (CFG[k] != null) ? CFG[k] : CFG_DEFAULT[k]; }
+function loadCfg() {
+  /* 读本地缓存的全局配置（离线/游客模式用） */
+  try {
+    const saved = JSON.parse(localStorage.getItem(GCFG_KEY) || "null");
+    if (saved) { for (const k in CFG_DEFAULT) if (saved[k] != null) CFG[k] = saved[k]; }
+  } catch (e) {}
+}
+function cacheCfg() { try { localStorage.setItem(GCFG_KEY, JSON.stringify(CFG)); } catch (e) {} }
+/* 拉取云端全局配置（所有玩家） */
+async function fetchGlobalCfg() {
+  if (!CLOUD_ON() || !LOGGED_IN || CUR === "guest") return;
+  const id = await cloudUid();
+  if (!id) return;
+  const { data, error } = await sb.from("game_config").select("data").eq("id", 1).maybeSingle();
+  if (error || !data || !data.data) return;
+  const d = data.data;
+  let changed = false;
+  for (const k in CFG_DEFAULT) {
+    if (d[k] != null && d[k] !== CFG[k]) { CFG[k] = d[k]; changed = true; }
+  }
+  if (changed) {
+    cacheCfg();
+    log("🌍 全局数值配置已更新（管理员发布）");
+    if (S) S.monHp = curMon().hp;
+    renderSpd(); render();
+  } else { cacheCfg(); }
+}
+/* 管理员发布全局配置 */
+async function publishGlobalCfg() {
+  cacheCfg();
+  if (!isAdmin()) { log("⚠️ 只有管理员（用户名前8位为 qq247084）能发布全局配置"); return; }
+  if (!CLOUD_ON()) { log("⚠️ 云端未连接，配置仅保存在本机缓存"); return; }
+  const id = await cloudUid();
+  if (!id) { log("⚠️ 云端未登录，无法发布"); return; }
+  const { error } = await sb.from("game_config").upsert({ id: 1, data: CFG, updated_at: new Date().toISOString() });
+  if (error) sbErr(error);
+  else {
+    CFG_DIRTY = false;
+    log("🌍 全局数值配置已发布！所有玩家将在1分钟内同步生效");
+  }
+}
+function setCfgNum(k, v, lo, hi) {
+  v = +v;
+  if (isNaN(v)) return;
+  const c = Math.min(hi != null ? hi : Infinity, Math.max(lo != null ? lo : 0, Math.round(v*10)/10));
+  CFG[k] = c;
+  CFG_DIRTY = true;
+  log(`⚙️ ${k} → ${c}（点「发布全局配置」对全体玩家生效）`);
+}
+function resetCfg() {
+  CFG = Object.assign({}, CFG_DEFAULT);
+  cacheCfg(); CFG_DIRTY = true;
+  if (S) S.monHp = curMon().hp;
+  log("⚙️ 全局配置已恢复默认（待发布）"); renderPanel(); renderSpd();
+}
+
+const defSkills = () => { const o = {}; SK.forEach((s) => { o[s.id] = { lv:1, xp:0 }; }); return o; };
+const LANE_MAX = 5;
+const LANE_LV = [0,100,250,450,700];
+function defLanes() { return Array.from({length:LANE_MAX},(_,i)=>({open:i===0?1:0,items:[],prog:0})); }
+function laneCount() { return S.lanes.filter((l)=>l.open).length; }
+function combatLane() { for (const l of S.lanes) { if (l.open && l.items.length && l.items[0].id === "combat") return l; } return null; }
+function checkLanes() {
+  const tl = totalLv();
+  for (let i = 1; i < LANE_MAX; i++) {
+    if (!S.lanes[i].open && tl >= LANE_LV[i]) {
+      S.lanes[i].open = 1;
+      log(`🔓 并行通道 ${i+1} 解锁！（总等级 ${tl}）现在最多可同时进行 ${laneCount()} 项任务`);
+    }
+  }
+}
+function newGameState() {
+  S = { name:"访客"+(1000+Math.random()*9000|0), gold:100, bell:0, token:0,
+    skills:defSkills(), lanes:defLanes(), eff:0,
+    bag:{bread:5,tea:3}, slotMap:{},
+    eq:{weapon:null,helmet:null,armor:null,boots:null,gloves:null,ring:null},
+    style:"melee", monI:0, monLv:1, monHp:mon(0,1).hp, hp:60, mp:25,
+    endless:false, floor:1, bestFloor:0, autoNext:true, floorKills:{}, floorStart:Date.now(),
+    autoHp:30, autoMp:20, teaMin:0, xpMin:0, xpMult:0,
+    buffHit:0, buffHitMin:0, buffCd:0, buffCdMin:0,
+    pots:[null,null,null,null,null], houses:{}, badge:0, tasks:[],
+    reb:0, sp:0, kills:{}, perks:{q:0,off:0,mk:0},
+    speed:1, autoTrash:{mode:0,rare:1},
+    deadUntil:0, lastTick:Date.now() };
+  migrateBag();
+}
+let S = null, selSlot = null, bagPage = 0, potSel = null;
+function deadLeftMs() { return S.deadUntil - Date.now(); }
+function isDead() { return S.deadUntil > Date.now(); }
+function reviveNow() { S.deadUntil = 0; const p = P(); S.hp = p.maxHp; S.mp = p.maxMp; S.monHp = curMon().hp; atkCd = 0; monCd = 1.0; }
+function curMon() { return S.endless ? endlessMon(S.floor) : mon(S.monI, S.monLv); }
+function floorLeftMs() { return FLOOR_LIMIT*1000 - (Date.now() - (S.floorStart||Date.now())); }
+
+/* ============================================================
+   ★ 模块 I：工具函数 & 背包
+   ============================================================ */
+const $ = (i) => document.getElementById(i);
+const lv = (id) => S.skills[id].lv;
+const totalLv = () => SK.reduce((a,s)=>a+lv(s.id),0);
+function log(m) {
+  const e = $("log"); if (!e) return;
+  e.innerHTML = `<div>[${new Date().toLocaleTimeString()}] ${m}</div>` + e.innerHTML;
+  if (e.children.length > 80) e.lastChild.remove();
+}
+const bagN = (id) => S.bag[id] || 0;
+function slotOf(id) { for (const k in S.slotMap) if (S.slotMap[k] === id) return k; return null; }
+function findFreeSlot() { for (let p = 0; p < MAX_PAGES; p++) for (let c = 0; c < PAGE_SIZE; c++) { const k = p+"_"+c; if (!S.slotMap[k]) return k; } return null; }
+function usedSlots() { return Object.keys(S.slotMap).length; }
+function migrateBag() { if (!S.slotMap) S.slotMap = {}; for (const id in S.bag) { if (!slotOf(id)) { const k = findFreeSlot(); if (k) S.slotMap[k] = id; } } }
+function addIt(id, n) {
+  S.bag[id] = (S.bag[id]||0)+n;
+  if (!slotOf(id)) {
+    const k = findFreeSlot();
+    if (!k) { S.bag[id] -= n; if (S.bag[id] <= 0) delete S.bag[id]; log(`🎒 背包已满，${IT[id].n} 无法拾取！`); return false; }
+    S.slotMap[k] = id;
+  }
+  return true;
+}
+function take(id, n) {
+  if (bagN(id) < n) return false;
+  S.bag[id] -= n;
+  if (S.bag[id] <= 0) {
+    delete S.bag[id];
+    for (const k in S.slotMap) { if (S.slotMap[k] === id) delete S.slotMap[k]; }
+    if (selSlot && !S.slotMap[selSlot]) selSlot = null;
+  }
+  return true;
+}
+function bagEquips() { const r = []; for (const k in S.slotMap) { const v = S.slotMap[k]; if (v && typeof v === "object") r.push({key:k,e:v}); } return r; }
+function addEq(e, skipAuto) {
+  const at = S.autoTrash;
+  if (!skipAuto && at && at.mode && e.rare <= at.rare && e.rare < 3) {
+    if (at.mode === 1) { const g = sellPriceEq(e); S.gold += g; log(`⚡ 自动出售 ${e.n}（${RARE_NAMES[e.rare]}）+${g}💰`); return true; }
+    else {
+      const { mat, n } = salvageGain(e);
+      if (addIt(mat, n)) {
+        const bonus = Math.floor(sellPriceEq(e)*0.15); S.gold += bonus;
+        log(`⚡ 自动分解 ${e.n}（${RARE_NAMES[e.rare]}）→ ${IT[mat].ic}${IT[mat].n}×${n}${bonus>0?` +${bonus}💰`:""}`);
+        return true;
+      } else { log(`🎒 背包满，无法自动分解 ${e.n}，改为正常入库`); }
+    }
+  }
+  const k = findFreeSlot();
+  if (!k) { log(`🎒 背包已满，${e.n} 无法拾取！`); return false; }
+  S.slotMap[k] = e; return true;
+}
+function findEqKey(uidNum) { for (const k in S.slotMap) { const v = S.slotMap[k]; if (v && typeof v === "object" && v.uid === uidNum) return k; } return null; }
+function getEq(ref) {
+  if (typeof ref === "string" && ref.slice(0,2) === "w:") return S.eq[ref.slice(2)] || null;
+  const k = findEqKey(ref); return k ? S.slotMap[k] : null;
+}
+function refAttr(ref) { return typeof ref === "string" ? `'${ref}'` : `${ref}`; }
+function compactBag() {
+  const items = [];
+  for (const k in S.slotMap) {
+    const v = S.slotMap[k];
+    if (v == null) continue;
+    if (typeof v === "string") { if (S.bag[v]) items.push(v); } else items.push(v);
+  }
+  items.sort((a,b)=>{ const ka=slotKeyOf(a), kb=slotKeyOf(b); const [pa,ca]=ka.split("_").map(Number); const [pb,cb]=kb.split("_").map(Number); return pa-pb||ca-cb; });
+  S.slotMap = {};
+  let idx = 0;
+  items.forEach((v)=>{ S.slotMap[Math.floor(idx/PAGE_SIZE)+"_"+(idx%PAGE_SIZE)] = v; idx++; });
+  selSlot = null; log("🎒 背包已整理"); renderPanel();
+}
+function slotKeyOf(v) { for (const k in S.slotMap) if (S.slotMap[k] === v) return k; return "999999_0"; }
+function spBonus() { return S.sp*0.005; }
+function houseBonus(sk) { return (S.houses[sk]||0)*0.02; }
+function globalSpd() { return 1+spBonus(); }
+
+let XP_GAIN = null;
+function addXp(id, amt) {
+  const s = S.skills[id];
+  if (s.lv >= cfg("skillCap")) return;
+  const xb = S.xpMin > 0 ? 1+(S.xpMult||0) : 1;
+  const real = amt*(1+spBonus()+houseBonus(id))*xb;
+  if (XP_GAIN) XP_GAIN[id] = (XP_GAIN[id]||0)+real;
+  s.xp += real;
+  while (s.xp >= xpNeed(s.lv) && s.lv < cfg("skillCap")) { s.xp -= xpNeed(s.lv); s.lv++; checkLanes(); log(`⭐ [${SKM[id].n}] 升到 ${s.lv} 级！`); if (s.lv >= 100) log(`🔥 ${SKM[id].n} 已达100级，可执行转生！`); }
+}
+function canAfford(mats, gold) { if (S.gold < gold) return false; for (const k in mats) if (bagN(k) < mats[k]) return false; return true; }
+function payCost(mats, gold) { S.gold -= gold; for (const k in mats) take(k, mats[k]); }
+
+/* ============================================================
+   ★ 模块 J：装备系统
+   ============================================================ */
+const RARE_NAMES = ["普通","精良","闪耀","传奇","仙器","神器"];
+const PREFIX = ["","精良的","闪耀的","传奇的","仙器的","神器的"];
+const RARE_MULT = [1,1.5,2.2,3,5,8];
+const RARE_STRIP = /^精良的|^闪耀的|^传奇的|^仙器的|^神器的|^新手/;
+const ENH_MAX = 20;
+const AFFIXES = [
+  {k:"atk",n:"锋利",per:1.2},{k:"hp",n:"活力",per:8},{k:"def",n:"坚韧",per:0.6},{k:"eva",n:"灵巧",per:1.5}
+];
+const QUAL = [
+  {mats:{ore:8,log:5},gold:150,rate:0.85},
+  {mats:{ore:15,cloth:5},gold:300,rate:0.70},
+  {mats:{ingot:10,effTea:1},gold:1000,rate:0.45},
+  {mats:{sage:2,xianGu:5},gold:20000,rate:0.30},
+  {mats:{xianGu:3,soul:2,sage:5},gold:100000,rate:0.20},
+  null
+];
+const ENCH = [
+  null,
+  {mats:{herb:20,ore:10},gold:200,rate:0.80},
+  {mats:{starMilk:10,ingot:5},gold:500,rate:0.65},
+  {mats:{plank:10,cloth:10},gold:1200,rate:0.50},
+  {mats:{sage:1,effTea:3},gold:3000,rate:0.35},
+  {mats:{sage:3,spaceCake:5},gold:8000,rate:0.20}
+];
+const LV_TIERS = [1,15,30,60,85,95,120,140,160,180,200,220,240,249];
+const EQ_MAX_LV = 249;
+const UPGRADE = [
+  {to:15,mats:{ore:20,log:10},gold:500},
+  {to:30,mats:{ingot:15,cloth:10},gold:2000},
+  {to:60,mats:{ingot:30,plank:20,cloth:20},gold:8000},
+  {to:85,mats:{ingot:50,oak:20,starMilk:20},gold:30000},
+  {to:95,mats:{sage:1,ingot:80,spaceCake:3},gold:100000},
+  {to:120,mats:{sage:5,spaceCake:10,oak:40},gold:500000},
+  {to:140,mats:{sage:8,ingot:120,starMilk:40},gold:1200000},
+  {to:160,mats:{sage:12,xianGu:8,starMilk:60},gold:2500000},
+  {to:180,mats:{sage:16,xianGu:15,xianYu:6},gold:5000000},
+  {to:200,mats:{sage:20,xianGu:25,xianYu:12},gold:9000000},
+  {to:220,mats:{sage:25,xianYu:20,soul:8},gold:15000000},
+  {to:240,mats:{sage:30,soul:15,shenShi:6},gold:25000000},
+  {to:249,mats:{sage:40,soul:25,shenShi:10},gold:40000000},
+  null
+];
+const tierIdx = (req) => Math.max(0, LV_TIERS.indexOf(req));
+const tierFactor = (req) => 1+req*0.15;
+const forgeBonus = () => Math.min(0.10, lv("enh")*0.002);
+const forgeCf = () => cfg("forgeCf");   /* ★ 全局锻造系数 */
+
+function rollSpecials(e) {
+  const nSp = Math.min(4, e.rare + 1);
+  const pool = ["crit","critDmg","aspd","ls"].sort(()=>Math.random()-0.5).slice(0, nSp);
+  const t = Math.min(1, 0.15 + e.rare*0.1 + e.reqLv*0.002);
+  for (const k of pool) {
+    if (k === "crit") e.crit = Math.round(cfg("critMin") + (cfg("critMax")-cfg("critMin"))*t*Math.random());
+    if (k === "critDmg") e.critDmg = Math.round(cfg("critDmgMin") + (cfg("critDmgMax")-cfg("critDmgMin"))*t*Math.random());
+    if (k === "aspd") e.aspd = Math.round(cfg("aspdMin") + (cfg("aspdMax")-cfg("aspdMin"))*t*Math.random());
+    if (k === "ls") e.ls = Math.round(cfg("lsMin") + (cfg("lsMax")-cfg("lsMin"))*t*Math.random());
+  }
+}
+function rollEq(fam, reqLv, slotId, rb) {
+  rb = rb || 0;
+  const slot = slotId ? (SLOTS.find((s)=>s.id===slotId)||SLOTS[0]) : SLOTS[Math.random()*6|0];
+  const f = EQFAM[fam];
+  const p3 = rb > 60 ? Math.min(0.08,(rb-60)*0.0004) : 0;
+  const p2 = Math.min(0.45, 0.08+rb*0.0035);
+  const p1 = Math.min(0.65, 0.25+rb*0.003);
+  let rare = 0; const r = Math.random();
+  if (r < p3) rare = 3; else if (r < p3+p2) rare = 2; else if (r < p3+p2+p1) rare = 1;
+  const mult = RARE_MULT[rare];
+  const base = f.base*(1+reqLv*0.15)*mult;
+  const e = { uid:uid++, fam, reqLv, rare, plus:0, ench:0, affix:null, slot:slot.id, n:PREFIX[rare]+f.n+slot.n, dt:f.dt||"thrust" };
+  if (slot.id === "weapon") { e.atk = Math.floor(base*(0.8+Math.random()*0.4)); e.dmgT = f.dt || ["thrust","slash","blunt"][Math.random()*3|0]; }
+  if (slot.id === "helmet") e.hp = Math.floor(base*2.5);
+  if (slot.id === "armor") e.def = Math.floor(base*0.6)+1;
+  if (slot.id === "boots") e.hp = Math.floor(base*1.5);
+  if (slot.id === "gloves") e.aspd = Math.min(cfg("aspdMax"), 25+Math.floor(base*1.2));
+  if (slot.id === "ring") e.eva = Math.floor(base*0.5)+2;
+  rollSpecials(e);
+  return e;
+}
+function affixVal(e) { return Math.floor(e.affix.per*(1+e.reqLv*0.15)*e.ench); }
+function eqVal(e) {
+  const m = (1+e.plus*0.15)*(1+e.ench*0.10);
+  const o = {};
+  ["atk","hp","def","eva"].forEach((k)=>{ if (e[k]) o[k] = Math.floor(e[k]*m); });
+  if (e.crit) o.crit = Math.min(cfg("critMax"), Math.floor(e.crit*m));
+  if (e.critDmg) o.critDmg = Math.min(cfg("critDmgMax"), Math.floor(e.critDmg*m));
+  if (e.aspd) o.aspd = Math.min(cfg("aspdMax"), Math.floor(e.aspd*m));
+  if (e.ls) o.ls = Math.min(cfg("lsMax"), Math.floor(e.ls*m));
+  if (e.ench > 0 && e.affix) o[e.affix.k] = (o[e.affix.k]||0)+affixVal(e);
+  return o;
+}
+const ST_LABEL = {atk:"⚔攻",hp:"❤血",def:"🛡防",eva:"💨闪",crit:"暴击",critDmg:"暴伤",aspd:"攻速",ls:"吸血"};
+function eqValStr(e) {
+  const v = eqVal(e);
+  return Object.entries(v).map(([k,x])=>{
+    if (k==="critDmg") return `${ST_LABEL[k]}${x}%`;
+    if (k==="crit"||k==="aspd"||k==="ls") return `${ST_LABEL[k]}+${x}%`;
+    return `${ST_LABEL[k]}+${x}`;
+  }).join(" ");
+}
+const eqName = (e) => `${e.n} +${e.plus}${e.ench>0?" ◆"+e.ench:""}`;
+function combatLvAvg() { return (lv("acc")+lv("pow")+lv("def")+lv("hp")+lv("rng")+lv("eva")+lv("mag"))/7|0; }
+function canWear(e) { return combatLvAvg() >= Math.min(cfg("skillCap"), e.reqLv); }
+function giveStarterGear() {
+  const mk = (slot,atk,hp,def,eva,dmgT)=>({uid:uid++,fam:"iron",reqLv:1,rare:0,plus:0,ench:0,affix:null,slot,n:"新手"+SLOTS.find((s)=>s.id===slot).n,dmgT:dmgT||"thrust",atk,hp,def,eva});
+  S.eq.weapon = mk("weapon",6,0,0,0,"thrust");
+  S.eq.helmet = mk("helmet",0,20,1,0);
+  S.eq.armor = mk("armor",0,10,3,0);
+  S.eq.boots = mk("boots",0,8,0,0);
+  S.eq.gloves = mk("gloves",0,0,0,0); S.eq.gloves.aspd = 25;
+  S.eq.ring = mk("ring",0,0,0,3);
+  log("🎁 初始赠送：新手六件套（含🥾鞋子、🧤手套），已自动穿上！");
+}
+function migrateEquips() {
+  const fix = (e) => { if (!e) return; if (e.ench == null) e.ench = 0; if (e.affix === undefined) e.affix = null; };
+  bagEquips().forEach(({e})=>fix(e));
+  Object.values(S.eq).forEach(fix);
+}
+const SALVAGE = { iron:"ore", steel:"ingot", bow:"plank", staff:"oak", leather:"cloth", robe:"cloth" };
+function salvageGain(e) {
+  const mat = SALVAGE[e.fam] || "ore";
+  const n = Math.max(3, 3+tierIdx(e.reqLv)*4+e.rare*3+Math.floor(e.plus/2)+e.ench*2);
+  return { mat, n };
+}
+function sellPriceEq(e) {
+  const base = EQFAM[e.fam].base*(1+e.reqLv*0.15)*RARE_MULT[e.rare];
+  return Math.floor(base*(1.5+e.plus*0.3+e.ench*0.5));
+}
+const RARE_UP_MATS = [null,null,null,{sage:2,xianGu:5},{xianGu:3,soul:2,sage:5},{soul:3,shenShi:2}];
+const rebSalvMult = () => 1+(S.reb||0)*0.2;
+function salvageRareMats(e) {
+  const base = RARE_UP_MATS[e.rare];
+  if (!base) return null;
+  const o = {};
+  for (const k in base) o[k] = Math.max(1, Math.round(base[k]/3*rebSalvMult()));
+  return o;
+}
+function extCost(e, gold) {
+  if (e.rare === 4) return { mats:{xianYu:2}, gold:gold*4 };
+  if (e.rare === 5) return { mats:{shenShi:2}, gold:gold*8 };
+  return { mats:{}, gold };
+}
+function enhCost(e) { return Math.floor(80*(1+e.reqLv*0.1)*Math.pow(1.7,e.plus)); }
+function enhFullCost(e) { const c = enhCost(e); const ex = extCost(e,c); return { mats:ex.mats, gold:ex.gold }; }
+function enhRate(e) { return Math.min(0.95, Math.max(0.03,(0.92-e.plus*0.032+forgeBonus()+(S.teaMin>0?0.05:0))*forgeCf())); }
+function doEnh(ref) {
+  const e = getEq(ref); if (!e || e.plus >= ENH_MAX) return;
+  const ef = enhFullCost(e);
+  if (!canAfford(ef.mats, ef.gold)) { log(`材料不足：需要 ${matStr(ef.mats)}＋${ef.gold}💰`); return; }
+  payCost(ef.mats, ef.gold);
+  addXp("enh", 50+e.plus*20);
+  if (Math.random() < enhRate(e)) { e.plus++; log(`✨ ${eqName(e)} 强化成功！`); }
+  else if (e.plus >= 12 && Math.random() < 0.30 && e.plus > 0) { e.plus--; log(`💔 ${e.n} 强化失败并掉级到 +${e.plus}！`); }
+  else { log(`💔 ${e.n} 强化失败，等级保持 +${e.plus}`); }
+}
+function qualRate(r) { return Math.min(0.95,(QUAL[r].rate+forgeBonus())*forgeCf()); }
+function upQuality(ref) {
+  const e = getEq(ref); if (!e) return;
+  if (e.rare >= 5) { log("已达神器品质，无法再升阶"); return; }
+  const c = QUAL[e.rare];
+  if (!canAfford(c.mats, c.gold)) { log(`材料不足：需要 ${matStr(c.mats)} ＋ ${c.gold}💰`); return; }
+  payCost(c.mats, c.gold);
+  addXp("enh", 80+e.rare*60);
+  if (Math.random() < qualRate(e.rare)) {
+    const oldR = e.rare; e.rare++;
+    const ratio = RARE_MULT[e.rare]/RARE_MULT[oldR];
+    ["atk","hp","def","eva"].forEach((k)=>{ if (e[k]) e[k] = Math.floor(e[k]*ratio); });
+    e.n = PREFIX[e.rare]+e.n.replace(RARE_STRIP,"");
+    rollSpecials(e);
+    log(`🏆 ${e.n}→ 升阶为【${RARE_NAMES[e.rare]}】品质！（基础属性×${ratio.toFixed(2)}）`);
+  } else { log(`💔 升阶失败，材料已消耗（装备无损，可再试）`); }
+  renderPanel();
+}
+function enchRate(t) { return Math.min(0.95, Math.max(0.03,(ENCH[t].rate+forgeBonus())*forgeCf())); }
+function enchFullCost(e, t) {
+  const c = ENCH[t];
+  const ex = extCost(e, c.gold);
+  const mats = Object.assign({}, c.mats, ex.mats);
+  return { mats, gold: ex.gold };
+}
+function doEnch(ref) {
+  const e = getEq(ref); if (!e) return;
+  if (e.ench >= 5) { log("附魔已达魔纹Ⅴ（满级）"); return; }
+  const t = e.ench+1;
+  const ef = enchFullCost(e, t);
+  if (!canAfford(ef.mats, ef.gold)) { log(`材料不足：需要 ${matStr(ef.mats)} ＋ ${ef.gold}💰`); return; }
+  payCost(ef.mats, ef.gold);
+  addXp("enh", 60+t*40);
+  if (Math.random() < enchRate(t)) {
+    e.ench = t;
+    if (!e.affix) {
+      e.affix = Object.assign({}, AFFIXES[Math.random()*AFFIXES.length|0]);
+      const affName = {atk:"攻击",hp:"血量",def:"防御",eva:"闪避"}[e.affix.k];
+      log(`🔮 附魔成功 → 魔纹${"ⅠⅡⅢⅣⅤ"[t-1]}！觉醒词缀「${e.affix.n}」（${affName}+${affixVal(e)}）`);
+    } else { log(`🔮 附魔成功 → 魔纹${"ⅠⅡⅢⅣⅤ"[t-1]}！词缀「${e.affix.n}」提升至 +${affixVal(e)}`); }
+  } else { log(`💔 附魔失败，材料已消耗`); }
+  renderPanel();
+}
+function upgCfg(e) { return UPGRADE[tierIdx(e.reqLv)]; }
+function tierRate(e) { return Math.min(0.95, Math.max(0.05, (0.95 - tierIdx(e.reqLv)*0.055 + forgeBonus()) * forgeCf())); }
+function upTier(ref) {
+  const e = getEq(ref); if (!e) return;
+  const c = upgCfg(e);
+  if (!c) { log(`已达最高档次 Lv${EQ_MAX_LV}，无法再升级`); return; }
+  if (!canAfford(c.mats, c.gold)) { log(`升级材料不足：需要 ${matStr(c.mats)} ＋ ${c.gold}💰`); return; }
+  payCost(c.mats, c.gold);
+  addXp("enh", 100+tierIdx(e.reqLv)*80);
+  const r = tierRate(e);
+  if (Math.random() < r) {
+    const ratio = tierFactor(c.to)/tierFactor(e.reqLv);
+    ["atk","hp","def","eva"].forEach((k)=>{ if (e[k]) e[k] = Math.floor(e[k]*ratio); });
+    if (e.aspd) e.aspd = Math.min(cfg("aspdMax"), Math.floor(e.aspd*ratio));
+    if (e.crit) e.crit = Math.min(cfg("critMax"), Math.floor(e.crit*ratio));
+    if (e.critDmg) e.critDmg = Math.min(cfg("critDmgMax"), Math.floor(e.critDmg*ratio));
+    if (e.ls) e.ls = Math.min(cfg("lsMax"), Math.floor(e.ls*ratio));
+    e.reqLv = c.to;
+    log(`⬆️ 装备升级成功！${eqName(e)} 现为 Lv${e.reqLv} 档（基础属性×${ratio.toFixed(2)}）`+(e.ench>0&&e.affix?`｜词缀「${e.affix.n}」提升至 +${affixVal(e)}`:""));
+  } else { log(`💔 装备升级失败，材料已消耗（装备无损｜成功率 ${(r*100).toFixed(0)}%，档位越高越难，受全局锻造系数影响）`); }
+  renderPanel();
+}
+
+/* ============================================================
+   ★ 模块 K：属性与命中
+   ============================================================ */
+function P() {
+  const eq = S.eq;
+  let atkB = 0, defB = 0, hpB = 0, evaB = 0, crit = 0, critDmg = 0, aspd = 0, ls = 0;
+  for (const sl of SLOTS) {
+    const e = eq[sl.id]; if (!e) continue;
+    const v = eqVal(e);
+    atkB += v.atk||0; defB += v.def||0; hpB += v.hp||0; evaB += v.eva||0;
+    crit += v.crit||0; critDmg += v.critDmg||0; aspd += v.aspd||0; ls += v.ls||0;
+  }
+  return { acc:10+lv("acc")*2+atkB, pow:5+lv("pow")*2+atkB, def:5+lv("def")*2+defB,
+    maxHp:50+lv("hp")*10+hpB, rng:10+lv("rng")*2+atkB,
+    eva:(10+defB)*(1+lv("eva")*0.01+evaB*0.005), mag:10+lv("mag")*2+atkB, maxMp:20+lv("mag")*5,
+    crit:Math.min(100, 5+crit),
+    critDmg:150+critDmg,
+    eqCritDmg:critDmg,
+    aspd:aspd,
+    ls:Math.min(100, ls) };
+}
+const hitRate = (a,e) => {
+  const raw = Math.pow(a,1.4)/(Math.pow(a,1.4)+Math.pow(e,1.4));
+  const lo = Math.max(cfg("hitFloor")/100, 1 - cfg("evCapPct")/100);
+  return Math.max(lo, Math.min(1, raw));
+};
+
+/* ============================================================
+   ★ 模块 L：并行动作队列引擎
+   ============================================================ */
+const QMAX = () => 6+S.perks.q;
+let lastWarn = 0;
+function eqInp(a, q) {
+  const inp = a.inp || {};
+  if (!a.outEq || !q || !q.tier) return inp;
+  const m = 1+tierIdx(q.tier)*2;
+  const o = {};
+  for (const k in inp) o[k] = Math.ceil(inp[k]*m);
+  return o;
+}
+function tickQueue(dt) {
+  for (let li = 0; li < LANE_MAX; li++) {
+    const lane = S.lanes[li];
+    if (!lane || !lane.open || !lane.items.length) continue;
+    const q = lane.items[0];
+    if (q.id === "combat") continue;
+    const a = ACT.find((x)=>x.id===q.id);
+    if (!a) { lane.items.shift(); lane.prog = 0; continue; }
+    const over = Math.max(0, lv(a.sk)-a.lv);
+    S.eff = Math.min(0.8, over*0.01+(S.teaMin>0?0.10:0));
+    const inp = eqInp(a, q);
+    let lack = null;
+    if (a.inp) { for (const k in inp) { if (bagN(k) < inp[k]) { lack = k; break; } } }
+    if (lack) {
+      if (Date.now()-lastWarn > 3000) { log(`⚠️ [通道${li+1}] 缺少${IT[lack].n}（需要${inp[lack]}），[${a.n}]暂停等待`); lastWarn = Date.now(); }
+      continue;
+    }
+    lane.prog += dt*globalSpd()*(1+houseBonus(a.sk));
+    const need = a.t;
+    while (lane.prog >= need && lane.items.length && lane.items[0] === q) {
+      lane.prog -= need;
+      doAction(a, q); q.n--;
+      if (a.sk && Math.random() < S.eff) { doAction(a, q); q.n--; }
+      if (q.n <= 0) { lane.items.shift(); lane.prog = 0; }
+    }
+  }
+}
+function doAction(a, q) {
+  const inp = eqInp(a, q);
+  for (const k in inp) take(k, inp[k]);
+  if (a.out) { for (const k in a.out) addIt(k, a.out[k]); }
+  if (a.gold) S.gold += a.gold;
+  if (a.outEq) addEq(rollEq(a.outEq, q&&q.tier?q.tier:a.lv+10, q&&q.slot, 0));
+  addXp(a.sk, a.xp);
+}
+
+/* ============================================================
+   ★ 模块 M：战斗引擎
+   ============================================================ */
+let atkCd = 0, monCd = 0, lastFloorLog = 0;
+function tickPots(dt) {
+  const p = P();
+  for (const slot of S.pots) {
+    if (!slot || !slot.id) continue;
+    const it = IT[slot.id]; if (!it) continue;
+    let ok = false;
+    if (slot.cond === "cd") { slot.t = (slot.t == null ? slot.val : slot.t)-dt; if (slot.t > 0) continue; slot.t = slot.val; ok = true; }
+    else if (slot.cond === "mp") ok = S.mp < p.maxMp*(slot.val||30)/100;
+    else ok = S.hp < p.maxHp*(slot.val||30)/100;
+    if (!ok) continue;
+    if (!bagN(slot.id)) continue;
+    if (!take(slot.id, 1)) continue;
+    let used = false;
+    if (it.heal) { S.hp = Math.min(p.maxHp, S.hp+it.heal); used = true; }
+    if (it.mp) { S.mp = Math.min(p.maxMp, S.mp+it.mp); used = true; }
+    if (XPIT[slot.id]) { S.xpMult = XPIT[slot.id].m; S.xpMin = XPIT[slot.id].mm; used = true; }
+    if (POTBUFF[slot.id]) {
+      const b = POTBUFF[slot.id];
+      if (b.k === "hit") { S.buffHit = b.v; S.buffHitMin = b.mm; }
+      else { S.buffCd = b.v; S.buffCdMin = b.mm; }
+      used = true;
+    }
+    if (used) log(`🧪 消耗品格子自动使用 ${it.n}`);
+  }
+}
+function tickCombat(dt) {
+  const cl = combatLane(); if (!cl) return;
+  const q = cl.items[0];
+  const m = curMon();
+  const p = P();
+  S.hp = Math.min(S.hp, p.maxHp); S.mp = Math.min(S.mp, p.maxMp);
+  tickPots(dt);
+  if (S.deadUntil > 0) { if (isDead()) return; reviveNow(); log(`✨ 复活完成！血量法力已回满，继续战斗。`); }
+  if (S.hp < p.maxHp*S.autoHp/100 && bagN("bread")) { take("bread",1); S.hp = Math.min(p.maxHp,S.hp+IT.bread.heal); return; }
+  if (S.hp < p.maxHp*S.autoHp/100 && bagN("cake")) { take("cake",1); S.hp = Math.min(p.maxHp,S.hp+IT.cake.heal); return; }
+  if (S.mp < p.maxMp*S.autoMp/100 && bagN("coffee")) { take("coffee",1); S.mp = Math.min(p.maxMp,S.mp+IT.coffee.mp); return; }
+  else if (S.mp < p.maxMp*S.autoMp/100 && bagN("tea")) { take("tea",1); S.mp = Math.min(p.maxMp,S.mp+IT.tea.mp); return; }
+  if (S.hp <= 0) {
+    S.deadUntil = Date.now()+RESPAWN_TIME*1000; S.hp = 0; S.mp = 0;
+    if (S.endless) {
+      const old = S.floor; S.floor = Math.max(1, S.floor-5);
+      S.floorStart = Date.now();
+      log(`💀 你在无尽模式被 ${m.n} 击倒！${RESPAWN_TIME}秒后复活，层数 ${old}→${S.floor}（-5）`);
+    } else { log(`💀 你被 ${m.n} 击倒了！${RESPAWN_TIME}秒后复活（真实时间，不受加速影响）…`); }
+    S.monHp = curMon().hp; return;
+  }
+  if (S.endless) {
+    if (!S.floorStart) S.floorStart = Date.now();
+    if (Date.now() - S.floorStart > FLOOR_LIMIT*1000) {
+      const old = S.floor;
+      S.floor = Math.max(1, S.floor-5);
+      S.floorStart = Date.now();
+      S.monHp = endlessMon(S.floor).hp;
+      atkCd = 0; monCd = 1.0;
+      log(`⏰ 限时失败！${FLOOR_LIMIT/60}分钟内未能击败第 ${old} 层，自动降至第 ${S.floor} 层`);
+      return;
+    }
+  }
+  atkCd -= dt; monCd -= dt;
+  const atkInt = Math.max(0.1, 1.5/(1+p.aspd/100));
+  const cdm = p.critDmg + (S.buffCdMin > 0 ? S.buffCd : 0);
+  let guard = 0;
+  while (atkCd <= 0 && S.monHp > 0 && guard++ < 40) {
+    atkCd += atkInt;
+    const st = S.style;
+    if (st === "magic" && S.mp < 2) continue;
+    if (st === "magic") S.mp -= 2;
+    const myAcc = st==="melee"?p.acc:st==="ranged"?p.rng:p.mag;
+    const mEv = st==="melee"?(S.eq.weapon&&S.eq.weapon.dmgT==="slash"?m.evS:S.eq.weapon&&S.eq.weapon.dmgT==="blunt"?m.evB:m.evT):st==="ranged"?m.evR:m.evM;
+    const hitOk = (S.buffHitMin > 0) || (Math.random() < hitRate(myAcc, mEv));
+    if (hitOk) {
+      let dmg = Math.max(1, Math.floor(p.pow*(0.8+Math.random()*0.4)));
+      if (Math.random()*100 < p.crit) {
+        dmg = Math.max(1, Math.floor(dmg*cdm/100));
+        if (dmg > m.hp*0.5) log(`💥 暴击！造成 ${dmg} 伤害（暴伤 ${cdm}%${S.buffCdMin>0?"（神水加成中）":""}）`);
+      }
+      S.monHp -= dmg;
+      if (p.ls > 0) S.hp = Math.min(p.maxHp, S.hp + Math.max(1, Math.floor(p.maxHp*p.ls/100)));
+      if (S.monHp <= 0) { killMon(m, q, cl); break; }
+    }
+  }
+  if (monCd <= 0 && S.monHp > 0 && !isDead()) {
+    monCd = 1.8;
+    if (Math.random() < hitRate(m.atk, p.eva)) {
+      S.hp -= Math.max(1, Math.floor(m.atk*(1-Math.min(0.6,p.def*0.02))*(0.8+Math.random()*0.4)));
+      if (S.hp <= 0) S.hp = 0;
+    }
+  }
+}
+function dropRareMat(f) {
+  const drops = [[60,"xianGu",0.08],[100,"xianYu",0.05],[200,"soul",0.03],[300,"shenShi",0.02]];
+  for (const [min,id,ch] of drops) {
+    if (f >= min && Math.random() < ch) { if (addIt(id,1)) log(`✨ 无尽第${f}层掉落稀有材料 ${IT[id].ic}${IT[id].n}×1！`); }
+  }
+}
+function rollHighRare(i) {
+  const r = Math.random();
+  const p5 = i >= 88 ? (i-88)*0.0012 : 0;
+  const p4 = i >= 68 ? (i-68)*0.0015 : 0;
+  const p3 = i >= 50 ? Math.min(0.25,(i-50)*0.005) : 0;
+  if (r < p5) return 5;
+  if (r < p5+p4) return 4;
+  if (r < p5+p4+p3) return 3;
+  return 0;
+}
+function dropEq(m) {
+  const fam = ["iron","steel","bow","staff","leather","robe"][Math.random()*6|0];
+  let e;
+  if (!S.endless && m.i >= 50) {
+    e = rollEq(fam, EQ_MAX_LV, null, 0);
+    const rr = rollHighRare(m.i);
+    if (rr > e.rare) { e.rare = rr; e.n = PREFIX[rr]+e.n.replace(RARE_STRIP,""); rollSpecials(e); }
+  } else { e = rollEq(fam, m.eqLv, null, m.rb); }
+  const hp = m.hp;
+  if (S.endless) { e.plus = Math.min(ENH_MAX, Math.floor(hp/8000*Math.random())); e.ench = Math.min(5, Math.floor(hp/150000*Math.random())); }
+  else if (m.i >= 50) { e.plus = Math.min(ENH_MAX, Math.floor(hp/2500*Math.random())); e.ench = Math.min(5, Math.floor(hp/60000*Math.random())); }
+  else { e.plus = Math.min(10, Math.floor(hp/2500*Math.random())); e.ench = hp > 30000 ? Math.min(2, Math.floor(Math.random()*2)) : 0; }
+  if (e.ench > 0) e.affix = Object.assign({}, AFFIXES[Math.random()*AFFIXES.length|0]);
+  addEq(e);
+  if (e.rare >= 3) log(`🌟 掉落 ${RARE_NAMES[e.rare]}品质 ${eqName(e)}（+${e.plus} ◆${e.ench}）！`);
+}
+function killMon(m, q, lane) {
+  S.gold += m.gold; q.n--;
+  const st = S.style;
+  if (st === "melee") { addXp("acc", m.xp*0.5); addXp("pow", m.xp*0.5); }
+  if (st === "ranged") { addXp("rng", m.xp); addXp("acc", m.xp*0.15); }
+  if (st === "magic") { addXp("mag", m.xp); addXp("acc", m.xp*0.12); }
+  ["def","hp","eva"].forEach((k)=>addXp(k, m.xp*0.25));
+  if (Math.random() < m.drop) dropEq(m);
+  if (S.endless) {
+    dropRareMat(S.floor);
+    S.floorKills[S.floor] = (S.floorKills[S.floor]||0)+1;
+    S.floorStart = Date.now();
+    if (S.autoNext !== false) {
+      S.floor++;
+      if (S.floor > S.bestFloor) { S.bestFloor = S.floor; if (S.bestFloor%100 === 0) log(`🌌 无尽模式：突破第 ${S.bestFloor} 层大关！`); }
+      else if (S.bestFloor%10 === 0 && S.floor === S.bestFloor) log(`🌌 无尽模式：突破个人纪录第 ${S.bestFloor} 层！`);
+    } else {
+      if (Date.now()-lastFloorLog > 3000) { log(`🌌 第 ${S.floor} 层通关（本层累计 ${S.floorKills[S.floor]} 次），停留在本层`); lastFloorLog = Date.now(); }
+    }
+    S.monHp = endlessMon(S.floor).hp;
+    if (q.n <= 0) lane.items.shift();
+    return;
+  }
+  S.kills[m.i+"-"+m.lv] = (S.kills[m.i+"-"+m.lv]||0)+1;
+  S.monHp = mon(S.monI, S.monLv).hp;
+  if (q.n <= 0) lane.items.shift();
+}
+
+/* ============================================================
+   ★ 模块 N：市场
+   ============================================================ */
+const MK = {};
+const MK_SPREAD = 0.8;
+const POT_PRICE = 1000000;
+function mkSeed() {
+  for (const id in IT) {
+    if (id === "token") continue;
+    MK[id] = { mid:IT[id].val*(0.95+Math.random()*0.1), p0:IT[id].val };
+    mkRefresh(id);
+  }
+}
+function mkRefresh(id) {
+  const m = MK[id];
+  m.sell = []; m.buy = [];
+  if (id === "hitPot" || id === "critPot") {
+    if (Math.random() < 0.3) m.sell.push({ p:POT_PRICE, q:1 });
+    m.buy.push({ p:Math.floor(POT_PRICE*MK_SPREAD), q:1+(Math.random()*2|0) });
+    return;
+  }
+  if (RARE_MATS[id]) {
+    const bp = Math.max(2, Math.floor(m.mid*(4+Math.random()*2)));
+    m.sell.push({ p:bp, q:1+Math.random()*2|0 });
+    m.buy.push({ p:Math.max(1, Math.floor(bp*MK_SPREAD)), q:1+Math.random()*2|0 });
+    return;
+  }
+  const bp = Math.max(1, Math.floor(m.mid));
+  for (let i = 0; i < 5; i++) {
+    const sp = Math.max(1, Math.floor(bp*(1+i*0.05)));
+    m.sell.push({ p:sp, q:3+Math.random()*15|0 });
+    m.buy.push({ p:Math.max(1, Math.floor(sp*MK_SPREAD)), q:3+Math.random()*15|0 });
+  }
+}
+function mkDrift() {
+  for (const id in MK) {
+    const m = MK[id];
+    if (id === "hitPot" || id === "critPot") { mkRefresh(id); continue; }
+    m.mid = Math.max(m.p0*0.6, Math.min(m.p0*1.8, m.mid*(1+(Math.random()-0.5)*0.06)));
+    mkRefresh(id);
+  }
+}
+function mkBuy(id, n) {
+  const m = MK[id]; let got = 0, cost = 0;
+  while (n > 0 && m.sell.length) { const o = m.sell[0]; const t = Math.min(n,o.q); cost += o.p*t; got += t; o.q -= t; n -= t; if (!o.q) m.sell.shift(); }
+  if (!got) { log("市场暂无卖单"); return; }
+  if (S.gold < cost) { log("金币不足"); return; }
+  S.gold -= cost;
+  for (let i = 0; i < got; i++) { if (!addIt(id,1)) { got = i; break; } }
+  log(`🛒 买入 ${IT[id].n}×${got}，花 ${cost}💰`);
+}
+function mkSell(id, n) {
+  const m = MK[id];
+  if (bagN(id) < n) { log("库存不足"); return; }
+  let rev = 0, got = 0;
+  while (n > 0 && m.buy.length) {
+    const o = m.buy[0]; const t = Math.min(n,o.q);
+    const gross = o.p*t; const tax = o.p > 49 ? Math.floor(gross*0.02) : 0;
+    rev += gross-tax; got += t; o.q -= t; n -= t;
+    if (!o.q) m.buy.shift();
+  }
+  if (!got) { log("市场暂无买单"); return; }
+  take(id, got); S.gold += rev;
+  log(`💰 卖出 ${IT[id].n}×${got}，得 ${rev}💰（已扣税）`);
+}
+
+/* ============================================================
+   ★ 模块 O：房屋 & 任务 & 转生
+   ============================================================ */
+function houseCost(sk) { return Math.floor(500*Math.pow(1.6, S.houses[sk]||0)); }
+function upHouse(sk) {
+  const c = houseCost(sk);
+  if (S.gold < c) return;
+  S.gold -= c; S.houses[sk] = (S.houses[sk]||0)+1;
+  log(`🏠 ${SKM[sk].n}房屋升到 ${S.houses[sk]} 级`);
+}
+const TASKPOOL = ["milk","herb","flax","ore","log","bread","tea","cake","ingot","plank","cloth"];
+function genTask() {
+  const id = TASKPOOL[Math.random()*TASKPOOL.length|0];
+  const qty = 20+Math.random()*40|0;
+  return { id, qty, gold:Math.floor(IT[id].val*qty*1.6*(1+S.badge*0.15)), token:1+Math.random()*3|0, box:Math.random() < 0.25 };
+}
+function refreshTasks(free) {
+  if (!free) { if (S.gold < 100) return; S.gold -= 100; }
+  S.tasks = [genTask(), genTask(), genTask()];
+  log("📋 任务板已刷新");
+}
+function doTask(i) {
+  const t = S.tasks[i]; if (!t) return;
+  if (!take(t.id, t.qty)) { log("材料不足"); return; }
+  S.gold += t.gold; S.token += t.token;
+  if (t.box) addIt("box", 1);
+  log(`📋 任务完成 +${t.gold}💰`);
+  S.tasks[i] = genTask();
+}
+function upBadge() {
+  const c = Math.floor(200*Math.pow(1.6, S.badge));
+  if (S.badge >= 9 || S.gold < c) return;
+  S.gold -= c; S.badge++;
+  log(`🎖️ 任务徽章 +${S.badge}`);
+}
+function canRebirth() { return SK.some((s)=>lv(s.id) >= 100); }
+function rebirth() {
+  if (!canRebirth() || S.reb >= 7) return;
+  const keepOpen = S.lanes.map((l)=>l.open);
+  const keepTrash = Object.assign({}, S.autoTrash);
+  const keepAutoNext = S.autoNext;
+  const keepPots = JSON.parse(JSON.stringify(S.pots));
+  S.sp = 20+S.reb*20; S.reb++;
+  S.skills = defSkills();
+  for (const k in S.slotMap) { if (typeof S.slotMap[k] === "object") delete S.slotMap[k]; }
+  S.eq = {weapon:null,helmet:null,armor:null,boots:null,gloves:null,ring:null};
+  S.lanes = defLanes();
+  S.lanes.forEach((l,i)=>{ l.open = keepOpen[i]||0; });
+  S.autoTrash = keepTrash; S.autoNext = keepAutoNext; S.pots = keepPots;
+  S.houses = {}; S.hp = 60; S.deadUntil = 0; S.endless = false; S.floor = 1; S.floorKills = {};
+  S.monI = 0; S.monLv = 1;
+  S.kills = {};
+  S.monHp = mon(0,1).hp;
+  giveStarterGear();
+  log(`🌀 第 ${S.reb} 次转生完成！保留 ${S.sp} 技能点，并行通道解锁保留 ${laneCount()} 条｜怪物解锁已重置｜高品分解加成升至 ×${rebSalvMult().toFixed(1)}`);
+}
+
+/* ============================================================
+   ★ 模块 P：存档 / 离线 / 导出导入
+   ============================================================ */
+function saveGame() {
+  if (!LOGGED_IN || !S) return;
+  S.lastTick = Date.now();
+  localStorage.setItem(saveKeyOf(CUR), JSON.stringify({S, uid}));
+  if (CUR !== "guest" && CLOUD_ON()) {
+    if (!saveGame._t) saveGame._t = 0;
+    const now = Date.now();
+    if (now-saveGame._t > 60000) { saveGame._t = now; cloudSave(); }
+  }
+}
+function loadGame() {
+  const r = localStorage.getItem(saveKeyOf(CUR));
+  if (!r) return false;
+  try {
+    const d = JSON.parse(r);
+    S = d.S; uid = d.uid || 1;
+    if (!S.kills) S.kills = {};
+    if (!S.perks) S.perks = {q:0,off:0,mk:0};
+    if (!S.speed) S.speed = 1;
+    if (S.autoTrash == null) S.autoTrash = {mode:0,rare:1};
+    if (S.autoNext == null) S.autoNext = true;
+    if (!S.floorKills) S.floorKills = {};
+    if (S.xpMin == null) S.xpMin = 0;
+    if (S.xpMult == null) S.xpMult = 0;
+    if (S.buffHit == null) S.buffHit = 0;
+    if (S.buffHitMin == null) S.buffHitMin = 0;
+    if (S.buffCd == null) S.buffCd = 0;
+    if (S.buffCdMin == null) S.buffCdMin = 0;
+    if (!Array.isArray(S.pots)) S.pots = [null,null,null,null,null];
+    while (S.pots.length < 5) S.pots.push(null);
+    if (S.deadUntil == null || isNaN(S.deadUntil)) S.deadUntil = 0;
+    if (S.dead) { S.deadUntil = Date.now()+S.dead*1000; delete S.dead; }
+    if (S.endless == null) S.endless = false;
+    if (!S.floor) S.floor = 1;
+    if (!S.bestFloor) S.bestFloor = 0;
+    if (!S.floorStart || isNaN(S.floorStart)) S.floorStart = Date.now();
+    if (!S.lanes) { S.lanes = defLanes(); S.lanes[0].items = Array.isArray(S.queue)?S.queue:[]; }
+    delete S.queue;
+    if (!S.eq) S.eq = {};
+    if (!("boots" in S.eq)) S.eq.boots = null;
+    if (!("gloves" in S.eq)) S.eq.gloves = null;
+    migrateBag();
+    if (Array.isArray(S.equips)) { S.equips.forEach((e)=>{ if (e && typeof e === "object") addEq(e, true); }); delete S.equips; }
+    /* 旧档的 diff/monAtkCf/forgeCf/cfg 已迁移为全局配置，忽略档内值 */
+    delete S.diff; delete S.monAtkCf; delete S.forgeCf; delete S.cfg;
+    migrateEquips(); checkLanes();
+    return true;
+  } catch (e) { return false; }
+}
+function exportSave() {
+  if (!LOGGED_IN || !S) { alert("请先进入游戏再导出存档"); return; }
+  saveGame();
+  const payload = { app:"galaxy-ranch-save", v:1, time:new Date().toISOString(),
+    user:(CUR==="guest"?null:CUR), save:localStorage.getItem(saveKeyOf(CUR)),
+    accounts:localStorage.getItem(ACC_KEY)||"{}" };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "银河牧场存档_"+(CUR==="guest"?"游客":CUR)+"_"+new Date().toISOString().slice(0,10)+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+  log("💾 存档已导出为 json 文件");
+}
+(function bindSaveImport() {
+  const fi = document.getElementById("saveFile");
+  if (!fi) return;
+  fi.addEventListener("change", (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const d = JSON.parse(r.result);
+        if (d.app !== "galaxy-ranch-save" || typeof d.save !== "string") throw new Error("bad");
+        if (!confirm("导入会覆盖当前浏览器里的对应进度，确定继续吗？")) return;
+        if (d.accounts) {
+          try {
+            const cur = JSON.parse(localStorage.getItem(ACC_KEY)||"{}");
+            const inc = JSON.parse(d.accounts);
+            Object.assign(cur, inc);
+            localStorage.setItem(ACC_KEY, JSON.stringify(cur));
+          } catch (_) {}
+        }
+        const target = d.user || "guest";
+        localStorage.setItem(saveKeyOf(target), d.save);
+        localStorage.setItem(SES_KEY, target);
+        alert("✅ 存档导入成功！页面即将刷新…");
+        location.reload();
+      } catch (err) { alert("❌ 导入失败：请选择本游戏导出的存档文件"); }
+    };
+    r.readAsText(f); fi.value = "";
+  });
+})();
+function offCap() { return (10+S.perks.off)*3600; }
+
+function fmtDur(sec) {
+  sec = Math.floor(sec);
+  const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+  return (h ? h+"h " : "") + ((h||m) ? m+"m " : "") + s + "s";
+}
+function fmtNum(n) {
+  n = Math.floor(n);
+  if (n >= 100000) return (n/1000).toFixed(0)+"K";
+  if (n >= 10000) return (n/1000).toFixed(1).replace(/\.0$/,"")+"K";
+  return n.toLocaleString();
+}
+function offline() {
+  if (!S) return;
+  const realEl = Math.max(0, (Date.now()-S.lastTick)/1000);
+  const el = Math.min(realEl, offCap());
+  if (el < 60) return;
+  const goldBefore = S.gold;
+  const bagBefore = Object.assign({}, S.bag);
+  const eqBefore = bagEquips().length;
+  const lvBefore = {}; SK.forEach((s)=>{ lvBefore[s.id] = S.skills[s.id].lv; });
+  XP_GAIN = {};
+  let left = el, it = 0;
+  while (left > 0 && it < 30000) { const dt = Math.min(2,left); simCore(dt); left -= dt; it++; }
+  XP_GAIN = null;
+  const gain = {}, used = {};
+  for (const k in S.bag) { const d = S.bag[k]-(bagBefore[k]||0); if (d > 0) gain[k] = d; }
+  for (const k in bagBefore) { const d = (S.bag[k]||0)-bagBefore[k]; if (d < 0) used[k] = -d; }
+  const rep = {
+    gold: S.gold-goldBefore,
+    equips: Math.max(0, bagEquips().length-eqBefore),
+    gain, used,
+    xp: Object.assign({}, XP_GAIN),
+    lvUps: []
+  };
+  SK.forEach((s)=>{ if (S.skills[s.id].lv > lvBefore[s.id]) rep.lvUps.push({ic:SKM[s.id].ic, n:SKM[s.id].n, lv:S.skills[s.id].lv}); });
+  showOfflineModal(realEl, el, rep);
+  log(`🌙 离线 ${fmtDur(realEl)}，结算 ${fmtDur(el)}（收益见弹窗）`);
+}
+function showOfflineModal(realEl, simEl, rep) {
+  const card = (ic, txt) => `<div class="offIt"><span class="ic">${ic}</span><span class="ct">${txt}</span></div>`;
+  let g = "";
+  if (rep.gold > 0) g += card("💰", "+"+fmtNum(rep.gold));
+  for (const k in rep.gain) g += card(IT[k]?IT[k].ic:"❓", fmtNum(rep.gain[k]));
+  if (rep.equips > 0) g += card("🗡️", "装备×"+rep.equips);
+  const x = Object.entries(rep.xp).sort((a,b)=>b[1]-a[1])
+    .map(([k,v]) => card(SKM[k].ic, fmtNum(v))).join("");
+  let u = "";
+  for (const k in rep.used) u += card(IT[k]?IT[k].ic:"❓", fmtNum(rep.used[k]));
+  $("offBody").innerHTML =
+    `<div class="offLine">离线时间 <b>${fmtDur(realEl)}</b></div>` +
+    `<div class="offLine">进展时间 <b>${fmtDur(simEl)}</b>${rep.lvUps.length ? '<span class="lvTag">升级</span>' : ""}</div>` +
+    (g ? `<div class="offSec">获得物品</div><div class="offGrid">${g}</div>` : "") +
+    (x ? `<div class="offSec">获得经验</div><div class="offGrid">${x}</div>` : "") +
+    (u ? `<div class="offSec">消耗物品</div><div class="offGrid">${u}</div>` : "") +
+    (rep.lvUps.length ? `<div class="offSec">技能升级</div><div class="offLine" style="color:#6f6">${rep.lvUps.map((l)=>`${l.ic}${l.n}→Lv${l.lv}`).join("　")}</div>` : "");
+  $("offModal").style.display = "flex";
+}
+function closeOff() { $("offModal").style.display = "none"; }
+
+/* ============================================================
+   ★ 模块 Q：主循环（含全局配置60秒轮询）
+   ============================================================ */
+let mkTimer = 0, saveT = 0, simAcc = 0, uiT = 0;
+function simCore(sec) {
+  if (S.teaMin > 0) S.teaMin = Math.max(0, S.teaMin-sec/60);
+  if (S.xpMin > 0) S.xpMin = Math.max(0, S.xpMin-sec/60);
+  if (S.buffHitMin > 0) S.buffHitMin = Math.max(0, S.buffHitMin-sec/60);
+  if (S.buffCdMin > 0) S.buffCdMin = Math.max(0, S.buffCdMin-sec/60);
+  tickQueue(sec); tickCombat(sec);
+  mkTimer += sec;
+  if (mkTimer > 60) { mkTimer = 0; mkDrift(); }
+}
+function loop() {
+  if (!LOGGED_IN) return;
+  const now = Date.now();
+  const real = Math.min((now-S.lastTick)/1000, 5);
+  S.lastTick = now;
+  saveT += real;
+  if (saveT > 5) { saveT = 0; saveGame(); }
+  simAcc += real*(S.speed||1);
+  let iter = 0;
+  while (simAcc >= 1 && iter < 120) { simCore(1); simAcc -= 1; iter++; }
+  if (iter >= 120) simAcc = 0;
+  uiT++;
+  if (!IS_MOBILE || uiT >= 3) {
+    uiT = 0;
+    const ae = document.activeElement;
+    const busy = ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA");
+    renderTop();
+    if (!busy) renderPanel();
+  }
+}
+setInterval(loop, 1000);
+/* ★ 全局配置轮询：所有云端玩家每60秒拉一次 */
+setInterval(() => { if (LOGGED_IN && CUR !== "guest") fetchGlobalCfg(); }, 60000);
+window.addEventListener("beforeunload", () => {
+  if (LOGGED_IN && CUR !== "guest" && CLOUD_ON()) { try { cloudSave(); } catch (e) {} }
+});
+
+/* ============================================================
+   ★ 模块 R：UI 渲染
+   ============================================================ */
+/* ★ 标签页：管理员独有「管理员」「数值配置」 */
+let TABS = [];
+function buildTabs() {
+  TABS = ["队列","角色","背包","战斗","市场","锻造","房屋","任务","转生","牛铃商店","账号"];
+  if (isAdmin()) TABS.push("管理员","数值配置");
+  TABS.push("帮助");
+}
+let tab = 0, zone = 0, qSel = "milk1", qNum = 10;
+const RARE_COLOR = ["#888","#6f6","#5af","#c5f","#fa0","#f44"];
+const POT_ITEMS = Object.keys(IT).filter((id)=>IT[id].heal||IT[id].mp||XPIT[id]||POTBUFF[id]);
+const BATCH_TIERS = [15,30,60,85,95,120,160,200,249];
+function renderSpd() {
+  $("spdwrap").innerHTML = `<span class="lb">⏩ ${IS_MOBILE?"加速":"游戏加速"}</span>`
+    +SPEEDS.map((v)=>`<button class="spd ${S.speed===v?"on":""}" onclick="setSpd(${v})">${v}×</button>`).join("")
+    +`<span class="info" style="margin-left:8px">当前 <b style="color:#ffd479">${S.speed}×</b>｜难度 <b style="color:#f80">${diff().toFixed(1)}×</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':''}｜`
+    +(CLOUD_ON()&&CUR!=="guest"?'<span class="cloudOk">☁️ 云同步中</span>':'<span style="color:#889">☁️ 本地模式</span>')
+    +`</span><span style="flex:1"></span>`
+    +`<button class="spd" onclick="exportSave()">💾 导出</button>`
+    +`<button class="spd" onclick="document.getElementById('saveFile').click()">📂 导入</button>`;
+}
+function renderTop() {
+  const p = P();
+  const left = isDead() ? Math.ceil(deadLeftMs()/1000) : 0;
+  const deadTag = left > 0 ? `<span class="deadtag">💀 复活中 ${left}s</span>` : "";
+  const endTag = S.endless ? `<span style="color:#c5f">🌌 无尽 <b>${S.floor}</b>层${S.autoNext===false?"⏸":""}</span><span class="timerTxt">⏱ ${Math.max(0,Math.ceil(floorLeftMs()/1000))}s</span>` : "";
+  const atTag = S.autoTrash.mode ? `<span style="color:#8af">⚡ 自动${S.autoTrash.mode===1?"出售":"分解"}≤${RARE_NAMES[S.autoTrash.rare]}</span>` : "";
+  const xpTag = S.xpMin > 0 ? `<span style="color:#6f6">📖 经验+${((S.xpMult||0)*100)|0}%（${Math.ceil(S.xpMin)}分）</span>` : "";
+  const hitTag = S.buffHitMin > 0 ? `<span class="buffTxt">🧪 命中100%（${Math.ceil(S.buffHitMin)}分）</span>` : "";
+  const cdTag = S.buffCdMin > 0 ? `<span class="buffTxt">💣 暴伤+10万%（${Math.ceil(S.buffCdMin)}分）</span>` : "";
+  $("top").innerHTML = `<div>👤 <b>${CUR==="guest"?"游客·"+S.name:CUR}</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}</div>`
+    +`<button class="act sm" style="background:#3a4166" onclick="logout()">退出</button>`
+    +`<div>💰 <b>${Math.floor(S.gold)}</b></div><div>🔔 <b>${S.bell}</b></div><div>🪙 <b>${S.token}</b></div>`
+    +`<div>总等级 <b>${totalLv()}</b></div><div>❤️ <b>${Math.max(0,S.hp|0)}/${p.maxHp}</b></div><div>💧 <b>${S.mp|0}/${p.maxMp}</b></div>`
+    +deadTag+endTag+atTag+xpTag+hitTag+cdTag
+    +`<div>🎒 <b>${usedSlots()}</b>格</div><div>✨ <b>Lv${lv("enh")}</b></div><div>🌀 <b>${S.reb}</b>/7</div>`
+    +`<div>🗺️ <b>${Object.keys(S.kills).length}/500</b></div><div style="color:#f80">👹 <b>${diff().toFixed(1)}×</b></div>`;
+}
+function forgeRow(e, ref) {
+  const ef = enhFullCost(e); const r = enhRate(e); const maxed = e.plus >= ENH_MAX;
+  const qc = e.rare >= 5 ? null : QUAL[e.rare];
+  const ec = e.ench >= 5 ? null : enchFullCost(e, e.ench+1);
+  const uc = upgCfg(e);
+  const ur = tierRate(e);
+  const ra = refAttr(ref);
+  const ic = EQIC[e.slot] || "⚔️";
+  let h = `<div class="row"><span class="name r${e.rare}">${ic} ${eqName(e)}</span>`
+    +`<span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}档】${eqValStr(e)}`+(e.ench>0&&e.affix?`｜词缀「${e.affix.n}」+${affixVal(e)}`:"")+`</span></div>`;
+  h += `<div class="row" style="background:#1c2036;margin-left:14px">`
+    +`<span class="info">🔨 强化 ${e.plus}/${ENH_MAX}：${maxed?"已满":`${matStr(ef.mats)}＋${ef.gold}💰｜${(r*100).toFixed(0)}%`}</span>`
+    +`<button class="act sm" ${maxed||!canAfford(ef.mats,ef.gold)?"disabled":""} onclick="doEnh(${ra});renderPanel()">强化</button>`
+    +`<span class="info">🏆 升阶：${e.rare>=5?"已达神器（满阶）":`${matStr(qc.mats)}＋${qc.gold}💰｜${(qualRate(e.rare)*100).toFixed(0)}%｜成功后属性×${(RARE_MULT[e.rare+1]/RARE_MULT[e.rare]).toFixed(2)}`}</span>`
+    +`<button class="act sm" style="background:#a6f" ${e.rare>=5||!canAfford(qc.mats,qc.gold)?"disabled":""} onclick="upQuality(${ra})">升阶</button>`
+    +`<span class="info">🔮 附魔：${e.ench>=5?"满":`${matStr(ec.mats)}＋${ec.gold}💰｜${(enchRate(e.ench+1)*100).toFixed(0)}%`}</span>`
+    +`<button class="act sm" style="background:#c62" ${e.ench>=5||!canAfford(ec.mats,ec.gold)?"disabled":""} onclick="doEnch(${ra})">附魔</button>`
+    +`</div>`;
+  h += `<div class="row" style="background:#1c2036;margin-left:14px">`
+    +`<span class="info">⬆️ 装备升级：${uc?`Lv${e.reqLv}→Lv${uc.to}档（基础属性×${(tierFactor(uc.to)/tierFactor(e.reqLv)).toFixed(2)}）｜<b style="color:#f80">${(ur*100).toFixed(0)}%</b>（档位越高越难）｜${matStr(uc.mats)}＋${uc.gold}💰`:`已达 Lv${EQ_MAX_LV} 满档`}</span>`
+    +`<button class="act sm" style="background:#2a5" ${!uc||!canAfford(uc.mats,uc.gold)?"disabled":""} onclick="upTier(${ra})">升级</button>`
+    +`</div>`;
+  return h;
+}
+function batchPreview(pred) {
+  let cnt = 0, gold = 0, maxTier = 0, legend = 0;
+  const mats = {};
+  bagEquips().forEach(({e})=>{
+    if (e.rare >= 3) { legend++; return; }
+    if (pred(e)) { cnt++; gold += sellPriceEq(e); if (e.reqLv > maxTier) maxTier = e.reqLv; const {mat,n} = salvageGain(e); mats[mat] = (mats[mat]||0)+n; }
+  });
+  return { cnt, gold, maxTier, legend, mats };
+}
+function matsSummary(mats) { return Object.entries(mats).map(([k,v])=>`${IT[k].ic}${IT[k].n}×${v}`).join("＋") || "无"; }
+function eqCraftUI() {
+  const a = ACT.find((x)=>x.id===qSel);
+  if (!a || !a.outEq) return "";
+  const skillLv = lv(a.sk);
+  const avail = LV_TIERS.filter((t)=>t <= skillLv);
+  if (!avail.length) return `<span class="info" style="color:#f66">${SKM[a.sk].n} Lv${skillLv} 不足以制造装备</span>`;
+  const defTier = avail.includes(a.lv) ? a.lv : avail[avail.length-1];
+  const slots = a.slots || SLOTS.map((s)=>s.id);
+  return `<span class="info">档位</span> `
+    +`<select id="eqTier">`+LV_TIERS.map((t)=>{
+        const lock = t > skillLv;
+        return `<option value="${t}" ${t===defTier?"selected":""} ${lock?"disabled":""}>Lv${t}${lock?`（需${SKM[a.sk].n}Lv${t}🔒）`:(tierIdx(t)>0?`（材料×${1+tierIdx(t)*2}）`:"")}</option>`;
+      }).join("")+`</select> `
+    +`<span class="info">槽位</span> `
+    +`<select id="eqSlot">${slots.map((s)=>`<option value="${s}">${EQIC[s]} ${SLOTS.find((x)=>x.id===s).n}</option>`).join("")}</select>`;
+}
+function cfgRow(label, key, lo, hi) {
+  return `<div class="cfgRow"><span class="cName">${label}</span>`
+    +`<input class="cIn" type="number" value="${cfg(key)}" min="${lo}" max="${hi}" onchange="setCfgNum('${key}', this.value, ${lo}, ${hi});">`
+    +`<span class="cDesc">当前 ${cfg(key)}｜允许 ${lo}~${hi}</span></div>`;
+}
+
+/* ============================================================
+   ★ 帮助页内容（含版本更新记录）
+   ============================================================ */
+function helpHTML() {
+  return `
+<div class="hint">📖 欢迎来到银河牧场！这是一份完整的新手上手指南，从零基础到无尽高层全覆盖。遇到问题随时回到这里查阅。</div>
+
+<div class="helpSec"><h4>🚀 一、快速上手（前10分钟该做什么）</h4>
+<p>1️⃣ 登录后系统赠送<b>新手六件套</b>（已自动穿好），并给你 <span class="kw">100💰</span> 初始金币。</p>
+<p>2️⃣ 进入「队列」页 → 从下拉框选一个动作（如「采草药」）→ 设置次数 → 点「加入队列」→ 任务自动开始执行，产出材料+经验。</p>
+<p>3️⃣ 选一个带 ⚔️ 的动作或点「⚔️ 战斗×N」加入战斗通道 → 角色开始自动打怪，获得经验、金币、装备掉落。</p>
+<p>4️⃣ 获得的材料可以在「背包」页查看，在「市场」页卖掉换金币，或留着做装备。</p>
+<p>5️⃣ <b>核心循环</b>：挂机采集/制造 → 技能升级 → 打更强的怪 → 掉更好的装备 → 打更难的关卡。</p></div>
+
+<div class="helpSec"><h4>⚡ 二、队列与并行通道</h4>
+<p>· 游戏有 <b>5 条并行通道</b>，各通道独立执行，互不干扰——这是本游戏的效率核心。</p>
+<p>· 通道2~5 需要总等级解锁：<span class="kw">通道2→Lv100｜通道3→Lv250｜通道4→Lv450｜通道5→Lv700</span>（总等级=17项技能等级之和，解锁后<b>转生也不重置</b>）。</p>
+<p>· 每通道默认容量 6 格，牛铃商店可扩容。队列项可以 ↑↓ 调整顺序、✕ 删除、下拉框直接更换动作。</p>
+<p>· 技能等级超过动作需求等级会产生<b>效率加成</b>（超出部分每级+1%，上限80%），等级差越大跑得越快。</p>
+<p>· 需要材料的动作（如锻铁锭）在材料不足时会<b>自动暂停等待</b>，补充材料后继续，不会浪费队列。</p>
+<p>· <span class="warn">⚠️ 战斗同一时间只能进行一场</span>：一条通道战斗时，其他通道不能再添加战斗。</p>
+<p>· 效率茶🫖：喝下后 10 分钟内效率+10%、强化+5%成功率，可在消耗品格子自动使用。</p></div>
+
+<div class="helpSec"><h4>🎯 三、17项技能说明</h4>
+<p>技能分四大类，每项独立升级，总等级决定通道解锁与穿戴：</p>
+<p>· <b>收集类</b>：🐄挤奶（牛奶/星绒奶）、🌿采集（草药/亚麻/矿石）、🪓伐木（原木/橡木）——材料的根本来源。</p>
+<p>· <b>匠造类</b>：🔨铁匠（铁锭→铁装/钢装，可造⚔️武器、🧤手套、💍首饰）、🪚木匠（木板→弓/杖）、🧵裁缝（布卷→头盔/护甲/🥾鞋子）。</p>
+<p>· <b>厨艺类</b>：🍳厨艺（面包/蛋糕/太空蛋糕=回血食物）、🫖冲泡（茶/咖啡=回蓝饮料、4档经验咖啡，以及两种神水）。</p>
+<p>· <b>附魔类</b>：⚗️炼金（点金赚金币、贤者之石💎、稀有材料炼制）、✨强化（提升锻造成功率）。</p>
+<p>· <b>战斗类7项</b>：🎯攻击💪力量🛡️防御❤️生命🏹远程💨闪避🔮魔法——战斗等级的平均值决定你能穿多高档的装备。</p>
+<p>· <b>技能等级上限</b>由管理员全局设定（默认120），<span class="kw">达到上限后技能不再积累经验</span>。</p></div>
+
+<div class="helpSec"><h4>⚔️ 四、战斗系统详解</h4>
+<p>· <b>流派</b>：近战（攻/力加成）、远程（远程加成）、魔法（魔法加成、每击耗2蓝）。三个流派的怪物闪避类型不同。</p>
+<p>· <b>怪物图鉴（修仙十境）</b>：炼气→筑基→金丹→元婴→化神→炼虚→合体→大乘→渡劫→真仙，十大境界每境10种独特怪物（共100种），境界越高越强。第6~10境怪物必掉 <span class="kw">Lv249满档装备</span>，且高品质概率大增。</p>
+<p>· <b>我的战斗属性条</b>：💥暴击率（基础5%+装备）、🔥暴伤（<b>基础150%+全部装备暴伤叠加</b>，可无限叠加）、⚡攻速（缩短攻击间隔，可叠加）、🩸吸血（每次命中回复最大血量百分比）。</p>
+<p>· <b>命中区间制</b>：命中率下限 = max(命中保底%, 100−怪物有效闪避上限%)——怪物闪避再高，命中也不会归零。以上参数均由管理员全局配置。</p>
+<p>· <b>神水buff</b>：🧪百发神水（20分钟内100%命中）、💣弑神狂暴水（20分钟内暴伤+100000%），可挂消耗品格子自动续。</p>
+<p>· <b>死亡与复活</b>：血量归零后进入 <b>30秒真实时间</b> 复活倒计时（不受加速影响），复活后血蓝全满。无尽模式死亡额外降5层。</p></div>
+
+<div class="helpSec"><h4>🌌 五、无尽模式（核心挑战玩法）</h4>
+<p>· 点「进入无尽模式」后从当前层开始，<b>层数无限、没有通关终点</b>，比拼能爬多高。</p>
+<p>· <b>每层限时 ${FLOOR_LIMIT/60} 分钟</b>：超时未能击杀本层怪物，<span class="warn">自动下降 5 层</span>。击杀成功即通关本层，计时重置并进入下一层。</p>
+<p>· <b>血量曲线（分段制）</b>：每 100 层为一大关——大关内每层血量+2%（缓和），跨大关时血量×1.6（质变）。</p>
+<p>· <b>里程碑奖励</b>：第60层起掉🦴仙骨、100层起掉🟩仙玉、200层起掉🫧灵魂、300层起掉🪩神石——都是升阶神器级装备和酿神水的必备材料。</p>
+<p>· 可手动「⏸停留本层」反复刷，或「▶自动下一层」一路推进。历史最高纪录永久保留，可跳转回任何已达层数。</p></div>
+
+<div class="helpSec"><h4>🗡️ 六、装备系统完全指南</h4>
+<p>· <b>6个槽位</b>：⚔️武器、⛑️头盔、🛡️护甲、🥾鞋子、🧤手套、💍首饰。</p>
+<p>· <b>6种品质</b>：普通(灰)→精良(绿)→闪耀(蓝)→传奇(紫)→仙器(橙)→神器(红)。属性倍率：×1 / ×1.5 / ×2.2 / ×3 / ×5 / ×8。</p>
+<p>· <b>14个档次</b>：Lv1→15→30→60→85→95→120→140→160→180→200→220→240→<span class="kw">249满档</span>。制造时全部档位可见可选（未达技能等级的锁定🔒）。</p>
+<p>· <b>穿戴条件</b>：战斗7项技能平均值 ≥ min(全局技能上限, 装备档次)。</p>
+<p>· <b>4条特殊属性</b>（品质越高条数越多：普通1条→神器4条；数值范围由管理员全局配置）：</p>
+<p>　　💥暴击率｜🔥暴伤（多件可无限叠加）｜⚡攻速（可叠加）｜🩸吸血（按最大血量百分比，可叠加）</p>
+<p>· <b>装备四操作</b>：🔨强化（+12以上失败可能掉级）｜🏆升阶（成功后随机刷新特殊属性）｜🔮附魔（觉醒词缀）｜⬆️升级（<span class="warn">概率事件</span>，档位越高越难，失败装备无损）。</p>
+<p>· <b>背包管理</b>：1000页×100格；批量出售/分解；🧹一键整理。</p></div>
+
+<div class="helpSec"><h4>🧪 七、神水（顶级消耗品）</h4>
+<p>· <b>🧪百发神水</b>：20分钟内<b>攻击100%命中</b>。</p>
+<p>· <b>💣弑神狂暴水</b>：20分钟内<b>暴击伤害+100000%</b>。</p>
+<p>· <b>获取途径①市场</b>：偶尔有货（约30%概率1瓶），<span class="warn">100万金币一瓶</span>。</p>
+<p>· <b>获取途径②冲泡</b>：百发神水需冲泡Lv85＋☕×10＋💎×10＋🫧×2；弑神狂暴水需冲泡Lv95＋🍶×20＋💎×10＋🪩×2。</p>
+<p>· 可挂到消耗品格子，战斗中自动喝实现永续buff。</p></div>
+
+<div class="helpSec"><h4>💰 八、市场交易</h4>
+<p>· 所有材料都可买卖，价格随时间波动。卖出价 = 买入价 × 80%；单价>49金收2%税。</p>
+<p>· 稀有材料供应稀缺；神水更是百万级奢侈品。</p></div>
+
+<div class="helpSec"><h4>🏠 九、房屋 · 任务 · 牛铃 · 转生</h4>
+<p>· <b>房屋</b>：每级+2%对应技能经验获取。</p>
+<p>· <b>任务板</b>：上交材料换金币+🪙代币+概率🎁；徽章每级+15%奖励。</p>
+<p>· <b>牛铃商店</b>：📦队列位+1（10🔔）、🌙离线上限+2小时（20🔔）。</p>
+<p>· <b>转生</b>：任一技能100级可转，最多7转。重置技能/装备/房屋/<span class="warn">怪物解锁</span>；保留技能点/通道解锁/设置。</p></div>
+
+<div class="helpSec"><h4>🌙 十、离线收益与云存档</h4>
+<p>· 离线收益默认上限10小时（牛铃可扩）；本地每5秒保存，云端每60秒同步。</p>
+<p>· 建议定期「账号」页导出 json 备份；换设备用同一账号登录选云存档即可。</p></div>
+
+<div class="helpSec"><h4>🌍 十一、全局数值与管理员</h4>
+<p>· <b>全局配置</b>：装备特殊属性范围、命中区间、技能上限、怪物难度/攻击力系数、锻造概率系数，均由<b>管理员统一设定</b>，发布后所有玩家同步生效（约1分钟内）。</p>
+<p>· <b>管理员账号</b>：用户名前8位为 <span class="kw">qq247084</span> 的账号自动成为管理员，可见「管理员」「数值配置」两个专属页面；普通玩家不可见。</p>
+<p>· 管理员修改配置后需点「🌍 发布全局配置」才会对全体玩家生效。</p></div>
+
+<div class="helpSec"><h4>💡 十二、实用小技巧</h4>
+<p>· 加速10×免费，挂机必开；睡前把队列排满。</p>
+<p>· 消耗品格子挂「经验咖啡」+「面包」+「咖啡」；无尽高层换成神水。</p>
+<p>· 自动分解设「精良及以下」，只手动处理蓝色以上。</p>
+<p>· 无尽卡关退回低10层刷材料；暴伤堆武器/首饰，攻速靠手套补，吸血1~2件够用。</p>
+<p>· 效率茶强化+5%成功率，冲高档前先喝一杯。</p></div>
+
+<div class="helpSec"><h4>📜 十三、版本更新记录</h4>
+<p><span class="verTag">v1.10</span><b>全局配置与管理员系统</b>：怪物难度/攻击力/锻造概率系数及全部数值配置改为<b>云端全局模式</b>（管理员发布→全体玩家60秒内同步）；用户名前8位为 qq247084 的账号自动成为管理员（👑标识）；「管理员」「数值配置」页面仅管理员可见。</p>
+<p><span class="verTag">v1.9</span><b>修仙怪物图鉴与神水系统</b>：怪物重做为修仙十境界×每境10种独特怪物（100个名字）；新增🧪百发神水（100%命中）与💣弑神狂暴水（暴伤+10万%）；制造档位补齐14档；转生重置怪物解锁；满级停经验；装备升级改概率事件。</p>
+<p><span class="verTag">v1.8</span><b>数值自定义系统</b>：数值配置页；命中百分比区间制。</p>
+<p><span class="verTag">v1.7</span><b>无尽模式重做</b>：分段血量曲线；每层限时10分钟。</p>
+<p><span class="verTag">v1.6</span><b>特殊属性系统</b>：暴击/暴伤/攻速/吸血；鞋子/手套槽位。</p>
+<p><span class="verTag">v1.5</span><b>价格与档次重制</b>：装备档次至Lv249；市场价差80%。</p>
+<p><span class="verTag">v1.4</span><b>移动端适配</b>。</p>
+<p><span class="verTag">v1.3</span><b>云存档与账号</b>：Supabase同步；存档导入导出。</p>
+<p><span class="verTag">v1.2</span><b>并行通道</b>：5条独立队列。</p>
+<p><span class="verTag">v1.1</span><b>装备体系</b>：6品质；强化/升阶/附魔/升级。</p>
+<p><span class="verTag">v1.0</span><b>初始版本</b>。</p></div>`;
+}
+
+/* ============================================================
+   ★ 面板渲染
+   ============================================================ */
+function renderPanel() {
+  const scr = IS_MOBILE ? $("panel").scrollTop : 0;
+  buildTabs();
+  if (tab >= TABS.length) tab = TABS.length-1;
+  const T_ADMIN = TABS.indexOf("管理员"), T_CFG = TABS.indexOf("数值配置"), T_HELP = TABS.indexOf("帮助");
+  $("tabs").innerHTML = TABS.map((t,i)=>`<button class="${i===tab?"active":""}" onclick="tab=${i};renderPanel()">${t}</button>`).join("");
+  const el = $("panel");
+  let h = "";
+  if (tab === 0) {
+    checkLanes();
+    const tl = totalLv();
+    h += `<div class="hint">⚡ 并行通道 <b style="color:#ffd479">${laneCount()}/${LANE_MAX}</b> 条，各通道独立并行执行｜解锁条件（总等级，<b style="color:#6f6">转生不重置</b>）：`
+      +[1,2,3,4].map((i)=>` 通道${i+1}→Lv${LANE_LV[i]}${S.lanes[i].open?"✅":"🔒"}`).join("")+`</div>`;
+    h += `<div class="row"><select onchange="qSel=this.value;renderPanel()" style="min-width:200px;flex:1">`
+      +ACT.map((a)=>`<option value="${a.id}" ${a.id===qSel?"selected":""}>[${SKM[a.sk].n}·需Lv${a.lv}] ${a.n}（${a.t}s，${a.xp}xp）${lv(a.sk)<a.lv?"🔒":""}</option>`).join("")
+      +`</select> <input type="number" value="${qNum}" min="1" onchange="qNum=Math.max(1,+this.value|0)">次 `
+      +eqCraftUI()
+      +` <span class="info">通道</span><select id="qLane">`
+      +S.lanes.map((l,i)=>l.open?`<option value="${i}">通道${i+1}</option>`:"").join("")
+      +`</select> <button class="act" onclick="addQ()">加入队列</button>`
+      +` <button class="act" style="background:#49f" onclick="addQCombat()">⚔️ 战斗×N</button></div>`;
+    S.lanes.forEach((lane, li) => {
+      if (!lane.open) {
+        h += `<div class="row" style="opacity:.55"><span class="name">🔒 通道 ${li+1}</span><span class="info">总等级 ${tl}/${LANE_LV[li]} 解锁（进度 ${Math.min(100,tl/LANE_LV[li]*100|0)}%｜解锁后永久保留，转生不重置）</span></div>`;
+        return;
+      }
+      const head = lane.items[0];
+      const ha = head ? ACT.find((x)=>x.id===head.id) : null;
+      const headTxt = lane.items.length ? (head.id==="combat"?"⚔️ 战斗进行中":`${ha?ha.n:"?"} 进度 ${Math.min(100,lane.prog/(ha?ha.t:1)*100|0)}%`) : "空闲";
+      h += `<div class="row laneHead"><span class="name">▶ 通道 ${li+1}</span><span class="info">${headTxt}｜共 ${lane.items.length} 项</span></div>`;
+      lane.items.forEach((q, i) => {
+        const a = ACT.find((x)=>x.id===q.id);
+        const cur = a ? a.id : "combat";
+        const eqInfo = a && a.outEq ? `｜造 ${EQIC[q.slot||"weapon"]} Lv${q.tier||a.lv+10}档` : "";
+        h += `<div class="row" style="margin-left:14px;background:#1c2036">`
+          +`<span class="name">${i+1}.</span>`
+          +`<select onchange="changeQ(${li},${i},this.value)" style="min-width:180px;flex:1">`
+          +`<option value="combat" ${cur==="combat"?"selected":""}>⚔️ 战斗${S.endless?"（无尽）":""}</option>`
+          +ACT.map((x)=>`<option value="${x.id}" ${cur===x.id?"selected":""}>[${SKM[x.sk].n}] ${x.n}</option>`).join("")
+          +`</select><span class="info">剩 ${q.n}${eqInfo}${i===0&&a?`｜效率 ${(S.eff*100)|0}%`:""}</span>`
+          +`<button class="act sm" onclick="moveQ(${li},${i},-1)" ${i===0?"disabled":""}>↑</button>`
+          +`<button class="act sm" onclick="moveQ(${li},${i},1)" ${i===lane.items.length-1?"disabled":""}>↓</button>`
+          +`<button class="act sm" style="background:#e55" onclick="S.lanes[${li}].items.splice(${i},1);renderPanel()">✕</button></div>`;
+      });
+    });
+    if (!S.lanes.some((l)=>l.open&&l.items.length)) h += `<div class="info">所有通道均为空，从上方添加任务开始吧。</div>`;
+    h += `<div class="hint">📌 装备制造：全部14档可选（未达技能等级的锁定🔒）｜⚔️铁匠造武器/🧤手套/💍首饰｜🧵裁缝缝头盔/🛡️护甲/🥾鞋子｜战斗同一时间只能进行一场；每通道容量 ${QMAX()} 格</div>`;
+    h += `<div class="row"><span class="name">条件触发</span><span class="info">HP&lt;</span> <input type="number" value="${S.autoHp}" onchange="S.autoHp=Math.min(90,Math.max(5,+this.value));saveGame()">% 自动吃食物｜MP&lt; <input type="number" value="${S.autoMp}" onchange="S.autoMp=Math.min(90,Math.max(5,+this.value));saveGame()">% 自动喝饮料</div>`;
+  }
+  else if (tab === 1) {
+    h += `<div class="hint">17种技能。总等级 ${totalLv()}｜技能等级上限 ${cfg("skillCap")}（全局设定，满级后经验停止积累）${S.xpMin>0?`｜📖 经验buff +${((S.xpMult||0)*100)|0}%（剩 ${Math.ceil(S.xpMin)} 分钟）`:""}。</div><table><tr><th>技能</th><th>等级</th><th>经验</th><th>进度</th></tr>`;
+    SK.forEach((s)=>{ const x = S.skills[s.id]; const maxed = x.lv >= cfg("skillCap");
+      h += `<tr><td>${s.ic} ${s.n}<span class="info">（${s.cat}）</span></td><td><b>${x.lv}</b>${maxed?' <span style="color:#fa0;font-size:10px">MAX</span>':""}</td><td class="info">${maxed?"—":`${x.xp|0}/${xpNeed(x.lv)}`}</td><td><div class="bar" style="width:120px"><div class="xp" style="width:${maxed?100:x.xp/xpNeed(x.lv)*100}%"></div></div></td></tr>`; });
+    h += `</table>`;
+  }
+  else if (tab === 2) {
+    const AT = S.autoTrash;
+    h += `<div class="row" style="background:#1a2440;border:1px solid #4a9eff44">`
+      +`<span class="name" style="color:#8af">⚡ 自动处理（掉落即执行）</span>`
+      +`<select onchange="setAutoTrash('mode',+this.value)"><option value="0" ${AT.mode===0?"selected":""}>关闭</option><option value="1" ${AT.mode===1?"selected":""}>💰 自动出售</option><option value="2" ${AT.mode===2?"selected":""}>⚒️ 自动分解</option></select>`
+      +`<span class="info">品质阈值：</span>`
+      +`<select onchange="setAutoTrash('rare',+this.value)"><option value="0" ${AT.rare===0?"selected":""}>普通及以下</option><option value="1" ${AT.rare===1?"selected":""}>精良及以下</option><option value="2" ${AT.rare===2?"selected":""}>闪耀及以下</option></select></div>`;
+    h += `<div class="pagenav"><button class="act sm" onclick="gotoPage(bagPage-1)">◀ 上一页</button><span>第 <input type="number" min="1" max="${MAX_PAGES}" value="${bagPage+1}" onchange="gotoPage((+this.value|0)-1)"> / ${MAX_PAGES} 页</span><button class="act sm" onclick="gotoPage(bagPage+1)">下一页 ▶</button><span class="info">已用 ${usedSlots()} 格</span><button class="act sm" onclick="gotoFirstUsed()">跳首件</button><button class="act sm" onclick="gotoFreeSlot()">跳空格</button><button class="act sm" style="background:#a6f" onclick="compactBag()">🧹 整理</button></div>`;
+    h += `<div class="baggrid">`;
+    for (let c = 0; c < PAGE_SIZE; c++) {
+      const k = bagPage+"_"+c; const v = S.slotMap[k];
+      if (v == null) h += `<div class="cell" onclick="selSlot='${k}';renderPanel()"></div>`;
+      else if (typeof v === "object") {
+        const e = v; const rc = RARE_COLOR[e.rare] || "#888";
+        h += `<div class="cell ${selSlot===k?"sel":""}" onclick="selSlot='${k}';renderPanel()" title="${e.n} +${e.plus}【${RARE_NAMES[e.rare]}】" style="border-color:${rc}77"><span class="idx">${c+1}</span><span class="ic">${EQIC[e.slot]||"⚔️"}</span><span class="cnt" style="color:${rc}">+${e.plus}${e.ench?"◆"+e.ench:""}</span></div>`;
+      } else {
+        const it = IT[v];
+        h += `<div class="cell ${selSlot===k?"sel":""}" onclick="selSlot='${k}';renderPanel()" title="${it.n}×${bagN(v)}"><span class="idx">${c+1}</span><span class="ic">${it.ic}</span><span class="cnt">${bagN(v)}</span></div>`;
+      }
+    }
+    h += `</div>`;
+    const selV = selSlot ? S.slotMap[selSlot] : null;
+    if (selV && typeof selV === "object") {
+      const e = selV; const ok = canWear(e);
+      h += `<div class="row"><span class="name r${e.rare}">${eqName(e)}</span><span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}】${eqValStr(e)}${e.ench>0&&e.affix?`｜词缀「${e.affix.n}」+${affixVal(e)}`:""}｜格 ${selSlot}｜强化等操作请到锻造页</span><button class="act sm" ${ok?"":"disabled"} onclick="equipIt(${e.uid})">${ok?"穿戴":"需战斗均Lv"+Math.min(cfg("skillCap"),e.reqLv)}</button><button class="act sm" style="background:#da5" onclick="sellEq(${e.uid})">💰出售 ${sellPriceEq(e)}</button><button class="act sm" style="background:#7a6" onclick="salvageEq(${e.uid})">⚒️分解${e.rare>=3?"（升阶材料）":""}</button></div>`;
+    } else if (selV && IT[selV]) {
+      const it = IT[selV]; const n = bagN(selV);
+      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">基准价${it.val}｜格 ${selSlot}</span>`
+        +(it.heal?`<button class="act sm" onclick="eatItem('${selV}')">吃(+${it.heal}HP)</button>`:"")
+        +(it.mp?`<button class="act sm" onclick="drinkItem('${selV}')">喝(+${it.mp}MP)</button>`:"")
+        +(it.tp==="tea"?`<button class="act sm" onclick="if(take('${selV}',1)){S.teaMin=10;log('🫖 效率茶生效');renderPanel();}">喝(效率+10%)</button>`:"")
+        +(it.tp==="xp"?`<button class="act sm" style="background:#5a5" onclick="useXpItem('${selV}')">喝(经验+${(XPIT[selV].m*100)|0}%/${XPIT[selV].mm}分)</button>`:"")
+        +(POTBUFF[selV]?`<button class="act sm" style="background:#a6f" onclick="usePotItem('${selV}')">喝(${POTBUFF[selV].k==="hit"?"命中100%":"暴伤+10万%"}/${POTBUFF[selV].mm}分)</button>`:"")
+        +`<button class="act sm" onclick="if(take('${selV}',1)){renderPanel();}">丢弃×1</button>`
+        +`<button class="act sm" style="background:#e55" onclick="if(take('${selV}',${n})){renderPanel();}">清空</button></div>`;
+    } else {
+      h += `<div class="hint">点击格子选中物品/装备。装备格边框：灰/绿/蓝/紫/橙/红 = 普通/精良/闪耀/传奇/仙器/神器。</div>`;
+    }
+    h += `<div class="hint" style="margin-top:10px">已穿戴（6槽位）：</div><div class="grid3">`;
+    SLOTS.forEach((sl)=>{
+      const e = S.eq[sl.id];
+      h += `<div class="card"><b>${sl.ic} ${sl.n}</b><br>`+(e?`<span class="r${e.rare}">${eqName(e)}</span><br><span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}】${eqValStr(e)}${e.ench>0&&e.affix?`<br>词缀「${e.affix.n}」+${affixVal(e)}`:""}</span><br><button class="act sm" style="background:#e55" onclick="unequip('${sl.id}')">卸下</button>`:'<span class="info">空</span>')+`</div>`;
+    });
+    h += `</div>`;
+    h += `<div class="hint" style="margin-top:8px">⚡ 低品质批量出售｜⚒️ 批量分解｜<b style="color:#c5f">传奇/仙器/神器专用分解</b>（产出升阶材料，数量随转生加成 ×${rebSalvMult().toFixed(1)}）：</div>`;
+    h += `<div class="row" style="background:#1c2036">`;
+    [0,1,2].forEach((r)=>{
+      const pv = batchPreview((e)=>e.rare===r);
+      h += `<button class="act sm" style="background:${["#666","#585","#58a"][r]}" ${pv.cnt?"":"disabled"} title="${pv.cnt?`最高档 Lv${pv.maxTier}`:""}" onclick="batchSellRare(${r})">💰出售${RARE_NAMES[r]} ${pv.cnt?`×${pv.cnt}（${pv.gold}💰）`:"(无)"}</button>`;
+      h += `<button class="act sm" style="background:${["#554","#464","#455"][r]}" ${pv.cnt?"":"disabled"} title="${pv.cnt?`产出：${matsSummary(pv.mats)}｜最高档 Lv${pv.maxTier}`:""}" onclick="batchSalvageRare(${r})">⚒️分解${RARE_NAMES[r]} ${pv.cnt?`×${pv.cnt}`:"(无)"}</button>`;
+    });
+    h += `</div>`;
+    h += `<div class="row" style="background:#1c2036">`;
+    [3,4,5].forEach((r)=>{
+      const cnt = bagEquips().filter((x)=>x.e.rare===r).length;
+      h += `<button class="act sm" style="background:${["#545","#753","#733"][r-3]}" ${cnt?"":"disabled"} title="${cnt?`单件产出：${matsSummary(salvageRareMats({rare:r}))}｜分解系数 ×${rebSalvMult().toFixed(1)}`:""}" onclick="batchSalvageHigh(${r})">⚒️分解${RARE_NAMES[r]} ${cnt?`×${cnt}`:"(无)"}</button>`;
+    });
+    h += `</div>`;
+    h += `<div class="row" style="background:#1c2036">`;
+    BATCH_TIERS.forEach((t)=>{
+      const pv = batchPreview((e)=>e.reqLv <= t);
+      h += `<button class="act sm" style="background:#a63" ${pv.cnt?"":"disabled"} title="${pv.cnt?`合计 ${pv.gold}💰｜含最高档 Lv${pv.maxTier}${pv.legend?`（另有${pv.legend}件高稀有不参与）`:""}`:""}" onclick="batchSellTier(${t})">💰Lv≤${t} ${pv.cnt?`×${pv.cnt}（${pv.gold}💰）`:"(无)"}</button>`;
+      h += `<button class="act sm" style="background:#664" ${pv.cnt?"":"disabled"} title="${pv.cnt?`产出：${matsSummary(pv.mats)}｜含最高档 Lv${pv.maxTier}${pv.legend?`（另有${pv.legend}件高稀有不参与）`:""}`:""}" onclick="batchSalvageTier(${t})">⚒️Lv≤${t} ${pv.cnt?`×${pv.cnt}`:"(无)"}</button>`;
+    });
+    h += `</div>`;
+  }
+  else if (tab === 3) {
+    const m = curMon(); const p = P(); const D = diff();
+    const cdm = p.critDmg + (S.buffCdMin > 0 ? S.buffCd : 0);
+    h += `<div class="row"><span class="name">战斗流派</span> `
+      +["melee","ranged","magic"].map((s)=>`<button class="act sm" style="background:${S.style===s?"#2a5":"#555"}" onclick="S.style='${s}';renderPanel()"> ${ {melee:"⚔️近战",ranged:"🏹远程",magic:"🔮魔法"}[s] }</button>`).join("")
+      +` <span class="info">命中 <b class="buffTxt">${S.buffHitMin>0?"100%（神水）":(hitRate(S.style==="melee"?p.acc:S.style==="ranged"?p.rng:p.mag, S.style==="melee"?m.evT:S.style==="ranged"?m.evR:m.evM)*100).toFixed(1)+"%"}</b></span>`
+      +` <span style="color:#f80">👹 难度 ${D.toFixed(1)}×（全局）｜怪攻 ${atkCf().toFixed(1)}×（全局）</span></div>`;
+    h += `<div class="row endless"><span class="name" style="color:#c5f">🌌 无尽模式</span> `
+      +(S.endless
+        ?`<span style="color:#c5f;font-size:16px;font-weight:bold">当前第 ${S.floor} 层</span><span class="info">最高纪录 <b style="color:#ffd479">${S.bestFloor}</b> 层</span><span class="timerTxt">⏱ 本层限时 ${Math.max(0,Math.ceil(floorLeftMs()/1000))}s / ${FLOOR_LIMIT/60}min</span><button class="act sm" style="background:#a4a" onclick="toggleEndless(false)">⏸ 退出无尽</button>`
+        :`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">层数无限｜每层限时${FLOOR_LIMIT/60}分钟，超时/死亡降5层｜通关后${S.autoNext!==false?"自动下一层":"停留本层"}｜60层掉🦴｜100层掉🟩｜200层掉🫧｜300层掉🪩｜纪录 ${S.bestFloor} 层</span>`)
+      +`</div>`;
+    if (S.endless) {
+      h += `<div class="bar timerbar"><div style="width:${Math.max(0,Math.min(100,floorLeftMs()/(FLOOR_LIMIT*1000)*100))}%"></div></div>`;
+      h += `<div class="row endless" style="background:#241a3a">`
+        +`<span class="info">⏩ 跳转楼层</span><input type="number" id="efloor" min="1" max="${Math.max(1,S.bestFloor)}" value="${S.floor}" style="width:70px">`
+        +`<button class="act sm" style="background:#a4a" onclick="pickEndlessFloor(+$('efloor').value)">跳转</button>`
+        +`<span class="info">（1~${Math.max(1,S.bestFloor)}）</span>`
+        +`<span class="name" style="color:#c5f">通关后</span>`
+        +`<button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(true)">▶ 自动下一层</button>`
+        +`<button class="act sm" style="background:${S.autoNext===false?"#d73":"#555"}" onclick="setAutoNext(false)">⏸ 停留本层</button>`
+        +`<span class="info">本层已通关 <b style="color:#ffd479">${S.floorKills[S.floor]||0}</b> 次</span></div>`;
+      const drop = endlessMon(S.floor);
+      const seg = Math.floor((S.floor-1)/100);
+      h += `<div class="row endless" style="opacity:.85"><span class="info">第 ${seg+1} 大关第 ${(S.floor-1)%100+1} 层｜血量=基础×1.6^${seg}×1.02^${(S.floor-1)%100}｜本层掉率 <b style="color:#ffd479">${(drop.drop*100).toFixed(0)}%</b>｜掉落档位 <b style="color:#ffd479">Lv${drop.eqLv}</b>｜品质加成 <b style="color:#ffd479">+${drop.rb}</b>｜稀有材料：${S.floor>=60?"🦴":"—"}${S.floor>=100?"🟩":"—"}${S.floor>=200?"🫧":"—"}${S.floor>=300?"🪩":"—"}</span></div>`;
+    } else {
+      h += `<div class="zonebar">`+ELE.map((e,z)=>`<button class="${z===zone?"on":""} ${z>=5?"hz":""}" onclick="zone=${z};renderPanel()">${z+1}.${e}</button>`).join("")+`</div>`;
+      h += `<div class="hint" style="color:#f80">🔥 第6~10境（炼虚~真仙）：怪物必掉 <b>Lv${EQ_MAX_LV}</b> 装备，越难的高品质概率越大，且掉落装备自带强化+附魔+特殊属性</div>`;
+      for (let c = 0; c < 10; c++) {
+        const i = zone*10+c;
+        const b = mon(i,1); const m5 = mon(i,5); const cls = maxCleared(i);
+        h += `<div class="row"><span class="name">${b.ic} ${b.n} ${cls===5?"🏅":""}</span>`
+          +`<span class="info">HP ${b.hp}~${m5.hp}｜攻 ${b.atk}~${m5.atk}｜掉率 ${(b.drop*100).toFixed(1)}%｜${i>=50?"<b style='color:#f80'>Lv"+EQ_MAX_LV+"·可出高品质</b>":`掉 ${b.eqLv}级装`}</span>`
+          +`<span>${[1,2,3,4,5].map((l)=>{ const un = unlocked(i,l); const on = S.monI===i&&S.monLv===l; return `<button class="lvbtn ${on?"on":un?"":"lock"}" ${un?`onclick="pickMon(${i},${l})"`:"disabled"}> ${on?"▶":un?l:"🔒"}</button>`; }).join("")}</span></div>`;
+      }
+    }
+    if (isDead()) {
+      const left = deadLeftMs();
+      h += `<div class="row" style="background:#1a2440;border:1px solid #4a9eff66"><span class="deadtag">💀 已被 ${m.n} 击倒，复活倒计时</span><span style="color:#8af;font-size:18px;font-weight:bold">${Math.ceil(left/1000)}s</span><span class="info">真实时间倒计时${S.endless?"｜无尽模式死亡退 5 层":""}</span></div>`
+        +`<div class="bar deadbar"><div style="width:${Math.max(0,(1-left/(RESPAWN_TIME*1000))*100)}%"></div></div>`;
+    }
+    h += `<div class="hint">👾 目标：${m.ic} <b>${m.n}</b>｜HP ${Math.max(0,S.monHp|0)}/${m.hp}｜攻 ${m.atk}｜奖励 ${m.xp}xp${S.xpMin>0?`×${1+(S.xpMult||0)}`:""}+${m.gold}💰</div>`
+      +`<div class="bar"><div style="width:${Math.max(0,S.monHp/m.hp*100)}%"></div></div>`
+      +`<div class="hint">我的血量 ${Math.max(0,S.hp|0)}/${p.maxHp}｜法力 ${S.mp|0}/${p.maxMp}｜加速 ${S.speed}×</div>`
+      +`<div class="bar"><div class="xp" style="width:${Math.min(100,S.hp/p.maxHp*100)}%"></div></div>`
+      +`<div class="row" style="background:#1a2440"><span class="info">🎯 我的战斗属性：</span>`
+      +`<span class="critTxt">💥暴击率 ${p.crit}%</span>`
+      +`<span class="critTxt">🔥暴伤 <b>${cdm.toLocaleString()}%</b><span class="info">（基础150%${p.eqCritDmg>0?`＋装备+${p.eqCritDmg}%`:""}${S.buffCdMin>0?`＋<span class="buffTxt">神水+100000%（剩${Math.ceil(S.buffCdMin)}分）</span>`:""}）</span></span>`
+      +`<span style="color:#6af">⚡攻速 +${p.aspd}%（攻击间隔 ${(1.5/(1+p.aspd/100)).toFixed(2)}s）</span>`
+      +`<span style="color:#5c5">🩸吸血 ${p.ls}%（每击回复 ${Math.floor(p.maxHp*p.ls/100)}HP）</span>`
+      +`<span class="${S.buffHitMin>0?"buffTxt":"info"}">🧪命中 ${S.buffHitMin>0?`100%（神水，剩${Math.ceil(S.buffHitMin)}分）`:"正常"}</span></div>`
+      +`<div class="hint">📌 数值均由管理员全局配置：命中下限 ${Math.max(cfg("hitFloor"), 100-cfg("evCapPct"))}%｜暴伤单件${cfg("critDmgMin")}%~${cfg("critDmgMax")}%｜攻速单件≤${cfg("aspdMax")}%｜吸血单件${cfg("lsMin")}%~${cfg("lsMax")}%</div>`;
+    if (potSel != null && (potSel < 0 || potSel >= 5)) potSel = null;
+    h += `<div class="hint" style="margin:6px 0 2px">🧪 消耗品（战斗中满足条件自动使用，点击格子设置）</div><div class="potGrid">`;
+    S.pots.forEach((p2, i) => {
+      const it = p2 && p2.id ? IT[p2.id] : null;
+      const condTxt = it ? ({hp:"HP<",mp:"MP<",cd:"⏱"})[p2.cond]+(p2.cond==="cd"?(p2.val|0)+"s":(p2.val|0)+"%") : "";
+      h += `<div class="potCell ${potSel===i?"sel":""} ${it?"":"empty"}" onclick="potSel=${potSel===i?"null":i};renderPanel()" title="${it?`${it.n}×${bagN(p2.id)}｜条件 ${condTxt}`:"空格子，点击设置"}"><span class="ic">${it?it.ic:"⚙️"}</span><span class="cnt">${it?bagN(p2.id):"空"}</span><span class="cond">${condTxt||"点击设置"}</span></div>`;
+    });
+    h += `</div>`;
+    if (potSel != null) {
+      const cur = S.pots[potSel] || {id:"",cond:"hp",val:30};
+      h += `<div class="row potRow"><span class="name">设置格${potSel+1}</span>`
+        +`<select onchange="setPot(${potSel},'id',this.value)"><option value="">（空）</option>`+POT_ITEMS.map((id)=>`<option value="${id}" ${cur.id===id?"selected":""}>${IT[id].ic}${IT[id].n}</option>`).join("")+`</select>`
+        +`<select onchange="setPot(${potSel},'cond',this.value)"><option value="hp" ${cur.cond==="hp"?"selected":""}>HP低于</option><option value="mp" ${cur.cond==="mp"?"selected":""}>MP低于</option><option value="cd" ${cur.cond==="cd"?"selected":""}>每N秒</option></select>`
+        +`<input type="number" value="${cur.val|0}" min="1" onchange="setPot(${potSel},'val',+this.value)" style="width:55px">${cur.cond==="cd"?"秒":"%"}`
+        +`<span class="info">${cur.id?`库存 ${bagN(cur.id)}`:"未放置物品"}</span>`
+        +`<button class="act sm" style="background:#e55" onclick="S.pots[${potSel}]=null;saveGame();renderPanel()">清空</button>`
+        +`<button class="act sm" style="background:#2a5" onclick="potSel=null;saveGame();renderPanel()">完成</button></div>`;
+    }
+  }
+  else if (tab === 4) {
+    h += `<div class="hint">拍卖行：按挂单顺序成交｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜单价&gt;49金收2%税｜价格随时间波动｜<b style="color:#fa0">稀有材料稀缺</b>｜<b style="color:#a6f">神水偶现1瓶（100万💰）</b></div>`;
+    h += `<table><tr><th>物品</th><th>基准价</th><th>买入</th><th>卖出</th><th>库存</th></tr>`;
+    for (const id in MK) {
+      if (id === "token") continue;
+      const m = MK[id];
+      const rareTag = RARE_MATS[id] ? `<span class="r4" style="font-size:10px">稀</span>` : "";
+      const potTag = (id==="hitPot"||id==="critPot") ? `<span class="r5" style="font-size:10px">神</span>` : "";
+      h += `<tr><td>${IT[id].ic} ${IT[id].n}${rareTag}${potTag}</td>`
+        +`<td class="info">${Math.floor(m.mid)}💰</td>`
+        +`<td>${m.sell[0]?`${m.sell[0].p}💰 <button class="act sm" onclick="mkBuy('${id}',1);renderPanel()">×1</button>`:"—"}</td>`
+        +`<td>${m.buy[0]?`${m.buy[0].p}💰 <button class="act sm" onclick="mkSell('${id}',1);renderPanel()">×1</button>`:"—"}</td>`
+        +`<td>${bagN(id)||0}</td></tr>`;
+    }
+    h += `</table>`;
+  }
+  else if (tab === 5) {
+    h += `<div class="hint">🔮 锻造坊｜强化技能 Lv${lv("enh")} 提供 +${(forgeBonus()*100).toFixed(0)}% 成功率｜效率茶强化+5%｜<b style="color:#f80">全局锻造概率系数 ×${forgeCf().toFixed(1)}</b></div>`
+      +`<div class="hint">📌 档次线：Lv1→…→<b class="r5">Lv${EQ_MAX_LV}（满档）</b>｜品质线：普通→…→<b class="r5">神器</b>｜⬆️装备升级为<b style="color:#f80">概率事件</b>：档位越高成功率越低，失败装备无损</div>`;
+    h += `<div class="hint" style="margin-top:8px">—— 已穿戴装备（6件） ——</div>`;
+    SLOTS.forEach((sl)=>{ const e = S.eq[sl.id]; if (e) h += forgeRow(e, "w:"+sl.id); });
+  }
+  else if (tab === 6) {
+    SK.filter((s)=>s.cat!=="战斗").forEach((s)=>{
+      const hvl = S.houses[s.id]||0; const c = houseCost(s.id);
+      h += `<div class="row"><span class="name">${s.ic} ${s.n}房屋 Lv.${hvl}</span><span class="info">费用${c}💰</span><button class="act sm" ${S.gold<c?"disabled":""} onclick="upHouse('${s.id}');renderPanel()">建造</button></div>`;
+    });
+  }
+  else if (tab === 7) {
+    h += `<div class="row"><span class="name">🎖️ 任务徽章 +${S.badge}/9</span> <button class="act sm" onclick="upBadge();renderPanel()">升级</button> <button class="act sm" onclick="refreshTasks(false);renderPanel()">刷新任务板</button></div>`;
+    S.tasks.forEach((t,i)=>{
+      h += `<div class="row"><span class="name">${IT[t.id].ic} 上交 ${IT[t.id].n}×${t.qty}</span><span class="info">奖 ${t.gold}💰 +${t.token}🪙${t.box?" +🎁":""}｜库存${bagN(t.id)}/${t.qty}</span><button class="act sm" onclick="doTask(${i});renderPanel()">完成</button></div>`;
+    });
+    if (!S.tasks.length) refreshTasks(true);
+  }
+  else if (tab === 8) {
+    h += `<div class="row"><span class="name">当前：${S.reb}转｜${S.sp}技能点</span><span class="info">${canRebirth()?"✅ 可转生":"❌ 需任一技能100级"}｜并行通道/自动处理/消耗品格子设置<b style="color:#6f6">保留</b>｜<b style="color:#f80">怪物解锁图鉴会重置</b>｜高品分解加成 ×${rebSalvMult().toFixed(1)}</span><button class="act" ${canRebirth()&&S.reb<7?"":"disabled"} onclick="if(confirm('确认转生？\n注意：怪物击杀解锁会全部重置！')){rebirth();renderPanel();}">转生</button></div>`;
+  }
+  else if (tab === 9) {
+    h += `<div class="row"><span class="name">📦 队列位+1（每条并行通道各+1）</span><span class="info">10🔔</span><button class="act sm" onclick="buyPerk('q',10)">购买</button></div>`
+      +`<div class="row"><span class="name">🌙 离线上限+2小时</span><span class="info">20🔔</span><button class="act sm" onclick="buyPerk('off',20)">购买</button></div>`;
+  }
+  else if (tab === 10) {
+    const A = accs();
+    h += `<div class="hint">当前账号：<b style="color:#ffd479">${CUR==="guest"?"游客":CUR}</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}｜云端：<b class="${CLOUD_ON()?"cloudOk":"cloudNo"}">${CLOUD_ON()?"已连接":"未连接"}</b></div>`
+      +`<div class="row"><span class="name">☁️ 立即同步云端</span><span class="info">把当前进度上传到 Supabase（游客模式不可用）</span><button class="act sm" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="cloudSave()">上传</button></div>`
+      +`<div class="row"><span class="name">🚪 退出并切换账号</span><button class="act sm" onclick="logout()">退出登录</button></div>`
+      +`<div class="row"><span class="name">💾 导出存档</span><span class="info">打包成 json 文件作为离线备份</span><button class="act sm" onclick="exportSave()">导出</button></div>`
+      +`<div class="row"><span class="name">📂 导入存档</span><span class="info">选择之前导出的 json 文件，恢复进度</span><button class="act sm" style="background:#a6f" onclick="document.getElementById('saveFile').click()">导入</button></div>`;
+    Object.keys(A).forEach((u)=>{
+      h += `<div class="row"><span class="name">${u}${u.toLowerCase().slice(0,ADMIN_PREFIX.length)===ADMIN_PREFIX?' <span class="adminTag">👑</span>':""}</span><span class="info">${new Date(A[u].created).toLocaleDateString()}${u===CUR?"｜✅ 当前":""}</span>`
+        +(u===CUR?"":`<button class="act sm" onclick="switchAcc('${u}')">切换</button>`)
+        +`<button class="act sm" style="background:#e55" onclick="delAcc('${u}')">删除</button></div>`;
+    });
+  }
+  else if (tab === T_ADMIN && isAdmin()) {
+    h += `<div class="hint">👑 管理员面板（仅管理员可见）｜难度/怪攻/锻造系数已移至全局配置，在「数值配置」页发布</div>`
+      +`<div class="row"><span class="name">💰 金币</span><input type="number" value="${S.gold|0}" onchange="S.gold=Math.max(0,+this.value);saveGame()"> <span class="name">🔔 牛铃</span><input type="number" value="${S.bell}" onchange="S.bell=Math.max(0,+this.value);saveGame()"> <span class="name">⏩ 加速</span><select onchange="setSpd(+this.value)">`+SPEEDS.map((v)=>`<option value="${v}" ${S.speed===v?"selected":""}>${v}×</option>`).join("")+`</select></div>`
+      +`<div class="row" style="background:#2a1535;border:1px solid #c5f5"><span class="name" style="color:#c5f">🌌 无尽模式</span><span class="info">当前层</span><input type="number" min="1" value="${S.floor}" onchange="S.floor=Math.max(1,+this.value|0);S.monHp=endlessMon(S.floor).hp;S.floorStart=Date.now();saveGame()"><span class="info">最高纪录 <b style="color:#ffd479">${S.bestFloor}</b> 层｜每层限时${FLOOR_LIMIT/60}分钟</span><button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(${S.autoNext===false})">通关后${S.autoNext!==false?"自动下一层":"停留本层"}</button><button class="act sm" style="background:#a4a" onclick="toggleEndless(${!S.endless})">${S.endless?"退出无尽":"进入无尽"}</button><button class="act sm" style="background:#49f" onclick="S.floorStart=Date.now();log('⏱ 本层计时已重置');renderPanel();">重置计时</button></div>`
+      +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">⚡ 并行通道管理</span><span class="info">当前解锁 ${laneCount()}/${LANE_MAX} 条</span><button class="act sm" style="background:#2a5" onclick="S.lanes.forEach(l=>l.open=1);saveGame();renderPanel();log('⚡ 管理员：解锁全部通道')">解锁全部</button><button class="act sm" style="background:#e55" onclick="S.lanes.forEach((l,i)=>l.open=i===0?1:0);saveGame();renderPanel();log('⚡ 管理员：重置为仅通道1')">重置通道</button></div>`
+      +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">💀 死亡复活</span><span class="info">复活时间 ${RESPAWN_TIME} 真实秒${isDead()?`｜当前：<b style="color:#8af">复活中 ${Math.ceil(deadLeftMs()/1000)}s</b>`:""}</span>`+(isDead()?`<button class="act sm" style="background:#49f" onclick="reviveNow();log('⚡ 管理员：立即复活');renderPanel();">立即复活</button>`:"")+`</div>`
+      +`<div class="row" style="background:#2a2413;border:1px solid #ffd47944"><span class="name" style="color:#fa0">🧪 神水buff</span><span class="info">命中：${S.buffHitMin>0?`生效中（剩${Math.ceil(S.buffHitMin)}分）`:"未生效"}</span><span class="info">暴伤：${S.buffCdMin>0?`生效中（剩${Math.ceil(S.buffCdMin)}分）`:"未生效"}</span><button class="act sm" style="background:#a6f" onclick="S.buffHit=100;S.buffHitMin=20;log('🧪 命中神水+20分');renderPanel();">命中+20分</button><button class="act sm" style="background:#a6f" onclick="S.buffCd=100000;S.buffCdMin=20;log('💣 暴伤神水+20分');renderPanel();">暴伤+20分</button><button class="act sm" style="background:#e55" onclick="S.buffHit=0;S.buffHitMin=0;S.buffCd=0;S.buffCdMin=0;log('🧪 神水buff已清除');renderPanel();">清除</button></div>`
+      +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">🌍 全局配置</span><span class="info">难度/怪攻/锻造系数及所有数值配置 → 「数值配置」页</span><button class="act sm" style="background:#a6f" onclick="tab=${T_CFG};renderPanel()">前往数值配置</button><button class="act sm" style="background:#2a5" onclick="fetchGlobalCfg()">↻ 立即拉取云端配置</button></div>`
+      +`<div class="hint">技能等级（上限 ${cfg("skillCap")}，全局设定）：</div><div class="grid">`;
+    SK.forEach((s)=>{ h += `<div class="row"><span class="name">${s.ic} ${s.n}</span><input type="number" value="${lv(s.id)}" min="1" max="${cfg("skillCap")}" onchange="setSkill('${s.id}',+this.value)"></div>`; });
+    h += `</div>`;
+    h += `<div class="hint">物品：</div><div class="row"><select id="adIt">${Object.keys(IT).map((id)=>`<option value="${id}">${IT[id].ic}${IT[id].n}</option>`).join("")}</select><input type="number" id="adN" value="100"><button class="act sm" onclick="const i=$('adIt').value;if(addIt(i,+$('adN').value)){renderPanel();}">增加</button></div>`
+      +`<div class="row"><span class="name">👾 跳转怪物</span><input type="number" value="${S.monI}" min="0" max="99" id="adI"><input type="number" value="${S.monLv}" min="1" max="5" id="adL"><button class="act sm" onclick="pickMon(Math.min(99,Math.max(0,+$('adI').value|0)),Math.min(5,Math.max(1,+$('adL').value|0)))">跳转</button> <span class="name">🎁 装备</span><button class="act sm" onclick="addEq(rollEq(['iron','steel','bow','staff','leather','robe'][Math.random()*6|0],60));renderPanel()">随机</button><button class="act sm" onclick="const e=rollEq('steel',120);e.rare=3;e.n='传奇的'+e.n.replace(RARE_STRIP,'');rollSpecials(e);addEq(e);renderPanel()">传奇</button><button class="act sm" onclick="const e=rollEq('steel',${EQ_MAX_LV});e.rare=4;e.plus=10;e.n='仙器的'+e.n.replace(RARE_STRIP,'');rollSpecials(e);addEq(e);renderPanel()">仙器</button><button class="act sm" onclick="const e=rollEq('staff',${EQ_MAX_LV});e.rare=5;e.plus=15;e.ench=3;e.n='神器的'+e.n.replace(RARE_STRIP,'');rollSpecials(e);addEq(e);renderPanel()">神器</button></div>`
+      +`<div class="row"><span class="name">🔓 解锁全部怪物</span><button class="act sm" onclick="for(let i=0;i<100;i++)for(let l=1;l<=5;l++)S.kills[i+'-'+l]=1;renderPanel()">解锁</button> <span class="name">🗑️ 清档</span><button class="act sm" style="background:#e55" onclick="if(confirm('确认清空并重新开始？')){localStorage.removeItem(saveKeyOf(CUR));newGameState();giveStarterGear();refreshTasks(true);render();}">重置</button></div>`;
+  }
+  else if (tab === T_CFG && isAdmin()) {
+    h += `<div class="hint">🌍 <b>全局数值配置（管理员专属）</b>——修改后点「发布全局配置」，所有玩家约1分钟内同步生效。配置存储在云端 game_config 表，与个人存档无关。</div>`;
+    h += `<div class="cfgSec"><h4>👹 全局怪物系数</h4>`
+      + `<div class="cfgHint">影响所有玩家的怪物强度与锻造成功率，实时全局生效。</div>`
+      + cfgRow("怪物难度系数", "diff", DIFF_MIN, DIFF_MAX)
+      + cfgRow("怪物攻击力系数", "monAtkCf", 0.1, 10)
+      + cfgRow("锻造概率系数", "forgeCf", 0.1, 5)
+      + `</div>`;
+    h += `<div class="cfgSec"><h4>⚔️ 装备特殊属性随机范围（单件）</h4>`
+      + `<div class="cfgHint">装备掉落/制造/升阶时随机出的数值区间。品质与档位越高，随机值越接近上限。</div>`
+      + cfgRow("暴伤下限 %", "critDmgMin", 50, 10000)
+      + cfgRow("暴伤上限 %", "critDmgMax", 100, 100000)
+      + cfgRow("暴击率下限 %", "critMin", 1, 45)
+      + cfgRow("暴击率上限 %", "critMax", 5, 50)
+      + cfgRow("攻速下限 %", "aspdMin", 5, 150)
+      + cfgRow("攻速上限 %", "aspdMax", 20, 500)
+      + cfgRow("吸血下限 %", "lsMin", 1, 15)
+      + cfgRow("吸血上限 %", "lsMax", 5, 50)
+      + `</div>`;
+    h += `<div class="cfgSec"><h4>🎯 命中与怪物闪避（百分比区间制）</h4>`
+      + `<div class="cfgHint">命中率的下限 = max(命中保底%, 100 − 怪物有效闪避上限%)。设为100%时命中完全由保底兜底；神水期间无视所有限制直接100%命中。</div>`
+      + cfgRow("命中率保底 %", "hitFloor", 1, 50)
+      + cfgRow("怪物有效闪避上限 %", "evCapPct", 30, 100)
+      + `</div>`;
+    h += `<div class="cfgSec"><h4>⭐ 技能等级上限</h4>`
+      + cfgRow("全技能等级上限", "skillCap", 100, 500)
+      + `<div class="cfgHint">影响所有玩家的技能成长上限、经验升级判定（满级后经验停止积累）与装备穿戴条件。调低不会卸下已穿装备；调回后等级继续成长。</div>`
+      + `</div>`;
+    h += `<div class="row" style="margin-top:10px">`
+      + `<button class="act" style="background:#2a5" onclick="publishGlobalCfg()">🌍 发布全局配置（全体生效）</button>`
+      + `<button class="act" style="background:#a63" onclick="resetCfg()">↺ 恢复默认（待发布）</button>`
+      + `<button class="act" style="background:#49f" onclick="fetchGlobalCfg()">↻ 拉取云端当前配置</button>`
+      + `<span class="info">${CFG_DIRTY?'<b style="color:#f80">有未发布的修改</b>':"与云端一致"}</span></div>`;
+    h += `<div class="balBox">`
+      + `<p><b>⚖️ 平衡玩法建议数值（可直接照抄）：</b></p>`
+      + `<p>· <b>标准档</b>（默认）：暴伤200~10000｜暴击2~50｜攻速10~200｜吸血1~20｜闪避上限85｜保底5｜技能上限120｜难度1｜怪攻1｜锻造1</p>`
+      + `<p>· <b>前期快节奏档</b>：暴伤300~8000｜暴击5~50｜攻速20~250｜吸血3~25｜闪避上限70｜保底10｜技能上限150｜难度0.8｜怪攻0.8｜锻造1.2</p>`
+      + `<p>· <b>硬核档</b>：暴伤150~10000｜暴击1~40｜攻速5~150｜吸血1~12｜闪避上限92｜保底3｜技能上限120｜难度1.5｜怪攻1.5｜锻造0.8</p>`
+      + `<p>· <b>速爽档</b>：暴伤500~20000｜暴击10~50｜攻速50~300｜吸血5~30｜闪避上限60｜保底15｜技能上限200｜难度1｜怪攻0.7｜锻造2</p>`
+      + `</div>`;
+  }
+  else if (tab === T_HELP || tab === TABS.length-1) {
+    h += helpHTML();
+  }
+  el.innerHTML = h;
+  if (IS_MOBILE) el.scrollTop = scr;
+}
+function render() { renderTop(); renderPanel(); }
+
+/* ============================================================
+   ★ 模块 S：交互函数
+   ============================================================ */
+function setSpd(v) { if (!SPEEDS.includes(v)) return; S.speed = v; saveGame(); renderSpd(); log(`⏩ 游戏速度：${v}×`); }
+function setAutoTrash(k, v) { S.autoTrash[k] = v; saveGame(); renderPanel(); log(`⚡ 自动处理：${["关闭","💰自动出售","⚒️自动分解"][S.autoTrash.mode]}｜品质阈值：${RARE_NAMES[S.autoTrash.rare]}及以下`); }
+function setPot(i, k, v) { if (!S.pots[i]) S.pots[i] = {id:"",cond:"hp",val:30}; S.pots[i][k] = v; if (k === "cond") S.pots[i].t = null; saveGame(); renderPanel(); }
+function pickEndlessFloor(f) {
+  if (!S.endless) { log("⚠️ 请先进入无尽模式"); return; }
+  f = Math.max(1, Math.min(Math.max(1,S.bestFloor), f|0));
+  S.floor = f; S.monHp = endlessMon(S.floor).hp; atkCd = 0; monCd = 1.0;
+  S.floorStart = Date.now();
+  saveGame(); renderTop(); renderPanel();
+  log(`🌌 跳转到无尽第 ${S.floor} 层（计时重置）`);
+}
+function setAutoNext(v) { S.autoNext = !!v; saveGame(); renderPanel(); log(v?"🌌 无尽模式：通关后自动进入下一层":"🌌 无尽模式：通关后停留在本层"); }
+function toggleEndless(on) {
+  S.endless = on;
+  S.floorStart = Date.now();
+  if (on) { S.monHp = endlessMon(S.floor).hp; atkCd = 0; monCd = 1.0; log(`🌌 进入无尽模式：从第 ${S.floor} 层开始｜每层限时${FLOOR_LIMIT/60}分钟，超时降5层`); }
+  else { S.monHp = mon(S.monI, S.monLv).hp; log(`⏸ 退出无尽模式，回到普通战斗`); }
+  saveGame(); renderTop(); renderPanel();
+}
+function useXpItem(id) {
+  if (!XPIT[id]) return;
+  if (!take(id, 1)) return;
+  S.xpMult = XPIT[id].m; S.xpMin = XPIT[id].mm;
+  log(`📖 ${IT[id].n} 生效：经验 +${(XPIT[id].m*100)|0}%，持续 ${XPIT[id].mm} 分钟`);
+  renderPanel();
+}
+function usePotItem(id) {
+  const b = POTBUFF[id]; if (!b) return;
+  if (!take(id, 1)) return;
+  if (b.k === "hit") { S.buffHit = b.v; S.buffHitMin = b.mm; }
+  else { S.buffCd = b.v; S.buffCdMin = b.mm; }
+  log(`🧪 ${IT[id].n} 生效：${b.k==="hit"?"攻击100%命中":"暴击伤害+100000%"}，持续 ${b.mm} 分钟`);
+  renderPanel();
+}
+function gotoPage(p) { bagPage = Math.min(MAX_PAGES-1, Math.max(0, p)); selSlot = null; renderPanel(); }
+function gotoFirstUsed() { const ks = Object.keys(S.slotMap); if (!ks.length) { log("背包是空的"); return; } gotoPage(+ks[0].split("_")[0]); }
+function gotoFreeSlot() {
+  for (let p = bagPage; p < MAX_PAGES; p++) for (let c = 0; c < PAGE_SIZE; c++) {
+    if (!S.slotMap[p+"_"+c]) { gotoPage(p); selSlot = p+"_"+c; renderPanel(); return; }
+  }
+  log("背包全满了！");
+}
+function eatItem(id) { if (isDead()) { log("💀 死亡状态无法使用物品"); return; } if (take(id,1)) { S.hp = Math.min(P().maxHp, S.hp+IT[id].heal); log(`吃掉 ${IT[id].n}`); renderPanel(); } }
+function drinkItem(id) { if (isDead()) { log("💀 死亡状态无法使用物品"); return; } if (take(id,1)) { S.mp = Math.min(P().maxMp, S.mp+IT[id].mp); log(`喝掉 ${IT[id].n}`); renderPanel(); } }
+function equipIt(eqUid) {
+  const k = findEqKey(eqUid); if (!k) return;
+  const e = S.slotMap[k];
+  if (!canWear(e)) { log(`战斗平均等级需达到 ${Math.min(cfg("skillCap"), e.reqLv)}`); return; }
+  const old = S.eq[e.slot];
+  delete S.slotMap[k];
+  if (old) addEq(old, true);
+  S.eq[e.slot] = e;
+  S.hp = Math.min(S.hp, P().maxHp);
+  if (selSlot === k) selSlot = null;
+  log(`已装备 ${eqName(e)}`); renderPanel();
+}
+function unequip(slotid) {
+  const e = S.eq[slotid]; if (!e) return;
+  if (!addEq(e, true)) { log("🎒 背包已满，无法卸下！"); return; }
+  S.eq[slotid] = null;
+  log(`已卸下 ${eqName(e)}`); renderPanel();
+}
+function sellEq(eqUid) {
+  const k = findEqKey(eqUid); if (!k) return;
+  const e = S.slotMap[k]; const g = sellPriceEq(e);
+  if (e.rare >= 2 && !confirm(`确认出售 ${eqName(e)}（${RARE_NAMES[e.rare]}）？\n将获得 ${g}💰`)) return;
+  delete S.slotMap[k];
+  if (selSlot === k) selSlot = null;
+  S.gold += g;
+  log(`💰 出售 ${eqName(e)}，得 ${g}💰`); renderPanel();
+}
+function salvageEq(eqUid) {
+  const k = findEqKey(eqUid); if (!k) return;
+  const e = S.slotMap[k];
+  if (e.rare >= 3) {
+    const mats = salvageRareMats(e); if (!mats) return;
+    if (!confirm(`确认分解 ${eqName(e)}（${RARE_NAMES[e.rare]}）？\n将获得：${matsSummary(mats)}\n（分解系数 ×${rebSalvMult().toFixed(1)}）`)) return;
+    delete S.slotMap[k];
+    if (selSlot === k) selSlot = null;
+    let full = false;
+    for (const mk in mats) { if (!addIt(mk, mats[mk])) { full = true; log(`🎒 ${IT[mk].n} 部分未能入包`); } }
+    log(`⚒️ 分解 ${RARE_NAMES[e.rare]} ${e.n} → ${matsSummary(mats)}${full?"（背包部分已满）":""}`);
+    renderPanel(); return;
+  }
+  const { mat, n } = salvageGain(e);
+  if (e.rare >= 2 && !confirm(`确认分解 ${eqName(e)}（${RARE_NAMES[e.rare]}）？\n将获得 ${IT[mat].ic}${IT[mat].n}×${n} ＋少量金币`)) return;
+  delete S.slotMap[k];
+  if (addIt(mat, n)) {
+    const bonus = Math.floor(sellPriceEq(e)*0.15); S.gold += bonus;
+    if (selSlot === k) selSlot = null;
+    log(`⚒️ 分解 ${eqName(e)} → ${IT[mat].ic}${IT[mat].n}×${n}${bonus>0?` ＋${bonus}💰`:""}`);
+  } else { S.slotMap[k] = e; log("🎒 背包已满，无法分解！"); }
+  renderPanel();
+}
+function batchSellRare(r) {
+  const pv = batchPreview((e)=>e.rare===r);
+  if (!pv.cnt) { log("没有符合条件的装备"); return; }
+  if (!confirm(`确认出售全部【${RARE_NAMES[r]}】装备？\n共 ${pv.cnt} 件，合计 ${pv.gold}💰\n（最高档 Lv${pv.maxTier}）`)) return;
+  let g = 0, n = 0;
+  bagEquips().forEach(({key,e})=>{ if (e.rare===r && e.rare<3) { g += sellPriceEq(e); delete S.slotMap[key]; if (selSlot===key) selSlot = null; n++; } });
+  S.gold += g;
+  log(`💰 批量出售 ${RARE_NAMES[r]}装备 ×${n}，共得 ${g}💰`); renderPanel();
+}
+function batchSellTier(t) {
+  const pv = batchPreview((e)=>e.reqLv <= t);
+  if (!pv.cnt) { log("没有符合条件的装备"); return; }
+  const warn = pv.legend ? `\n⚠️ 库存中还有 ${pv.legend} 件高稀有装备不会出售。` : "";
+  if (!confirm(`确认出售全部 Lv≤${t} 档装备（传奇以下）？\n共 ${pv.cnt} 件，合计 ${pv.gold}💰${warn}`)) return;
+  let g = 0, n = 0;
+  bagEquips().forEach(({key,e})=>{ if (e.rare<3 && e.reqLv <= t) { g += sellPriceEq(e); delete S.slotMap[key]; if (selSlot===key) selSlot = null; n++; } });
+  S.gold += g;
+  log(`💰 批量出售 Lv≤${t} 装备 ×${n}，共得 ${g}💰`); renderPanel();
+}
+function batchSalvageRare(r) {
+  const pv = batchPreview((e)=>e.rare===r);
+  if (!pv.cnt) { log("没有符合条件的装备"); return; }
+  if (!confirm(`确认分解全部【${RARE_NAMES[r]}】装备？\n共 ${pv.cnt} 件\n产出：${matsSummary(pv.mats)} ＋金币`)) return;
+  const mats = {}; let n = 0, g = 0;
+  bagEquips().forEach(({key,e})=>{
+    if (e.rare===r && e.rare<3) {
+      const {mat,mn} = salvageGain(e);
+      mats[mat] = (mats[mat]||0)+mn;
+      g += Math.floor(sellPriceEq(e)*0.15);
+      delete S.slotMap[key];
+      if (selSlot===key) selSlot = null;
+      n++;
+    }
+  });
+  let full = false;
+  for (const k in mats) { if (!addIt(k, mats[k])) { full = true; log(`🎒 ${IT[k].n} 部分未能入包！`); } }
+  S.gold += g;
+  log(`⚒️ 批量分解 ${RARE_NAMES[r]}装备 ×${n} → ${matsSummary(mats)}${g>0?` ＋${g}💰`:""}${full?"（背包部分已满）":""}`);
+  renderPanel();
+}
+function batchSalvageHigh(r) {
+  const list = bagEquips().filter(({e})=>e.rare===r);
+  if (!list.length) { log("没有符合条件的装备"); return; }
+  let total = {};
+  list.forEach(({e})=>{ const m = salvageRareMats(e); for (const k in m) total[k] = (total[k]||0)+m[k]; });
+  if (!confirm(`确认分解全部【${RARE_NAMES[r]}】装备 ×${list.length}？\n合计产出：${matsSummary(total)}\n（分解系数 ×${rebSalvMult().toFixed(1)}）`)) return;
+  let full = false;
+  list.forEach(({key,e})=>{
+    const m = salvageRareMats(e);
+    delete S.slotMap[key];
+    if (selSlot===key) selSlot = null;
+    for (const k in m) if (!addIt(k, m[k])) full = true;
+  });
+  log(`⚒️ 批量分解 ${RARE_NAMES[r]} ×${list.length} → ${matsSummary(total)}${full?"（背包部分已满）":""}`);
+  renderPanel();
+}
+function batchSalvageTier(t) {
+  const pv = batchPreview((e)=>e.reqLv <= t);
+  if (!pv.cnt) { log("没有符合条件的装备"); return; }
+  const warn = pv.legend ? `\n⚠️ 库存中还有 ${pv.legend} 件高稀有装备不会分解。` : "";
+  if (!confirm(`确认分解全部 Lv≤${t} 档装备（传奇以下）？\n共 ${pv.cnt} 件\n产出：${matsSummary(pv.mats)} ＋金币${warn}`)) return;
+  const mats = {}; let n = 0, g = 0;
+  bagEquips().forEach(({key,e})=>{
+    if (e.rare<3 && e.reqLv <= t) {
+      const {mat,mn} = salvageGain(e);
+      mats[mat] = (mats[mat]||0)+mn;
+      g += Math.floor(sellPriceEq(e)*0.15);
+      delete S.slotMap[key];
+      if (selSlot===key) selSlot = null;
+      n++;
+    }
+  });
+  let full = false;
+  for (const k in mats) { if (!addIt(k, mats[k])) { full = true; log(`🎒 ${IT[k].n} 部分未能入包！`); } }
+  S.gold += g;
+  log(`⚒️ 批量分解 Lv≤${t} 装备 ×${n} → ${matsSummary(mats)}${g>0?` ＋${g}💰`:""}${full?"（背包部分已满）":""}`);
+  renderPanel();
+}
+function addQ() {
+  const laneEl = $("qLane");
+  const li = laneEl ? +laneEl.value : 0;
+  const lane = S.lanes[li];
+  if (!lane || !lane.open) { log("该通道未解锁"); return; }
+  if (lane.items.length >= QMAX()) { log(`通道${li+1}已满（每通道 ${QMAX()} 格）`); return; }
+  const a = ACT.find((x)=>x.id===qSel);
+  if (lv(a.sk) < a.lv) { log(`⚠️ ${SKM[a.sk].n}等级不足`); return; }
+  const q = { id:qSel, n:qNum };
+  if (a.outEq) {
+    const tEl = $("eqTier"); const sEl = $("eqSlot");
+    if (tEl) {
+      q.tier = +tEl.value;
+      if (q.tier > lv(a.sk)) { log(`⚠️ ${SKM[a.sk].n} Lv${lv(a.sk)} 不足以制造 Lv${q.tier} 档`); return; }
+    }
+    if (sEl) q.slot = sEl.value;
+  }
+  lane.items.push(q);
+  const tag = a.outEq && q.tier ? `（${EQIC[q.slot]} Lv${q.tier}档）` : "";
+  log(`➕ [通道${li+1}] ${a.n}${tag}×${qNum}`);
+  renderPanel();
+}
+function addQCombat() {
+  if (combatLane()) { log("⚠️ 已有通道正在战斗（同一时间只能有一场战斗）"); return; }
+  const laneEl = $("qLane");
+  const li = laneEl ? +laneEl.value : 0;
+  const lane = S.lanes[li];
+  if (!lane || !lane.open) { log("该通道未解锁"); return; }
+  if (lane.items.length >= QMAX()) { log(`通道${li+1}已满`); return; }
+  lane.items.push({ id:"combat", n:qNum });
+  log(`⚔️ [通道${li+1}] 战斗×${qNum}${S.endless?"（无尽）":""}`);
+  renderPanel();
+}
+function changeQ(li, i, id) {
+  const lane = S.lanes[li];
+  const q = lane.items[i]; if (!q) return;
+  if (id === "combat") {
+    const c = combatLane();
+    if (c && c !== lane) { log("⚠️ 已有其他通道在战斗"); renderPanel(); return; }
+    q.id = "combat"; delete q.tier; delete q.slot;
+  } else {
+    const a = ACT.find((x)=>x.id===id);
+    if (lv(a.sk) < a.lv) { log(`⚠️ ${SKM[a.sk].n}等级不足`); renderPanel(); return; }
+    q.id = id;
+    if (a.outEq) {
+      const avail = LV_TIERS.filter((t)=>t <= lv(a.sk));
+      q.tier = avail.length ? avail[avail.length-1] : a.lv;
+      q.slot = (a.slots || SLOTS.map((s)=>s.id))[0];
+    } else { delete q.tier; delete q.slot; }
+  }
+  renderPanel();
+}
+function moveQ(li, i, d) { const lane = S.lanes[li]; const q = lane.items.splice(i,1)[0]; lane.items.splice(i+d, 0, q); renderPanel(); }
+function pickMon(i, l) { if (S.endless) toggleEndless(false); S.monI = i; S.monLv = l; S.monHp = mon(i,l).hp; renderPanel(); }
+function setSkill(id, v) { S.skills[id].lv = Math.min(cfg("skillCap"), Math.max(1, v|0)); S.skills[id].xp = 0; saveGame(); checkLanes(); }
+function buyPerk(k, cost) { if (S.bell < cost) return; S.bell -= cost; S.perks[k]++; log("🛒 购买成功"); renderPanel(); }
+async function switchAcc(u) {
+  const A = accs();
+  if (!A[u]) return;
+  const pw = prompt(`输入 ${u} 的密码：`);
+  if (pw === null) return;
+  if (A[u].ph !== hashPw(pw)) { alert("密码错误"); return; }
+  saveGame();
+  const ok = await cloudSignIn(u, pw);
+  doLogin(u);
+  if (ok) enterGameCloud(); else enterGame();
+}
+function delAcc(u) {
+  if (!confirm(`确认删除账号 ${u} 及本地存档记录？（云端存档请在 Supabase Dashboard 删除）`)) return;
+  const A = accs();
+  delete A[u]; saveAccs(A);
+  localStorage.removeItem(saveKeyOf(u));
+  if (u === CUR) logout(); else renderPanel();
+}
+
+/* ============================================================
+   ★ 启动
+   ============================================================ */
+loadCfg();
+initAuth();
+</script>
+</body>
+</html>
