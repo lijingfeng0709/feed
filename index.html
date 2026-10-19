@@ -247,7 +247,7 @@ const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(navigator.us
   || (window.matchMedia && window.matchMedia("(max-width:768px)").matches);
 
 /* ============================================================
-   ★ 模块 A：Supabase 云存档 + 全局配置 + 单点登录
+   ★ 模块 A：Supabase 云存档 + 全局配置 + 单点登录 + 回档备份
    ============================================================ */
 const SB_URL = "https://scveickilldhyskrndkg.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjdmVpY2tpbGxkaHlza3JuZGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5NjEyMzQsImV4cCI6MjEwNzUzNzIzNH0.pjqsxqEE5vUcLa_2tkU2V26akUAaQnpwNpITVohvR5w";
@@ -322,8 +322,24 @@ async function cloudSave() {
   if (!id) return;
   const raw = localStorage.getItem(saveKeyOf(CUR));
   if (!raw) return;
-  const { error } = await sb.from("saves").upsert({ id: id, data: JSON.parse(raw), version: 1 });
+  const { error } = await sb.from("saves").upsert({ id: id, name: CUR, data: JSON.parse(raw), version: 1 });
   if (error) sbErr(error); else log("☁️ 存档已同步到云端");
+  maybeBackup(id);
+}
+/* ★ 回档备份：每6小时打一次快照，保留3天 */
+async function maybeBackup(id) {
+  try {
+    const key = "mr_bk_" + CUR;
+    const last = +(localStorage.getItem(key) || 0);
+    const now = Date.now();
+    if (now - last < 6*3600*1000) return;
+    localStorage.setItem(key, String(now));
+    const raw = localStorage.getItem(saveKeyOf(CUR));
+    if (!raw) return;
+    const { error } = await sb.from("save_backups").insert({ id: id, name: CUR, data: JSON.parse(raw) });
+    if (!error) log("🗂️ 已创建云端存档快照（用于管理员回档）");
+    try { await sb.from("save_backups").delete().lt("created_at", new Date(now - 3*86400*1000).toISOString()); } catch (e) {}
+  } catch (e) {}
 }
 
 async function cloudFetch() {
@@ -365,6 +381,43 @@ function chooseSave(which) {
   }
   PICK = null;
   enterGame();
+}
+
+/* ============================================================
+   ★ ★ 管理员账号回档（一天前）
+   ============================================================ */
+let RB = null;
+async function queryBackup() {
+  if (!CLOUD_ON()) { log("⚠️ 云端未连接"); return; }
+  const name = ($("rbUser") || {}).value || "";
+  const nm = String(name).trim();
+  if (!nm) { log("⚠️ 请输入要回档的账号名"); return; }
+  log("⏳ 正在查询账号「" + nm + "」的云端备份点…");
+  const { data: sv } = await sb.from("saves").select("id").eq("name", nm).maybeSingle();
+  if (!sv || !sv.id) {
+    RB = null;
+    log("❌ 云端未找到账号「" + nm + "」的存档（注意：该账号需在更新后至少在线保存过一次才能被检索到；游客账号无法回档）");
+    renderPanel();
+    return;
+  }
+  const { data: bks, error } = await sb.from("save_backups").select("data,created_at").eq("name", nm).order("created_at", { ascending: false }).limit(20);
+  if (error) { sbErr(error); RB = null; renderPanel(); return; }
+  RB = { name: nm, uid: sv.id, list: bks || [] };
+  log(`📂 账号「${nm}」找到 ${RB.list.length} 个备份点${RB.list.length ? "，请在下方选择回档点（⭐=最接近一天前）" : "（暂无备份，无法回档）"}`);
+  renderPanel();
+}
+async function doRollback(created_at) {
+  if (!RB) return;
+  const bk = RB.list.find((b) => b.created_at === created_at);
+  if (!bk) return;
+  const ageH = ((Date.now() - new Date(bk.created_at)) / 3600000).toFixed(1);
+  if (!confirm(`⚠️ 确认将账号「${RB.name}」回档到\n\n${new Date(bk.created_at).toLocaleString()}（${ageH} 小时前）？\n\n该玩家云端存档将被覆盖为此备份，其所有在线设备会被强制下线；该玩家下次登录时应选择「云存档」。`)) return;
+  log("⏳ 正在执行回档…");
+  const { error } = await sb.from("saves").upsert({ id: RB.uid, name: RB.name, data: bk.data, version: 1 });
+  if (error) { sbErr(error); return; }
+  try { await sb.from("logins").delete().eq("id", RB.uid); } catch (e) {}
+  log(`⏪ 账号「${RB.name}」已回档到 ${new Date(bk.created_at).toLocaleString()}（${ageH}小时前），其在线设备已被强制下线`);
+  renderPanel();
 }
 
 /* ============================================================
@@ -498,7 +551,6 @@ defIt("xpC3","经验咖啡Ⅲ","🍺","xp",4500); defIt("xpC4","经验咖啡Ⅳ"
 defIt("hitPot","百发神水","🧪","pot",1000000);
 defIt("critPot","弑神狂暴水","💣","pot",1000000);
 defIt("punch","打孔锥","🔨","spec",50000);
-/* ★ 宝石：四类×20级，1级基础值由全局配置控制，每级×1.2复利 */
 const GEM_T = {
   atk:     { n:"攻击宝石", ic:"⚔", ck:"gemAtk" },
   def:     { n:"防御宝石", ic:"🛡", ck:"gemDef" },
@@ -506,7 +558,6 @@ const GEM_T = {
   critDmg: { n:"爆伤宝石", ic:"💥", ck:"gemCritDmg" }
 };
 for (const t in GEM_T) for (let l = 1; l <= 20; l++) defIt(`gem_${t}_${l}`, `${GEM_T[t].n}Lv${l}`, GEM_T[t].ic, "gem", 400*l*l);
-/* ★ 宝石数值：1级=管理员配置的基础值，每级在上一级基础上+20%（×1.2^(等级-1)） */
 const gemVal = (t, l) => Math.floor(cfg(GEM_T[t].ck) * Math.pow(1.2, l-1));
 const GEM_MAX = 20, EQ_HOLES_MAX = 4;
 const XPIT = { xpC1:{m:0.2,mm:15}, xpC2:{m:0.5,mm:15}, xpC3:{m:1.0,mm:20}, xpC4:{m:2.0,mm:20} };
@@ -620,7 +671,6 @@ function mon(i, lv) {
     drop: Math.min(0.9, Math.max(0.05, (0.38 - i*0.003)))*(1+(D-1)*0.3)*cfg("dropCf"), rb: 0,
     eqLv: LV_TIERS[eqT] };
 }
-/* ★ 普通图宝石掉落等级区间：炼虚(第6层,z=5)Lv1~3 → 真仙(z=9)Lv9~11，上限11级 */
 const zoneGemLv = (z) => Math.min(11, 1+(z-5)*2);
 function endlessMon(f) {
   const D = diff(); const R = rebCf();
@@ -673,10 +723,10 @@ const CFG_DEFAULT = {
   dropCf: 1,
   xpCf: 1,
   rebMonCf: 0.5,
-  gemAtk: 10,        /* ★ 宝石1级基础值：攻击+10 */
-  gemDef: 2,         /* ★ 宝石1级基础值：防御+2 */
-  gemHp: 60,         /* ★ 宝石1级基础值：血量+60 */
-  gemCritDmg: 120    /* ★ 宝石1级基础值：暴伤+120% */
+  gemAtk: 10,
+  gemDef: 2,
+  gemHp: 60,
+  gemCritDmg: 120
 };
 let CFG = Object.assign({}, CFG_DEFAULT);
 let CFG_DIRTY = false;
@@ -1200,7 +1250,6 @@ function P() {
     aspd:aspd,
     ls:Math.min(100, ls) };
 }
-/* ★ 已穿戴装备的宝石加成合计（用于面板展示） */
 function gemTotals() {
   const o = {atk:0,def:0,hp:0,critDmg:0};
   for (const sl of SLOTS) {
@@ -1370,7 +1419,6 @@ function dropRareMat(f) {
     if (addIt(id,1)) log(`💎 无尽第${f}层掉落 ${IT[id].n}（+${gemVal(t,l)}${t==="critDmg"?"%":""}）！`);
   }
 }
-/* ★ 普通图宝石掉落：炼虚(第6境,z=5)起，层级越高等级越高，上限Lv11，5%掉率 */
 function dropZoneGem(i) {
   const z = Math.min(9, (i/10)|0);
   if (z < 5) return;
@@ -1440,7 +1488,7 @@ let mkQty = 1;
 function mkSeed() {
   for (const id in IT) {
     if (id === "token") continue;
-    if (/^gem_/.test(id)) continue;   /* ★ 宝石只能怪物掉落，市场不出售 */
+    if (/^gem_/.test(id)) continue;
     MK[id] = { mid:IT[id].val*(0.95+Math.random()*0.1), p0:IT[id].val };
     mkRefresh(id);
   }
@@ -1883,7 +1931,6 @@ function cfgRow(label, key, lo, hi) {
     +`<input class="cIn" type="number" value="${cfg(key)}" min="${lo}" max="${hi}" onchange="setCfgNum('${key}', this.value, ${lo}, ${hi});">`
     +`<span class="cDesc">当前 ${cfg(key)}｜允许 ${lo}~${hi}</span></div>`;
 }
-/* ★ 背包搜索结果HTML（输入时只刷新此区域，避免丢失输入焦点） */
 function bagSearchHTML() {
   const q = bagSearch.trim().toLowerCase();
   if (!q) return "";
@@ -1969,7 +2016,7 @@ function helpHTML() {
 
 <div class="helpSec"><h4>🌙 十二、账号与安全</h4>
 <p>· <b>单点登录</b>：同账号只能一处在线，异地登录互踢。</p>
-<p>· 云存档60秒同步；建议定期导出 json 备份。</p></div>
+<p>· 云存档60秒同步，另每6小时自动创建<b>云端快照</b>（保留3天）；建议定期导出 json 备份。</p></div>
 
 <div class="helpSec"><h4>💡 十三、实用小技巧</h4>
 <p>· 「战斗」页可查看<b>总攻击力</b>（近战命中/伤害/远程/魔法/防御+宝石明细）。</p>
@@ -1980,10 +2027,11 @@ function helpHTML() {
   if (isAdmin()) {
     h += `
 <div class="helpSec"><h4>📜 十四、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.14</span><b>属性面板与宝石经济</b>：战斗页新增<b>总攻击力显示</b>（近战命中/伤害/远程/魔法/防御+宝石加成明细）；数值配置新增<b>四类宝石1级基础值</b>（全局可调，每级+20%复利成长）；背包新增<b>🔍搜索</b>；市场<b>不再出售宝石</b>（仅怪物掉落）；普通图<b>炼虚起掉落低级宝石</b>（Lv1~11，境界越高等级越高，5%掉率）。</p>
-<p><span class="verTag">v1.13</span><b>宝石合成与单点登录</b>：强化失败不掉级；普通图掉落封顶+15；市场自定义数量+库存提示；单点登录；转生怪物增强系数；自动处理全品质；打孔宝石系统；合成系统；版本记录仅管理员；材料不足弹窗。</p>
-<p><span class="verTag">v1.12</span><b>掉率曲线修正</b>：普通怪掉率递减；无尽保持递增。</p>
-<p><span class="verTag">v1.11</span><b>掉落与成长重平衡</b>：档位均匀分布；掉率/升级系数；转生二次确认。</p>
+<p><span class="verTag">v1.15</span><b>管理员账号回档</b>：每账号每6小时自动云端快照（保留3天）；管理员页新增「⏪ 账号回档」——输入账号名查询备份点，⭐自动标记最接近一天前的备份，一键回档（覆盖云端存档+强制对方下线）。需执行 SQL：saves 加 name 列 + 建 save_backups 表 + 放宽 saves 读写策略。</p>
+<p><span class="verTag">v1.14</span><b>属性面板与宝石经济</b>：总攻击力显示；宝石1级基础值全局可调（每级+20%复利）；背包搜索；市场不出售宝石；炼虚起掉低级宝石。</p>
+<p><span class="verTag">v1.13</span><b>宝石合成与单点登录</b>：强化失败不掉级；普通图掉落封顶+15；市场自定义数量；单点登录；转生怪物增强；自动处理全品质；打孔宝石；合成系统；版本记录仅管理员；材料不足弹窗。</p>
+<p><span class="verTag">v1.12</span><b>掉率曲线修正</b>。</p>
+<p><span class="verTag">v1.11</span><b>掉落与成长重平衡</b>。</p>
 <p><span class="verTag">v1.10</span><b>全局配置与管理员</b>。</p>
 <p><span class="verTag">v1.9</span><b>修仙怪物与神水</b>。</p>
 <p><span class="verTag">v1.8</span><b>数值自定义</b>。</p>
@@ -2064,7 +2112,6 @@ function renderPanel() {
       +`<select onchange="setAutoTrash('mode',+this.value)"><option value="0" ${AT.mode===0?"selected":""}>关闭</option><option value="1" ${AT.mode===1?"selected":""}>💰 自动出售</option><option value="2" ${AT.mode===2?"selected":""}>⚒️ 自动分解</option></select>`
       +`<span class="info">品质阈值：</span>`
       +`<select onchange="setAutoTrash('rare',+this.value)"><option value="0" ${AT.rare===0?"selected":""}>普通及以下</option><option value="1" ${AT.rare===1?"selected":""}>精良及以下</option><option value="2" ${AT.rare===2?"selected":""}>闪耀及以下</option><option value="3" ${AT.rare===3?"selected":""}>传奇及以下</option><option value="4" ${AT.rare===4?"selected":""}>仙器及以下</option><option value="5" ${AT.rare===5?"selected":""}>神器及以下</option></select></div>`;
-    /* ★ 搜索框 */
     h += `<div class="row"><span class="name">🔍 搜索背包</span><input id="bagSearchIn" style="flex:1" placeholder="输入物品或装备名称（支持模糊匹配）…" value="${bagSearch}" oninput="bagSearch=this.value;renderBagSearchRes()"><button class="act sm" style="background:#e55" onclick="bagSearch='';renderPanel()">清空</button></div>`;
     h += bagSearchHTML();
     h += `<div class="pagenav"><button class="act sm" onclick="gotoPage(bagPage-1)">◀ 上一页</button><span>第 <input type="number" min="1" max="${MAX_PAGES}" value="${bagPage+1}" onchange="gotoPage((+this.value|0)-1)"> / ${MAX_PAGES} 页</span><button class="act sm" onclick="gotoPage(bagPage+1)">下一页 ▶</button><span class="info">已用 ${usedSlots()} 格</span><button class="act sm" onclick="gotoFirstUsed()">跳首件</button><button class="act sm" onclick="gotoFreeSlot()">跳空格</button><button class="act sm" style="background:#a6f" onclick="compactBag()">🧹 整理</button></div>`;
@@ -2173,7 +2220,6 @@ function renderPanel() {
       +`<div class="bar"><div style="width:${Math.max(0,S.monHp/m.hp*100)}%"></div></div>`
       +`<div class="hint">我的血量 ${Math.max(0,S.hp|0)}/${p.maxHp}｜法力 ${S.mp|0}/${p.maxMp}｜加速 ${S.speed}×</div>`
       +`<div class="bar"><div class="xp" style="width:${Math.min(100,S.hp/p.maxHp*100)}%"></div></div>`;
-    /* ★ 总攻击力面板 */
     h += `<div class="row" style="background:#1a2440;flex-direction:column;align-items:stretch"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><span class="info">🎯 我的属性：</span>`
       +`<span style="color:#ffd479;font-weight:bold">⚔近战命中 ${p.acc.toLocaleString()}</span>`
       +`<span style="color:#ffd479;font-weight:bold">💪近战伤害 ${p.pow.toLocaleString()}</span>`
@@ -2296,8 +2342,28 @@ function renderPanel() {
   }
   else if (tab === T_ADMIN && isAdmin()) {
     h += `<div class="hint">👑 管理员面板（仅管理员可见）</div>`
-      +`<div class="row"><span class="name">💰 金币</span><input type="number" value="${S.gold|0}" onchange="S.gold=Math.max(0,+this.value);saveGame()"> <span class="name">🔔 牛铃</span><input type="number" value="${S.bell}" onchange="S.bell=Math.max(0,+this.value);saveGame()"> <span class="name">⏩ 加速</span><select onchange="setSpd(+this.value)">`+SPEEDS.map((v)=>`<option value="${v}" ${S.speed===v?"selected":""}>${v}×</option>`).join("")+`</select></div>`
-      +`<div class="row" style="background:#2a1535;border:1px solid #c5f5"><span class="name" style="color:#c5f">🌌 无尽模式</span><span class="info">当前层</span><input type="number" min="1" value="${S.floor}" onchange="S.floor=Math.max(1,+this.value|0);S.monHp=endlessMon(S.floor).hp;S.floorStart=Date.now();saveGame()"><button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(${S.autoNext===false})">通关后${S.autoNext!==false?"自动下一层":"停留本层"}</button><button class="act sm" style="background:#a4a" onclick="toggleEndless(${!S.endless})">${S.endless?"退出无尽":"进入无尽"}</button><button class="act sm" style="background:#49f" onclick="S.floorStart=Date.now();log('⏱ 计时已重置');renderPanel();">重置计时</button></div>`
+      +`<div class="row"><span class="name">💰 金币</span><input type="number" value="${S.gold|0}" onchange="S.gold=Math.max(0,+this.value);saveGame()"> <span class="name">🔔 牛铃</span><input type="number" value="${S.bell}" onchange="S.bell=Math.max(0,+this.value);saveGame()"> <span class="name">⏩ 加速</span><select onchange="setSpd(+this.value)">`+SPEEDS.map((v)=>`<option value="${v}" ${S.speed===v?"selected":""}>${v}×</option>`).join("")+`</select></div>`;
+    /* ★ 账号回档区 */
+    h += `<div class="hint" style="color:#f88;margin-top:8px">━━━━━ ⏪ 账号回档（恢复到约一天前）━━━━━</div>`
+      +`<div class="row" style="background:#2a1515;border:1px solid #e55"><span class="name" style="color:#f88">⏪ 指定账号回档</span>`
+      +`<input id="rbUser" placeholder="账号名" value="${RB?RB.name:''}" style="min-width:120px">`
+      +`<button class="act sm" style="background:#e55" onclick="queryBackup()">查询回档点</button>`
+      +`<span class="info">云端每6小时自动快照（保留3天）｜⭐=最接近24小时前的备份｜回档后对方强制下线</span></div>`;
+    if (RB) {
+      if (!RB.list.length) {
+        h += `<div class="hint">账号「${RB.name}」暂无云端备份（需该账号更新后至少在线6小时以上）</div>`;
+      } else {
+        let best = null, bestDiff = Infinity;
+        RB.list.forEach((b)=>{ const d = Math.abs((Date.now()-new Date(b.created_at))/3600000 - 24); if (d < bestDiff) { bestDiff = d; best = b.created_at; } });
+        h += `<div class="hint">账号「${RB.name}」共 ${RB.list.length} 个备份点：</div>`;
+        RB.list.forEach((b)=>{
+          const ageH = ((Date.now()-new Date(b.created_at))/3600000).toFixed(1);
+          const rec = b.created_at === best;
+          h += `<div class="row" style="background:#1c2036"><span class="name">${rec?"⭐推荐 ":""}${new Date(b.created_at).toLocaleString()}</span><span class="info">${ageH} 小时前</span><button class="act sm" style="background:#e55" onclick="doRollback('${b.created_at}')">回档到此</button></div>`;
+        });
+      }
+    }
+    h += `<div class="row" style="background:#2a1535;border:1px solid #c5f5"><span class="name" style="color:#c5f">🌌 无尽模式</span><span class="info">当前层</span><input type="number" min="1" value="${S.floor}" onchange="S.floor=Math.max(1,+this.value|0);S.monHp=endlessMon(S.floor).hp;S.floorStart=Date.now();saveGame()"><button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(${S.autoNext===false})">通关后${S.autoNext!==false?"自动下一层":"停留本层"}</button><button class="act sm" style="background:#a4a" onclick="toggleEndless(${!S.endless})">${S.endless?"退出无尽":"进入无尽"}</button><button class="act sm" style="background:#49f" onclick="S.floorStart=Date.now();log('⏱ 计时已重置');renderPanel();">重置计时</button></div>`
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">⚡ 并行通道</span><button class="act sm" style="background:#2a5" onclick="S.lanes.forEach(l=>l.open=1);saveGame();renderPanel();">解锁全部</button><button class="act sm" style="background:#e55" onclick="S.lanes.forEach((l,i)=>l.open=i===0?1:0);saveGame();renderPanel();">重置通道</button></div>`
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">💀 死亡复活</span><span class="info">${isDead()?`复活中 ${Math.ceil(deadLeftMs()/1000)}s`:"未死亡"}</span>`+(isDead()?`<button class="act sm" style="background:#49f" onclick="reviveNow();log('⚡ 立即复活');renderPanel();">立即复活</button>`:"")+`</div>`
       +`<div class="row" style="background:#2a2413;border:1px solid #ffd47944"><span class="name" style="color:#fa0">🧪 神水buff</span><button class="act sm" style="background:#a6f" onclick="S.buffHit=100;S.buffHitMin=20;log('🧪 命中+20分');renderPanel();">命中+20分</button><button class="act sm" style="background:#a6f" onclick="S.buffCd=100000;S.buffCdMin=20;log('💣 暴伤+20分');renderPanel();">暴伤+20分</button><button class="act sm" style="background:#e55" onclick="S.buffHit=0;S.buffHitMin=0;S.buffCd=0;S.buffCdMin=0;log('🧪 已清除');renderPanel();">清除</button></div>`
@@ -2324,7 +2390,7 @@ function renderPanel() {
       + cfgRow("防御宝石1级 +", "gemDef", 1, 200)
       + cfgRow("活力宝石1级 +血", "gemHp", 10, 10000)
       + cfgRow("爆伤宝石1级 +%", "gemCritDmg", 10, 10000)
-      + `<div class="cfgHint">宝石数值公式：1级 = 基础值，之后<b>每级在上一级基础上 ×1.2（+20%复利）</b>。当前配置下满级Lv20：⚔攻击+${gemVal("atk",20)}｜🛡防御+${gemVal("def",20)}｜❤血量+${gemVal("hp",20)}｜💥暴伤+${gemVal("critDmg",20)}%。<br>等级成长参考：Lv5≈基础×2.07｜Lv10≈基础×5.16｜Lv15≈基础×12.84｜Lv20≈基础×31.95。发布后立即对所有已镶嵌/库存宝石生效。</div>`
+      + `<div class="cfgHint">宝石数值公式：1级 = 基础值，之后<b>每级在上一级基础上 ×1.2（+20%复利）</b>。当前配置下满级Lv20：⚔攻击+${gemVal("atk",20)}｜🛡防御+${gemVal("def",20)}｜❤血量+${gemVal("hp",20)}｜💥暴伤+${gemVal("critDmg",20)}%。发布后对所有已镶嵌/库存宝石生效。</div>`
       + `</div>`;
     h += `<div class="cfgSec"><h4>⬆️ 升级速度</h4>`
       + cfgRow("升级经验系数", "xpCf", 0.1, 10)
