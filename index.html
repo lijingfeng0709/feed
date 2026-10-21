@@ -56,6 +56,7 @@ td,th{padding:4px 6px;border-bottom:1px solid #2c3152;text-align:left}
 .cell{height:46px;background:#1a1d2e;border:1px solid #2c3152;border-radius:4px;position:relative;cursor:pointer;user-select:none;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .cell:hover{border-color:#4a9eff}
 .cell.sel{border-color:#ffd479;background:#2a2e45;box-shadow:0 0 4px #ffd47955}
+.cell.locked{background:#241d2e;border-color:#a6655}
 .cell .ic{font-size:20px;line-height:1}
 .cell .cnt{font-size:10px;color:#9aa;line-height:1.2}
 .cell .idx{position:absolute;top:1px;left:3px;font-size:8px;color:#3d4266}
@@ -128,12 +129,14 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
 .cfgSec h4{color:#ffd479;font-size:14px;margin-bottom:8px}
 .cfgHint{font-size:11px;color:#778;margin:4px 0 8px}
 .verTag{display:inline-block;background:#4a9eff;color:#fff;font-size:10px;padding:0 6px;border-radius:3px;margin-right:6px;vertical-align:middle}
-.balBox{background:#2a2413;border:1px solid #ffd47944;border-radius:6px;padding:8px 12px;margin-top:8px}
-.balBox p{font-size:11px;color:#cbb;line-height:1.7;margin:2px 0}
-.balBox b{color:#ffd479}
 .rebBtn{font-size:16px !important;padding:14px 40px !important;min-height:48px !important;font-weight:bold}
 .gemCell{display:inline-block;background:#2a2038;border:1px solid #a6f4;border-radius:4px;padding:2px 6px;font-size:11px;color:#d9f;margin:1px}
 .srchRow{background:#1a2440;border-left:3px solid #4af}
+.ctxMenu{position:fixed;z-index:2000;background:#1c2036;border:1px solid #4a5480;border-radius:8px;padding:6px;min-width:230px;box-shadow:0 8px 30px #000c}
+.ctxMenu button{display:block;width:100%;text-align:left;padding:8px 10px;margin:2px 0;background:#242a45;border:1px solid #3a4166;color:#e8e8f0;border-radius:5px;cursor:pointer;font-size:13px}
+.ctxMenu button:hover{border-color:#ffd479;color:#ffd479}
+.ctxMenu button:disabled{color:#555;cursor:not-allowed}
+.ctxMenu .sep{height:1px;background:#3a4166;margin:4px 0}
 
 @media (max-width:768px){
   body{font-size:13px}
@@ -179,6 +182,8 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
   .cfgRow .cIn{width:72px}
   .cfgRow .cDesc{min-width:140px}
   .rebBtn{font-size:16px !important;padding:14px 30px !important;width:100%}
+  .ctxMenu{min-width:200px}
+  .ctxMenu button{padding:11px 12px;font-size:14px}
 }
 </style>
 </head>
@@ -238,6 +243,8 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
     <div class="hint" style="text-align:center">选择后进入游戏，之后的进度会自动同步到所选存档</div>
   </div>
 </div>
+
+<div id="eqMenu" class="ctxMenu" style="display:none"></div>
 
 <input type="file" id="saveFile" accept=".json,application/json" style="display:none">
 
@@ -326,13 +333,13 @@ async function cloudSave() {
   if (error) sbErr(error); else log("☁️ 存档已同步到云端");
   maybeBackup(id);
 }
-/* ★ 回档备份：每6小时打一次快照，保留3天 */
+/* ★ 回档备份：首次立即快照，之后每6小时一次，保留3天 */
 async function maybeBackup(id) {
   try {
     const key = "mr_bk_" + CUR;
     const last = +(localStorage.getItem(key) || 0);
     const now = Date.now();
-    if (now - last < 6*3600*1000) return;
+    if (last !== 0 && now - last < 6*3600*1000) return;
     localStorage.setItem(key, String(now));
     const raw = localStorage.getItem(saveKeyOf(CUR));
     if (!raw) return;
@@ -384,7 +391,7 @@ function chooseSave(which) {
 }
 
 /* ============================================================
-   ★ ★ 管理员账号回档（一天前）
+   ★ 管理员账号回档
    ============================================================ */
 let RB = null;
 async function queryBackup() {
@@ -396,14 +403,14 @@ async function queryBackup() {
   const { data: sv } = await sb.from("saves").select("id").eq("name", nm).maybeSingle();
   if (!sv || !sv.id) {
     RB = null;
-    log("❌ 云端未找到账号「" + nm + "」的存档（注意：该账号需在更新后至少在线保存过一次才能被检索到；游客账号无法回档）");
+    log("❌ 云端未找到账号「" + nm + "」的存档（需该账号用新版本在线保存过一次；游客账号无法回档）");
     renderPanel();
     return;
   }
   const { data: bks, error } = await sb.from("save_backups").select("data,created_at").eq("name", nm).order("created_at", { ascending: false }).limit(20);
   if (error) { sbErr(error); RB = null; renderPanel(); return; }
   RB = { name: nm, uid: sv.id, list: bks || [] };
-  log(`📂 账号「${nm}」找到 ${RB.list.length} 个备份点${RB.list.length ? "，请在下方选择回档点（⭐=最接近一天前）" : "（暂无备份，无法回档）"}`);
+  log(`📂 账号「${nm}」找到 ${RB.list.length} 个备份点${RB.list.length ? "，⭐=最接近一天前" : "（暂无备份，无法回档）"}`);
   renderPanel();
 }
 async function doRollback(created_at) {
@@ -411,7 +418,7 @@ async function doRollback(created_at) {
   const bk = RB.list.find((b) => b.created_at === created_at);
   if (!bk) return;
   const ageH = ((Date.now() - new Date(bk.created_at)) / 3600000).toFixed(1);
-  if (!confirm(`⚠️ 确认将账号「${RB.name}」回档到\n\n${new Date(bk.created_at).toLocaleString()}（${ageH} 小时前）？\n\n该玩家云端存档将被覆盖为此备份，其所有在线设备会被强制下线；该玩家下次登录时应选择「云存档」。`)) return;
+  if (!confirm(`⚠️ 确认将账号「${RB.name}」回档到\n\n${new Date(bk.created_at).toLocaleString()}（${ageH} 小时前）？\n\n该玩家云端存档将被覆盖，其所有在线设备会被强制下线；该玩家下次登录应选择「云存档」。`)) return;
   log("⏳ 正在执行回档…");
   const { error } = await sb.from("saves").upsert({ id: RB.uid, name: RB.name, data: bk.data, version: 1 });
   if (error) { sbErr(error); return; }
@@ -529,7 +536,7 @@ function enterGame() {
 }
 
 /* ============================================================
-   ★ 模块 C：物品注册（含神水 + 打孔锥 + 四类宝石×20级）
+   ★ 模块 C：物品注册（含神水 + 无敌药水 + 打孔锥 + 四类宝石×20级）
    ============================================================ */
 const IT = {};
 const defIt = (id, n, ic, tp, val, heal, mp) => { IT[id] = { id, n, ic, tp, val, heal: heal || 0, mp: mp || 0 }; };
@@ -550,6 +557,7 @@ defIt("xpC1","经验咖啡Ⅰ","🥤","xp",600); defIt("xpC2","经验咖啡Ⅱ",
 defIt("xpC3","经验咖啡Ⅲ","🍺","xp",4500); defIt("xpC4","经验咖啡Ⅳ","🍾","xp",11000);
 defIt("hitPot","百发神水","🧪","pot",1000000);
 defIt("critPot","弑神狂暴水","💣","pot",1000000);
+defIt("invPot","无敌药水","🛉","pot",10000000);   /* ★ 无敌药水：20分钟免伤，市场1000万 */
 defIt("punch","打孔锥","🔨","spec",50000);
 const GEM_T = {
   atk:     { n:"攻击宝石", ic:"⚔", ck:"gemAtk" },
@@ -563,8 +571,10 @@ const GEM_MAX = 20, EQ_HOLES_MAX = 4;
 const XPIT = { xpC1:{m:0.2,mm:15}, xpC2:{m:0.5,mm:15}, xpC3:{m:1.0,mm:20}, xpC4:{m:2.0,mm:20} };
 const POTBUFF = {
   hitPot:  { k:"hit",     v:100,    mm:20 },
-  critPot: { k:"critDmg", v:100000, mm:20 }
+  critPot: { k:"critDmg", v:100000, mm:20 },
+  invPot:  { k:"inv",     v:1,      mm:20 }   /* ★ 无敌20分钟 */
 };
+const POT_MK = { hitPot:1000000, critPot:1000000, invPot:10000000 };  /* ★ 市场定价 */
 const matStr = (m) => Object.entries(m).map(([k,v]) => `${IT[k].ic}${IT[k].n}×${v}`).join("＋");
 const RARE_MATS = { xianGu:1, xianYu:1, soul:1, shenShi:1 };
 
@@ -807,7 +817,7 @@ function newGameState() {
     style:"melee", monI:0, monLv:1, monHp:mon(0,1).hp, hp:60, mp:25,
     endless:false, floor:1, bestFloor:0, autoNext:true, floorKills:{}, floorStart:Date.now(),
     autoHp:30, autoMp:20, teaMin:0, xpMin:0, xpMult:0,
-    buffHit:0, buffHitMin:0, buffCd:0, buffCdMin:0,
+    buffHit:0, buffHitMin:0, buffCd:0, buffCdMin:0, buffInv:0, buffInvMin:0,
     pots:[null,null,null,null,null], houses:{}, badge:0, tasks:[],
     reb:0, sp:0, kills:{}, perks:{q:0,off:0,mk:0},
     speed:1, autoTrash:{mode:0,rare:1},
@@ -865,7 +875,8 @@ function lackOf(mats, gold) {
 }
 function addEq(e, skipAuto) {
   const at = S.autoTrash;
-  if (!skipAuto && at && at.mode && e.rare <= at.rare) {
+  /* ★ 锁定的装备不参与自动出售/分解 */
+  if (!skipAuto && at && at.mode && e.rare <= at.rare && !e.lock) {
     if (at.mode === 1) { const g = sellPriceEq(e); S.gold += g; log(`⚡ 自动出售 ${e.n}（${RARE_NAMES[e.rare]}）+${g}💰`); return true; }
     else {
       if (e.rare >= 3) {
@@ -926,7 +937,7 @@ function canAfford(mats, gold) { if (S.gold < gold) return false; for (const k i
 function payCost(mats, gold) { S.gold -= gold; for (const k in mats) take(k, mats[k]); }
 
 /* ============================================================
-   ★ 模块 J：装备系统（含打孔/宝石）
+   ★ 模块 J：装备系统（含打孔/宝石/锁定）
    ============================================================ */
 const RARE_NAMES = ["普通","精良","闪耀","传奇","仙器","神器"];
 const PREFIX = ["","精良的","闪耀的","传奇的","仙器的","神器的"];
@@ -998,7 +1009,7 @@ function rollEq(fam, reqLv, slotId, rb) {
   if (r < p3) rare = 3; else if (r < p3+p2) rare = 2; else if (r < p3+p2+p1) rare = 1;
   const mult = RARE_MULT[rare];
   const base = f.base*(1+reqLv*0.15)*mult;
-  const e = { uid:uid++, fam, reqLv, rare, plus:0, ench:0, affix:null, slot:slot.id, n:PREFIX[rare]+f.n+slot.n, dt:f.dt||"thrust", holes:0, gems:[] };
+  const e = { uid:uid++, fam, reqLv, rare, plus:0, ench:0, affix:null, slot:slot.id, n:PREFIX[rare]+f.n+slot.n, dt:f.dt||"thrust", holes:0, gems:[], lock:false };
   if (slot.id === "weapon") { e.atk = Math.floor(base*(0.8+Math.random()*0.4)); e.dmgT = f.dt || ["thrust","slash","blunt"][Math.random()*3|0]; }
   if (slot.id === "helmet") e.hp = Math.floor(base*2.5);
   if (slot.id === "armor") e.def = Math.floor(base*0.6)+1;
@@ -1033,11 +1044,11 @@ function eqValStr(e) {
   }).join(" ");
 }
 const gemCount = (e) => (Array.isArray(e.gems) ? e.gems.filter(Boolean).length : 0);
-const eqName = (e) => `${e.n} +${e.plus}${e.ench>0?" ◆"+e.ench:""}${gemCount(e)?` 💎${gemCount(e)}/${e.holes||0}`:""}`;
+const eqName = (e) => `${e.lock?"🔒":""}${e.n} +${e.plus}${e.ench>0?" ◆"+e.ench:""}${gemCount(e)?` 💎${gemCount(e)}/${e.holes||0}`:""}`;
 function combatLvAvg() { return (lv("acc")+lv("pow")+lv("def")+lv("hp")+lv("rng")+lv("eva")+lv("mag"))/7|0; }
 function canWear(e) { return combatLvAvg() >= Math.min(cfg("skillCap"), e.reqLv); }
 function giveStarterGear() {
-  const mk = (slot,atk,hp,def,eva,dmgT)=>({uid:uid++,fam:"iron",reqLv:1,rare:0,plus:0,ench:0,affix:null,slot,n:"新手"+SLOTS.find((s)=>s.id===slot).n,dmgT:dmgT||"thrust",atk,hp,def,eva,holes:0,gems:[]});
+  const mk = (slot,atk,hp,def,eva,dmgT)=>({uid:uid++,fam:"iron",reqLv:1,rare:0,plus:0,ench:0,affix:null,slot,n:"新手"+SLOTS.find((s)=>s.id===slot).n,dmgT:dmgT||"thrust",atk,hp,def,eva,holes:0,gems:[],lock:false});
   S.eq.weapon = mk("weapon",6,0,0,0,"thrust");
   S.eq.helmet = mk("helmet",0,20,1,0);
   S.eq.armor = mk("armor",0,10,3,0);
@@ -1047,7 +1058,7 @@ function giveStarterGear() {
   log("🎁 初始赠送：新手六件套（含🥾鞋子、🧤手套），已自动穿上！");
 }
 function migrateEquips() {
-  const fix = (e) => { if (!e) return; if (e.ench == null) e.ench = 0; if (e.affix === undefined) e.affix = null; if (e.holes == null) e.holes = 0; if (!Array.isArray(e.gems)) e.gems = []; };
+  const fix = (e) => { if (!e) return; if (e.ench == null) e.ench = 0; if (e.affix === undefined) e.affix = null; if (e.holes == null) e.holes = 0; if (!Array.isArray(e.gems)) e.gems = []; if (e.lock == null) e.lock = false; };
   bagEquips().forEach(({e})=>fix(e));
   Object.values(S.eq).forEach(fix);
 }
@@ -1190,41 +1201,56 @@ function unsocketGem(ref, idx) {
   else log("🎒 背包已满，无法卸下宝石");
   renderPanel();
 }
-function combineEquip(key) {
-  const groups = {};
-  bagEquips().forEach(({key:slotKey,e})=>{
-    const k = e.fam+"|"+e.reqLv+"|"+e.rare;
-    if (!groups[k]) groups[k] = [];
-    groups[k].push({slotKey,e});
-  });
-  const list = (groups[key]||[]).slice(0,4);
-  if (list.length < 4) { alert("装备数量不足（需要4件）"); return; }
-  const first = list[0];
-  const ti = tierIdx(first.e.reqLv);
-  if (ti >= LV_TIERS.length-1) { alert("已达满档 Lv249，无法再合成"); return; }
-  const next = LV_TIERS[ti+1];
-  if (!confirm(`确认合成？\n\n消耗：4件【${RARE_NAMES[first.e.rare]}·Lv${first.e.reqLv}档】\n获得：1件 Lv${next} 档（品质/强化/附魔保留，宝石与孔位不保留）`)) return;
-  const keep = first.e;
-  const ratio = tierFactor(next)/tierFactor(keep.reqLv);
-  ["atk","hp","def","eva"].forEach((k)=>{ if (keep[k]) keep[k] = Math.floor(keep[k]*ratio); });
-  if (keep.aspd) keep.aspd = Math.min(cfg("aspdMax"), Math.floor(keep.aspd*ratio));
-  if (keep.crit) keep.crit = Math.min(cfg("critMax"), Math.floor(keep.crit*ratio));
-  if (keep.critDmg) keep.critDmg = Math.min(cfg("critDmgMax"), Math.floor(keep.critDmg*ratio));
-  if (keep.ls) keep.ls = Math.min(cfg("lsMax"), Math.floor(keep.ls*ratio));
-  keep.reqLv = next;
-  keep.holes = 0; keep.gems = [];
-  list.slice(1).forEach(({slotKey})=>{ delete S.slotMap[slotKey]; if (selSlot===slotKey) selSlot = null; });
-  log(`🔮 合成成功！4件 Lv${LV_TIERS[ti]}档 → ${eqName(keep)}（Lv${next}档）`);
+/* ★ 锁定/解锁 */
+function toggleEqLock(eqUid) {
+  const k = findEqKey(eqUid); if (!k) return;
+  const e = S.slotMap[k];
+  e.lock = !e.lock;
+  log(e.lock ? `🔒 已锁定 ${eqName(e)}（无法出售/分解/自动处理/合成消耗）` : `🔓 已解锁 ${eqName(e)}`);
   renderPanel();
 }
-function combineGem(gemId) {
+function combineEquip(key, n) {
+  /* ★ 不弹窗，支持批量合成；锁定装备不参与 */
+  n = Math.max(1, n|0);
+  let done = 0;
+  for (let i = 0; i < n; i++) {
+    const list = bagEquips().filter(({e}) => !e.lock && (e.fam+"|"+e.reqLv+"|"+e.rare) === key && tierIdx(e.reqLv) < LV_TIERS.length-1).slice(0,4);
+    if (list.length < 4) break;
+    const keep = list[0].e;
+    const ti = tierIdx(keep.reqLv);
+    const next = LV_TIERS[ti+1];
+    const ratio = tierFactor(next)/tierFactor(keep.reqLv);
+    ["atk","hp","def","eva"].forEach((k2)=>{ if (keep[k2]) keep[k2] = Math.floor(keep[k2]*ratio); });
+    if (keep.aspd) keep.aspd = Math.min(cfg("aspdMax"), Math.floor(keep.aspd*ratio));
+    if (keep.crit) keep.crit = Math.min(cfg("critMax"), Math.floor(keep.crit*ratio));
+    if (keep.critDmg) keep.critDmg = Math.min(cfg("critDmgMax"), Math.floor(keep.critDmg*ratio));
+    if (keep.ls) keep.ls = Math.min(cfg("lsMax"), Math.floor(keep.ls*ratio));
+    keep.reqLv = next;
+    keep.holes = 0; keep.gems = [];
+    list.slice(1).forEach(({slotKey})=>{ delete S.slotMap[slotKey]; if (selSlot===slotKey) selSlot = null; });
+    done++;
+  }
+  if (done) {
+    const [fam,req,rare] = key.split("|");
+    log(`🔮 装备合成 ×${done}：${RARE_NAMES[+rare]}·Lv${req}档 → Lv${LV_TIERS[tierIdx(+req)+1]}档（品质/强化/附魔保留）`);
+  } else log("装备合成失败：数量不足（4件起，锁定装备不参与）");
+  renderPanel();
+}
+function combineGem(gemId, n) {
+  /* ★ 不弹窗，支持批量合成 */
   const m = gemId.match(/^gem_(\w+)_(\d+)$/); if (!m) return;
   const t = m[1], l = +m[2];
-  if (l >= GEM_MAX) { alert("已是Lv20最高级宝石，无法再合成"); return; }
-  if (bagN(gemId) < 4) { alert(`宝石数量不足：${IT[gemId].n} 仅有 ${bagN(gemId)} 颗（需要4颗）`); return; }
-  take(gemId, 4);
-  addIt(`gem_${t}_${l+1}`, 1);
-  log(`🔮 宝石合成成功！${IT[gemId].n}×4 → ${IT[`gem_${t}_${l+1}`].n}（+${gemVal(t,l+1)}${t==="critDmg"?"%":""}）`);
+  if (l >= GEM_MAX) { log("已是Lv20最高级宝石，无法再合成"); return; }
+  n = Math.max(1, Math.min(n|0, Math.floor(bagN(gemId)/4)));
+  let done = 0;
+  for (let i = 0; i < n; i++) {
+    if (bagN(gemId) < 4) break;
+    take(gemId, 4);
+    addIt(`gem_${t}_${l+1}`, 1);
+    done++;
+  }
+  if (done) log(`🔮 宝石合成 ×${done}：${IT[gemId].n}×${done*4} → ${IT[`gem_${t}_${l+1}`].n}×${done}（+${gemVal(t,l+1)}${t==="critDmg"?"%":""}）`);
+  else log("宝石合成失败：数量不足（4颗起）");
   renderPanel();
 }
 
@@ -1336,6 +1362,7 @@ function tickPots(dt) {
     if (POTBUFF[slot.id]) {
       const b = POTBUFF[slot.id];
       if (b.k === "hit") { S.buffHit = b.v; S.buffHitMin = b.mm; }
+      else if (b.k === "inv") { S.buffInv = b.v; S.buffInvMin = b.mm; }
       else { S.buffCd = b.v; S.buffCdMin = b.mm; }
       used = true;
     }
@@ -1400,6 +1427,8 @@ function tickCombat(dt) {
   }
   if (monCd <= 0 && S.monHp > 0 && !isDead()) {
     monCd = 1.8;
+    /* ★ 无敌药水：免疫怪物伤害 */
+    if (S.buffInvMin > 0) return;
     if (Math.random() < hitRate(m.atk, p.eva)) {
       S.hp -= Math.max(1, Math.floor(m.atk*(1-Math.min(0.6,p.def*0.02))*(0.8+Math.random()*0.4)));
       if (S.hp <= 0) S.hp = 0;
@@ -1418,6 +1447,8 @@ function dropRareMat(f) {
     const id = `gem_${t}_${l}`;
     if (addIt(id,1)) log(`💎 无尽第${f}层掉落 ${IT[id].n}（+${gemVal(t,l)}${t==="critDmg"?"%":""}）！`);
   }
+  /* ★ 无敌药水：2000层+掉落3% */
+  if (f >= 2000 && Math.random() < 0.03) { if (addIt("invPot",1)) log(`🛉 无尽第${f}层掉落无敌药水×1！（20分钟免伤）`); }
 }
 function dropZoneGem(i) {
   const z = Math.min(9, (i/10)|0);
@@ -1479,11 +1510,10 @@ function killMon(m, q, lane) {
 }
 
 /* ============================================================
-   ★ 模块 N：市场（自定义数量 + 库存校验；宝石不进市场）
+   ★ 模块 N：市场（宝石不出售；神水/无敌药水特殊定价）
    ============================================================ */
 const MK = {};
 const MK_SPREAD = 0.8;
-const POT_PRICE = 1000000;
 let mkQty = 1;
 function mkSeed() {
   for (const id in IT) {
@@ -1496,9 +1526,9 @@ function mkSeed() {
 function mkRefresh(id) {
   const m = MK[id];
   m.sell = []; m.buy = [];
-  if (id === "hitPot" || id === "critPot") {
-    if (Math.random() < 0.3) m.sell.push({ p:POT_PRICE, q:1 });
-    m.buy.push({ p:Math.floor(POT_PRICE*MK_SPREAD), q:1+(Math.random()*2|0) });
+  if (POT_MK[id]) {
+    if (Math.random() < 0.3) m.sell.push({ p:POT_MK[id], q:1 });
+    m.buy.push({ p:Math.floor(POT_MK[id]*MK_SPREAD), q:1+(Math.random()*2|0) });
     return;
   }
   if (RARE_MATS[id] || id === "punch") {
@@ -1517,7 +1547,7 @@ function mkRefresh(id) {
 function mkDrift() {
   for (const id in MK) {
     const m = MK[id];
-    if (id === "hitPot" || id === "critPot") { mkRefresh(id); continue; }
+    if (POT_MK[id]) { mkRefresh(id); continue; }
     m.mid = Math.max(m.p0*0.6, Math.min(m.p0*1.8, m.mid*(1+(Math.random()-0.5)*0.06)));
     mkRefresh(id);
   }
@@ -1659,6 +1689,8 @@ function loadGame() {
     if (S.buffHitMin == null) S.buffHitMin = 0;
     if (S.buffCd == null) S.buffCd = 0;
     if (S.buffCdMin == null) S.buffCdMin = 0;
+    if (S.buffInv == null) S.buffInv = 0;
+    if (S.buffInvMin == null) S.buffInvMin = 0;
     if (!Array.isArray(S.pots)) S.pots = [null,null,null,null,null];
     while (S.pots.length < 5) S.pots.push(null);
     if (S.deadUntil == null || isNaN(S.deadUntil)) S.deadUntil = 0;
@@ -1791,6 +1823,7 @@ function simCore(sec) {
   if (S.xpMin > 0) S.xpMin = Math.max(0, S.xpMin-sec/60);
   if (S.buffHitMin > 0) S.buffHitMin = Math.max(0, S.buffHitMin-sec/60);
   if (S.buffCdMin > 0) S.buffCdMin = Math.max(0, S.buffCdMin-sec/60);
+  if (S.buffInvMin > 0) S.buffInvMin = Math.max(0, S.buffInvMin-sec/60);
   tickQueue(sec); tickCombat(sec);
   mkTimer += sec;
   if (mkTimer > 60) { mkTimer = 0; mkDrift(); }
@@ -1852,11 +1885,12 @@ function renderTop() {
   const xpTag = S.xpMin > 0 ? `<span style="color:#6f6">📖 经验+${((S.xpMult||0)*100)|0}%（${Math.ceil(S.xpMin)}分）</span>` : "";
   const hitTag = S.buffHitMin > 0 ? `<span class="buffTxt">🧪 命中100%（${Math.ceil(S.buffHitMin)}分）</span>` : "";
   const cdTag = S.buffCdMin > 0 ? `<span class="buffTxt">💣 暴伤+10万%（${Math.ceil(S.buffCdMin)}分）</span>` : "";
+  const invTag = S.buffInvMin > 0 ? `<span style="color:#5cf;font-weight:bold">🛉 无敌（${Math.ceil(S.buffInvMin)}分）</span>` : "";
   $("top").innerHTML = `<div>👤 <b>${CUR==="guest"?"游客·"+S.name:CUR}</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}</div>`
     +`<button class="act sm" style="background:#3a4166" onclick="logout()">退出</button>`
     +`<div>💰 <b>${Math.floor(S.gold)}</b></div><div>🔔 <b>${S.bell}</b></div><div>🪙 <b>${S.token}</b></div>`
     +`<div>总等级 <b>${totalLv()}</b></div><div>❤️ <b>${Math.max(0,S.hp|0)}/${p.maxHp}</b></div><div>💧 <b>${S.mp|0}/${p.maxMp}</b></div>`
-    +deadTag+endTag+atTag+xpTag+hitTag+cdTag
+    +deadTag+endTag+atTag+xpTag+hitTag+cdTag+invTag
     +`<div>🎒 <b>${usedSlots()}</b>格</div><div>✨ <b>Lv${lv("enh")}</b></div><div>🌀 <b>${S.reb}</b>/7${S.reb?`（怪×${rebCf().toFixed(1)}）`:""}</div>`
     +`<div>🗺️ <b>${Object.keys(S.kills).length}/500</b></div><div style="color:#f80">👹 <b>${diff().toFixed(1)}×</b></div>`;
 }
@@ -1904,6 +1938,7 @@ function batchPreview(pred) {
   let cnt = 0, gold = 0, maxTier = 0, legend = 0;
   const mats = {};
   bagEquips().forEach(({e})=>{
+    if (e.lock) return;               /* ★ 锁定装备不参与批量操作 */
     if (e.rare >= 3) { legend++; return; }
     if (pred(e)) { cnt++; gold += sellPriceEq(e); if (e.reqLv > maxTier) maxTier = e.reqLv; const {mat,n} = salvageGain(e); mats[mat] = (mats[mat]||0)+n; }
   });
@@ -1943,7 +1978,7 @@ function bagSearchHTML() {
       }
     } else {
       if (v.n.toLowerCase().includes(q)) {
-        rows += `<div class="row srchRow"><span class="name r${v.rare}">${EQIC[v.slot]||"⚔️"} ${eqName(v)}</span><span class="info">【${RARE_NAMES[v.rare]}·Lv${v.reqLv}档】${eqValStr(v)}｜位于第${(+k.split("_")[0])+1}页</span><button class="act sm" onclick="gotoPage(${+k.split("_")[0]});selSlot='${k}';renderPanel()">跳转</button></div>`;
+        rows += `<div class="row srchRow"><span class="name r${v.rare}">${EQIC[v.slot]||"⚔️"} ${eqName(v)}</span><span class="info">【${RARE_NAMES[v.rare]}·Lv${v.reqLv}档】${eqValStr(v)}｜位于第${(+k.split("_")[0])+1}页${v.lock?"｜🔒已锁定":""}</span><button class="act sm" onclick="gotoPage(${+k.split("_")[0]});selSlot='${k}';renderPanel()">跳转</button></div>`;
       }
     }
   }
@@ -1955,6 +1990,47 @@ function renderBagSearchRes() {
   tmp.innerHTML = bagSearchHTML();
   box.replaceWith(tmp.firstElementChild ? tmp.firstElementChild : tmp);
 }
+
+/* ============================================================
+   ★ 右键菜单（背包装备：锻造操作 + 锁定）
+   ============================================================ */
+function openEqMenu(key, ev) {
+  const v = S.slotMap[key];
+  if (!v || typeof v !== "object") return;
+  ev.preventDefault(); ev.stopPropagation();
+  const e = v; const ra = e.uid;
+  const ef = enhFullCost(e);
+  const qc = e.rare < 5 ? QUAL[e.rare] : null;
+  const ec = e.ench < 5 ? enchFullCost(e, e.ench+1) : null;
+  const uc = upgCfg(e);
+  const pc = punchCost(e);
+  const okWear = canWear(e);
+  let h = `<div style="padding:4px 6px;color:#ffd479;font-size:12px;font-weight:bold" class="r${e.rare}">${EQIC[e.slot]} ${eqName(e)}</div>`
+    +`<div style="padding:0 6px 4px;color:#889;font-size:10px">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}档】${eqValStr(e)}</div>`
+    +`<button onclick="hideEqMenu();doEnh(${ra});renderPanel()" ${e.plus>=ENH_MAX||!canAfford(ef.mats,ef.gold)?"disabled":""}>🔨 强化（${e.plus>=ENH_MAX?"已满":(enhRate(e)*100).toFixed(0)+"%｜"+ef.gold+"💰"}）</button>`
+    +`<button onclick="hideEqMenu();upQuality(${ra})" ${e.rare>=5||!canAfford(qc?qc.mats:{},qc?qc.gold:0)?"disabled":""}>🏆 升阶（${e.rare>=5?"满阶":(qualRate(e.rare)*100).toFixed(0)+"%｜"+qc.gold+"💰"}）</button>`
+    +`<button onclick="hideEqMenu();doEnch(${ra})" ${e.ench>=5||!canAfford(ec?ec.mats:{},ec?ec.gold:0)?"disabled":""}>🔮 附魔（${e.ench>=5?"已满":(enchRate(e.ench+1)*100).toFixed(0)+"%｜"+ec.gold+"💰"}）</button>`
+    +`<button onclick="hideEqMenu();upTier(${ra})" ${!uc||!canAfford(uc.mats,uc.gold)?"disabled":""}>⬆️ 升级档位（${uc?"→Lv"+uc.to+"｜"+(tierRate(e)*100).toFixed(0)+"%":"已满档"}）</button>`
+    +`<button onclick="hideEqMenu();punchEq(${ra})" ${(e.holes||0)>=EQ_HOLES_MAX||!canAfford(pc.mats,pc.gold)?"disabled":""}>🔨 打孔（${(e.holes||0)>=EQ_HOLES_MAX?"已满4孔":pc.gold.toLocaleString()+"💰"}）</button>`
+    +(okWear?`<button onclick="hideEqMenu();equipIt(${ra})">⚔️ 穿戴</button>`:`<button disabled>⚔️ 穿戴（需战斗均Lv${Math.min(cfg("skillCap"),e.reqLv)}）</button>`)
+    +`<div class="sep"></div>`
+    +`<button onclick="hideEqMenu();toggleEqLock(${ra})" style="${e.lock?"color:#e55;border-color:#e55":"color:#8af;border-color:#8af"}">${e.lock?"🔓 解锁（恢复可出售/分解）":"🔒 锁定（防止出售/分解）"}</button>`;
+  const menu = $("eqMenu");
+  menu.innerHTML = h;
+  menu.style.display = "block";
+  menu.style.left = "0px"; menu.style.top = "0px";
+  const r = menu.getBoundingClientRect();
+  let x = ev.clientX+4, y = ev.clientY+4;
+  if (x + r.width > window.innerWidth-8) x = window.innerWidth-8-r.width;
+  if (y + r.height > window.innerHeight-8) y = window.innerHeight-8-r.height;
+  menu.style.left = Math.max(4,x)+"px"; menu.style.top = Math.max(4,y)+"px";
+}
+function hideEqMenu() { const m = $("eqMenu"); if (m) m.style.display = "none"; }
+document.addEventListener("click", () => { hideEqMenu(); });
+document.addEventListener("contextmenu", (ev) => {
+  const m = $("eqMenu");
+  if (m && !m.contains(ev.target) && m.style.display === "block" && !(ev.target.closest && ev.target.closest(".cell"))) hideEqMenu();
+});
 
 /* ============================================================
    ★ 帮助页内容（版本记录仅管理员可见）
@@ -1978,58 +2054,54 @@ function helpHTML() {
 <p>· 升级经验 = (300×等级 + 25×等级²) × 全局系数——<span class="kw">前期快后期慢</span>。</p></div>
 
 <div class="helpSec"><h4>⚔️ 四、战斗系统</h4>
-<p>· <b>修仙十境</b>100种怪。掉落档位均匀递进（炼气Lv1档→真仙Lv249档）；掉率随境界递减（炼气38%→真仙8%）。</p>
+<p>· <b>修仙十境</b>100种怪。掉落档位均匀递进；掉率随境界递减（炼气38%→真仙8%）。</p>
 <p>· 普通图掉落强化封顶 <span class="kw">+15</span>（无尽+20）。强化失败不掉级。</p>
-<p>· <b>炼虚（第6境）起怪物掉落低级宝石（5%）</b>：炼虚Lv1~3 → 合体Lv3~5 → 大乘Lv5~7 → 渡劫Lv7~9 → 真仙Lv9~11。</p>
+<p>· <b>炼虚起怪物掉落低级宝石（5%）</b>：炼虚Lv1~3 → 真仙Lv9~11。</p>
 <p>· 命中区间制永不归零。死亡30秒真实复活。</p></div>
 
 <div class="helpSec"><h4>🌌 五、无尽模式</h4>
 <p>· 层数无限，每层限时 ${FLOOR_LIMIT/60} 分钟。掉率随层递增。</p>
-<p>· 500层+掉🔨打孔锥（5%）；1000层+掉💎宝石（4%，每50层+1级，上限Lv20）。</p>
+<p>· 500层+掉🔨打孔锥（5%）；1000层+掉💎宝石（4%）；<b>2000层+掉🛉无敌药水（3%）</b>。</p>
 <p>· 里程碑：60层🦴、100层🟩、200层🫧、300层🪩。</p></div>
 
-<div class="helpSec"><h4>💎 六、打孔与宝石系统</h4>
-<p>· 每件装备最多 <b>4 孔</b>（锻造页操作，需打孔锥+金币）。</p>
-<p>· 宝石四类×20级，<b>1级基础值</b>：⚔攻击+${gl.atk}、🛡防御+${gl.def}、❤活力+${gl.hp}血、💥爆伤+${gl.critDmg}%（管理员全局可调）；<b>每级在上一级基础上+20%</b>（复利）：Lv5≈×2.1、Lv10≈×5.2、Lv20≈×31.9。</p>
-<p>· <b>宝石获取</b>：普通图炼虚+（Lv1~11）、无尽1000层+（无上限）；<b>市场不出售宝石</b>。</p>
-<p>· 宝石可随时卸下（不损耗）。</p></div>
+<div class="helpSec"><h4>🗡️ 六、背包右键菜单（装备）</h4>
+<p>· 在背包<b>右键点击装备</b>（手机长按）：🔨强化 / 🏆升阶 / 🔮附魔 / ⬆️升级档位 / 🔨打孔 / ⚔️穿戴，<b>无需前往锻造页</b>。</p>
+<p>· 右键菜单还能 <b>🔒锁定装备</b>——锁定的装备<b>无法出售、分解、被自动处理、被合成消耗</b>（背包格显示🔒，点详情行解锁按钮也可操作）。</p></div>
 
-<div class="helpSec"><h4>🔮 七、合成系统（锻造页下方）</h4>
-<p>· <b>装备合成</b>：4件相同品质+档次 → 1件下一档（品质/强化/附魔保留，宝石与孔不保留）。</p>
-<p>· <b>宝石合成</b>：4颗同类同级 → 1颗下一级（最高Lv20）。</p></div>
+<div class="helpSec"><h4>💎 七、打孔与宝石系统</h4>
+<p>· 每件装备最多 <b>4 孔</b>。宝石四类×20级，1级基础值：⚔+${gl.atk}、🛡+${gl.def}、❤+${gl.hp}血、💥+${gl.critDmg}%；<b>每级+20%复利</b>。</p>
+<p>· <b>宝石合成（4合1）无弹窗</b>，可设置合成数量，默认=最大可合成次数。</p>
+<p>· 宝石获取：普通图炼虚+、无尽1000层+；<b>市场不出售宝石</b>。</p></div>
 
-<div class="helpSec"><h4>🗡️ 八、装备系统</h4>
-<p>· 6槽位×6品质×14档次。四操作：强化（失败不掉级）/升阶/附魔/升级（概率，失败无损）。</p>
-<p>· 自动出售/分解支持全部品质（高品分解得升阶材料，宝石自动返还）。</p>
-<p>· <b>材料不足弹窗提示具体缺什么</b>。背包页有<b>🔍搜索</b>。</p></div>
+<div class="helpSec"><h4>🔮 八、合成系统（锻造页下方）</h4>
+<p>· <b>装备合成</b>：4件相同品质+档次 → 1件下一档。<b>无确认弹窗</b>，可设置合成数量，默认=最大可合成次数，一键连合。锁定装备不参与。</p></div>
 
-<div class="helpSec"><h4>🧪 九、神水</h4>
-<p>· 🧪百发神水（100%命中/20分）、💣弑神狂暴水（暴伤+10万%/20分）。市场偶现100万/瓶。</p></div>
+<div class="helpSec"><h4>🧪 九、神水与药水</h4>
+<p>· 🧪百发神水（100%命中/20分）、💣弑神狂暴水（暴伤+10万%/20分）——市场偶现100万/瓶。</p>
+<p>· 🛉<b>无敌药水</b>：20分钟内<b>完全免疫怪物伤害</b>！无尽2000层+掉落（3%），市场偶现<b>1000万/瓶</b>。冲高层无尽、挂机防猝死必备。</p></div>
 
 <div class="helpSec"><h4>💰 十、市场</h4>
-<p>· 卖出价 = 买入价 × 80%；可自定义交易数量，超出库存弹窗提示。<b>宝石不在市场出售</b>（仅怪物掉落）。</p></div>
+<p>· 卖出价 = 买入价 × 80%；可自定义交易数量。<b>宝石不出售</b>（仅怪物掉落）。</p></div>
 
 <div class="helpSec"><h4>🌀 十一、转生系统</h4>
-<p>· 任一技能100级可转，最多7转。二次点击确认。</p>
-<p>· 重置：技能/装备/房屋/怪物解锁。保留：技能点/通道/设置。</p>
-<p>· <span class="warn">每次转生全部怪物属性在前一次基础上 ×(1+系数)（默认+50%叠乘，管理员可调）</span>。</p></div>
+<p>· 任一技能100级可转，最多7转。二次点击确认。重置技能/装备/房屋/怪物解锁；保留技能点/通道/设置。</p>
+<p>· <span class="warn">每次转生全部怪物属性 ×(1+系数)（默认+50%叠乘）</span>。</p></div>
 
 <div class="helpSec"><h4>🌙 十二、账号与安全</h4>
-<p>· <b>单点登录</b>：同账号只能一处在线，异地登录互踢。</p>
-<p>· 云存档60秒同步，另每6小时自动创建<b>云端快照</b>（保留3天）；建议定期导出 json 备份。</p></div>
+<p>· <b>单点登录</b>：同账号只能一处在线。云存档60秒同步 + 每6小时云端快照（管理员可回档）。</p></div>
 
 <div class="helpSec"><h4>💡 十三、实用小技巧</h4>
-<p>· 「战斗」页可查看<b>总攻击力</b>（近战命中/伤害/远程/魔法/防御+宝石明细）。</p>
-<p>· 加速10×必开。消耗品格子挂经验咖啡+面包+咖啡。</p>
-<p>· 低档装备挂低境界刷，高档刷真仙或无尽深层。</p>
-<p>· 爆伤宝石优先镶武器/首饰；低级宝石可4合1升级。</p></div>
+<p>· 背包右键装备 = 免翻页锻造；<b>毕业装备先锁定</b>再挂自动分解，永不误卖。</p>
+<p>· 「战斗」页可查看总攻击力。消耗品格子可挂无敌药水（设为"每N秒"或HP条件触发）。</p>
+<p>· 合成批量化：攒够8件/12件一次合成，省去反复点击。</p></div>
 `;
   if (isAdmin()) {
     h += `
 <div class="helpSec"><h4>📜 十四、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.15</span><b>管理员账号回档</b>：每账号每6小时自动云端快照（保留3天）；管理员页新增「⏪ 账号回档」——输入账号名查询备份点，⭐自动标记最接近一天前的备份，一键回档（覆盖云端存档+强制对方下线）。需执行 SQL：saves 加 name 列 + 建 save_backups 表 + 放宽 saves 读写策略。</p>
-<p><span class="verTag">v1.14</span><b>属性面板与宝石经济</b>：总攻击力显示；宝石1级基础值全局可调（每级+20%复利）；背包搜索；市场不出售宝石；炼虚起掉低级宝石。</p>
-<p><span class="verTag">v1.13</span><b>宝石合成与单点登录</b>：强化失败不掉级；普通图掉落封顶+15；市场自定义数量；单点登录；转生怪物增强；自动处理全品质；打孔宝石；合成系统；版本记录仅管理员；材料不足弹窗。</p>
+<p><span class="verTag">v1.16</span><b>右键锻造与无敌药水</b>：背包装备<b>右键菜单</b>（强化/升阶/附魔/升级/打孔/穿戴/锁定）；装备<b>锁定</b>系统（免疫出售/分解/自动处理/合成消耗）；合成<b>去弹窗+批量数量</b>（默认最大次数）；新增<b>🛉无敌药水</b>（20分钟免伤，无尽2000层+3%掉落，市场1000万/瓶）。</p>
+<p><span class="verTag">v1.15</span><b>管理员账号回档</b>：云端快照每6小时+首次立即；一键回档+强制下线。</p>
+<p><span class="verTag">v1.14</span><b>属性面板与宝石经济</b>：总攻击力显示；宝石1级基础值全局可调；背包搜索；市场不出售宝石；炼虚起掉低级宝石。</p>
+<p><span class="verTag">v1.13</span><b>宝石合成与单点登录</b>。</p>
 <p><span class="verTag">v1.12</span><b>掉率曲线修正</b>。</p>
 <p><span class="verTag">v1.11</span><b>掉落与成长重平衡</b>。</p>
 <p><span class="verTag">v1.10</span><b>全局配置与管理员</b>。</p>
@@ -2108,20 +2180,21 @@ function renderPanel() {
   else if (tab === 2) {
     const AT = S.autoTrash;
     h += `<div class="row" style="background:#1a2440;border:1px solid #4a9eff44">`
-      +`<span class="name" style="color:#8af">⚡ 自动处理（掉落即执行，支持全部品质）</span>`
+      +`<span class="name" style="color:#8af">⚡ 自动处理（掉落即执行，🔒锁定装备免疫）</span>`
       +`<select onchange="setAutoTrash('mode',+this.value)"><option value="0" ${AT.mode===0?"selected":""}>关闭</option><option value="1" ${AT.mode===1?"selected":""}>💰 自动出售</option><option value="2" ${AT.mode===2?"selected":""}>⚒️ 自动分解</option></select>`
       +`<span class="info">品质阈值：</span>`
       +`<select onchange="setAutoTrash('rare',+this.value)"><option value="0" ${AT.rare===0?"selected":""}>普通及以下</option><option value="1" ${AT.rare===1?"selected":""}>精良及以下</option><option value="2" ${AT.rare===2?"selected":""}>闪耀及以下</option><option value="3" ${AT.rare===3?"selected":""}>传奇及以下</option><option value="4" ${AT.rare===4?"selected":""}>仙器及以下</option><option value="5" ${AT.rare===5?"selected":""}>神器及以下</option></select></div>`;
     h += `<div class="row"><span class="name">🔍 搜索背包</span><input id="bagSearchIn" style="flex:1" placeholder="输入物品或装备名称（支持模糊匹配）…" value="${bagSearch}" oninput="bagSearch=this.value;renderBagSearchRes()"><button class="act sm" style="background:#e55" onclick="bagSearch='';renderPanel()">清空</button></div>`;
     h += bagSearchHTML();
     h += `<div class="pagenav"><button class="act sm" onclick="gotoPage(bagPage-1)">◀ 上一页</button><span>第 <input type="number" min="1" max="${MAX_PAGES}" value="${bagPage+1}" onchange="gotoPage((+this.value|0)-1)"> / ${MAX_PAGES} 页</span><button class="act sm" onclick="gotoPage(bagPage+1)">下一页 ▶</button><span class="info">已用 ${usedSlots()} 格</span><button class="act sm" onclick="gotoFirstUsed()">跳首件</button><button class="act sm" onclick="gotoFreeSlot()">跳空格</button><button class="act sm" style="background:#a6f" onclick="compactBag()">🧹 整理</button></div>`;
+    h += `<div class="hint">💡 <b style="color:#8af">装备格右键</b>（手机长按）= 锻造/穿戴/锁定快捷菜单</div>`;
     h += `<div class="baggrid">`;
     for (let c = 0; c < PAGE_SIZE; c++) {
       const k = bagPage+"_"+c; const v = S.slotMap[k];
       if (v == null) h += `<div class="cell" onclick="selSlot='${k}';renderPanel()"></div>`;
       else if (typeof v === "object") {
         const e = v; const rc = RARE_COLOR[e.rare] || "#888";
-        h += `<div class="cell ${selSlot===k?"sel":""}" onclick="selSlot='${k}';renderPanel()" title="${e.n} +${e.plus}【${RARE_NAMES[e.rare]}】" style="border-color:${rc}77"><span class="idx">${c+1}</span><span class="ic">${EQIC[e.slot]||"⚔️"}</span><span class="cnt" style="color:${rc}">+${e.plus}${e.ench?"◆"+e.ench:""}${gemCount(e)?"💎"+gemCount(e):""}</span></div>`;
+        h += `<div class="cell ${selSlot===k?"sel":""} ${e.lock?"locked":""}" onclick="selSlot='${k}';renderPanel()" oncontextmenu="openEqMenu('${k}',event)" title="${e.n} +${e.plus}【${RARE_NAMES[e.rare]}】${e.lock?"（已锁定）":""}" style="border-color:${rc}77"><span class="idx">${c+1}</span><span class="ic">${EQIC[e.slot]||"⚔️"}</span><span class="cnt" style="color:${rc}">${e.lock?"🔒":""}+${e.plus}${e.ench?"◆"+e.ench:""}${gemCount(e)?"💎"+gemCount(e):""}</span></div>`;
       } else {
         const it = IT[v];
         h += `<div class="cell ${selSlot===k?"sel":""}" onclick="selSlot='${k}';renderPanel()" title="${it.n}×${bagN(v)}"><span class="idx">${c+1}</span><span class="ic">${it.ic}</span><span class="cnt">${bagN(v)}</span></div>`;
@@ -2131,7 +2204,11 @@ function renderPanel() {
     const selV = selSlot ? S.slotMap[selSlot] : null;
     if (selV && typeof selV === "object") {
       const e = selV; const ok = canWear(e);
-      h += `<div class="row"><span class="name r${e.rare}">${eqName(e)}</span><span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}】${eqValStr(e)}${e.ench>0&&e.affix?`｜词缀「${e.affix.n}」+${affixVal(e)}`:""}｜宝石 ${(e.gems||[]).filter(Boolean).map((g)=>`${GEM_T[g.t].ic}Lv${g.l}`).join(" ")||"无"}/${e.holes||0}孔</span><button class="act sm" ${ok?"":"disabled"} onclick="equipIt(${e.uid})">${ok?"穿戴":"需战斗均Lv"+Math.min(cfg("skillCap"),e.reqLv)}</button><button class="act sm" style="background:#da5" onclick="sellEq(${e.uid})">💰出售 ${sellPriceEq(e)}</button><button class="act sm" style="background:#7a6" onclick="salvageEq(${e.uid})">⚒️分解${e.rare>=3?"（升阶材料）":""}</button></div>`;
+      h += `<div class="row"><span class="name r${e.rare}">${eqName(e)}</span><span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}】${eqValStr(e)}${e.ench>0&&e.affix?`｜词缀「${e.affix.n}」+${affixVal(e)}`:""}｜宝石 ${(e.gems||[]).filter(Boolean).map((g)=>`${GEM_T[g.t].ic}Lv${g.l}`).join(" ")||"无"}/${e.holes||0}孔${e.lock?"｜<b style='color:#e55'>🔒已锁定</b>":""}</span>`
+        +`<button class="act sm" ${ok?"":"disabled"} onclick="equipIt(${e.uid})">${ok?"穿戴":"需战斗均Lv"+Math.min(cfg("skillCap"),e.reqLv)}</button>`
+        +`<button class="act sm" style="background:${e.lock?"#e55":"#8af"}" onclick="toggleEqLock(${e.uid})">${e.lock?"🔓解锁":"🔒锁定"}</button>`
+        +`<button class="act sm" style="background:#da5" ${e.lock?"disabled":""} onclick="sellEq(${e.uid})">💰出售 ${sellPriceEq(e)}</button>`
+        +`<button class="act sm" style="background:#7a6" ${e.lock?"disabled":""} onclick="salvageEq(${e.uid})">⚒️分解${e.rare>=3?"（升阶材料）":""}</button></div>`;
     } else if (selV && IT[selV]) {
       const it = IT[selV]; const n = bagN(selV);
       h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:""}基准价${it.val}</span>`
@@ -2139,11 +2216,11 @@ function renderPanel() {
         +(it.mp?`<button class="act sm" onclick="drinkItem('${selV}')">喝(+${it.mp}MP)</button>`:"")
         +(it.tp==="tea"?`<button class="act sm" onclick="if(take('${selV}',1)){S.teaMin=10;log('🫖 效率茶生效');renderPanel();}">喝(效率+10%)</button>`:"")
         +(it.tp==="xp"?`<button class="act sm" style="background:#5a5" onclick="useXpItem('${selV}')">喝(经验+${(XPIT[selV].m*100)|0}%/${XPIT[selV].mm}分)</button>`:"")
-        +(POTBUFF[selV]?`<button class="act sm" style="background:#a6f" onclick="usePotItem('${selV}')">喝(${POTBUFF[selV].k==="hit"?"命中100%":"暴伤+10万%"}/${POTBUFF[selV].mm}分)</button>`:"")
+        +(POTBUFF[selV]?`<button class="act sm" style="background:#a6f" onclick="usePotItem('${selV}')">喝(${POTBUFF[selV].k==="hit"?"命中100%":POTBUFF[selV].k==="inv"?"无敌20分":"暴伤+10万%"}/${POTBUFF[selV].mm}分)</button>`:"")
         +`<button class="act sm" onclick="if(take('${selV}',1)){renderPanel();}">丢弃×1</button>`
         +`<button class="act sm" style="background:#e55" onclick="if(take('${selV}',${n})){renderPanel();}">清空</button></div>`;
     } else {
-      h += `<div class="hint">点击格子选中物品/装备。装备格边框：灰/绿/蓝/紫/橙/红 = 普通/精良/闪耀/传奇/仙器/神器。</div>`;
+      h += `<div class="hint">点击格子选中物品/装备；<b style="color:#8af">装备格右键</b>打开快捷菜单。装备格边框：灰/绿/蓝/紫/橙/红 = 普通/精良/闪耀/传奇/仙器/神器。</div>`;
     }
     h += `<div class="hint" style="margin-top:10px">已穿戴（6槽位）：</div><div class="grid3">`;
     SLOTS.forEach((sl)=>{
@@ -2151,7 +2228,7 @@ function renderPanel() {
       h += `<div class="card"><b>${sl.ic} ${sl.n}</b><br>`+(e?`<span class="r${e.rare}">${eqName(e)}</span><br><span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}】${eqValStr(e)}${e.ench>0&&e.affix?`<br>词缀「${e.affix.n}」+${affixVal(e)}`:""}</span><br><button class="act sm" style="background:#e55" onclick="unequip('${sl.id}')">卸下</button>`:'<span class="info">空</span>')+`</div>`;
     });
     h += `</div>`;
-    h += `<div class="hint" style="margin-top:8px">⚡ 批量操作（传奇/仙器/神器专用分解 ×${rebSalvMult().toFixed(1)}）：</div>`;
+    h += `<div class="hint" style="margin-top:8px">⚡ 批量操作（🔒锁定装备自动排除）：</div>`;
     h += `<div class="row" style="background:#1c2036">`;
     [0,1,2].forEach((r)=>{
       const pv = batchPreview((e)=>e.rare===r);
@@ -2161,7 +2238,7 @@ function renderPanel() {
     h += `</div>`;
     h += `<div class="row" style="background:#1c2036">`;
     [3,4,5].forEach((r)=>{
-      const cnt = bagEquips().filter((x)=>x.e.rare===r).length;
+      const cnt = bagEquips().filter((x)=>x.e.rare===r && !x.e.lock).length;
       h += `<button class="act sm" style="background:${["#545","#753","#733"][r-3]}" ${cnt?"":"disabled"} onclick="batchSalvageHigh(${r})">⚒️分解${RARE_NAMES[r]} ${cnt?`×${cnt}`:"(无)"}</button>`;
     });
     h += `</div>`;
@@ -2184,7 +2261,7 @@ function renderPanel() {
     h += `<div class="row endless"><span class="name" style="color:#c5f">🌌 无尽模式</span> `
       +(S.endless
         ?`<span style="color:#c5f;font-size:16px;font-weight:bold">当前第 ${S.floor} 层</span><span class="info">最高纪录 <b style="color:#ffd479">${S.bestFloor}</b> 层</span><span class="timerTxt">⏱ ${Math.max(0,Math.ceil(floorLeftMs()/1000))}s / ${FLOOR_LIMIT/60}min</span><button class="act sm" style="background:#a4a" onclick="toggleEndless(false)">⏸ 退出无尽</button>`
-        :`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">层数无限｜每层限时${FLOOR_LIMIT/60}分钟｜掉率随层递增｜500层+掉🔨打孔锥｜1000层+掉💎宝石</span>`)
+        :`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">层数无限｜每层限时${FLOOR_LIMIT/60}分钟｜掉率随层递增｜500层+🔨｜1000层+💎｜<b style="color:#5cf">2000层+🛉无敌药水</b></span>`)
       +`</div>`;
     if (S.endless) {
       h += `<div class="bar timerbar"><div style="width:${Math.max(0,Math.min(100,floorLeftMs()/(FLOOR_LIMIT*1000)*100))}%"></div></div>`;
@@ -2197,7 +2274,7 @@ function renderPanel() {
       const drop = endlessMon(S.floor);
       const seg = Math.floor((S.floor-1)/100);
       const gemL = S.floor >= 1000 ? Math.min(20, 1+Math.floor((S.floor-1000)/50)) : 0;
-      h += `<div class="row endless" style="opacity:.85"><span class="info">第 ${seg+1} 大关第 ${(S.floor-1)%100+1} 层｜掉率 <b style="color:#ffd479">${(drop.drop*100).toFixed(0)}%</b>｜档位 <b style="color:#ffd479">Lv${drop.eqLv}</b>${S.reb?`｜转生增强 ×${rebCf().toFixed(2)}`:""}｜${S.floor>=500?"🔨打孔锥5%":""}${gemL?`｜💎宝石Lv${gemL}（4%）`:""}</span></div>`;
+      h += `<div class="row endless" style="opacity:.85"><span class="info">第 ${seg+1} 大关第 ${(S.floor-1)%100+1} 层｜掉率 <b style="color:#ffd479">${(drop.drop*100).toFixed(0)}%</b>｜档位 <b style="color:#ffd479">Lv${drop.eqLv}</b>${S.reb?`｜转生增强 ×${rebCf().toFixed(2)}`:""}｜${S.floor>=500?"🔨5% ":""}${gemL?`💎Lv${gemL} 4% `:""}${S.floor>=2000?'<b style="color:#5cf">🛉3%</b>':""}</span></div>`;
     } else {
       h += `<div class="zonebar">`+ELE.map((e,z)=>`<button class="${z===zone?"on":""} ${z>=5?"hz":""}" onclick="zone=${z};renderPanel()">${z+1}.${e}</button>`).join("")+`</div>`;
       const zgem = zone >= 5 ? `｜💎宝石Lv${zoneGemLv(zone)}~${Math.min(11,zoneGemLv(zone)+2)}（5%）` : "";
@@ -2216,6 +2293,7 @@ function renderPanel() {
       h += `<div class="row" style="background:#1a2440;border:1px solid #4a9eff66"><span class="deadtag">💀 已被 ${m.n} 击倒，复活倒计时</span><span style="color:#8af;font-size:18px;font-weight:bold">${Math.ceil(left/1000)}s</span></div>`
         +`<div class="bar deadbar"><div style="width:${Math.max(0,(1-left/(RESPAWN_TIME*1000))*100)}%"></div></div>`;
     }
+    if (S.buffInvMin > 0) h += `<div class="row" style="background:#152a35;border:1px solid #5cf"><span style="color:#5cf;font-weight:bold">🛉 无敌药水生效中！免疫所有怪物伤害</span><span style="color:#5cf;font-size:16px;font-weight:bold">剩 ${Math.ceil(S.buffInvMin)} 分钟</span></div>`;
     h += `<div class="hint">👾 目标：${m.ic} <b>${m.n}</b>｜HP ${Math.max(0,S.monHp|0)}/${m.hp}｜攻 ${m.atk}｜奖励 ${m.xp}xp+${m.gold}💰</div>`
       +`<div class="bar"><div style="width:${Math.max(0,S.monHp/m.hp*100)}%"></div></div>`
       +`<div class="hint">我的血量 ${Math.max(0,S.hp|0)}/${p.maxHp}｜法力 ${S.mp|0}/${p.maxMp}｜加速 ${S.speed}×</div>`
@@ -2253,14 +2331,14 @@ function renderPanel() {
     }
   }
   else if (tab === 4) {
-    h += `<div class="hint">拍卖行｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜>49金收2%税｜<b style="color:#c5f">💎宝石不出售（仅怪物掉落）</b></div>`;
+    h += `<div class="hint">拍卖行｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜>49金收2%税｜<b style="color:#c5f">💎宝石不出售（仅怪物掉落）</b>｜🛉无敌药水 1000万/瓶</div>`;
     h += `<div class="row"><span class="name">📦 交易数量</span><input type="number" min="1" value="${mkQty}" onchange="mkQty=Math.max(1,+this.value|0)"> <span class="info">对所有买入/卖出按钮生效，超出库存会提示</span></div>`;
     h += `<table><tr><th>物品</th><th>基准价</th><th>市场库存</th><th>买入</th><th>卖出</th><th>背包</th></tr>`;
     for (const id in MK) {
       if (id === "token") continue;
       const m = MK[id];
       const rareTag = RARE_MATS[id] ? `<span class="r4" style="font-size:10px">稀</span>` : "";
-      const potTag = (id==="hitPot"||id==="critPot") ? `<span class="r5" style="font-size:10px">神</span>` : "";
+      const potTag = POT_MK[id] ? `<span class="${id==="invPot"?"r2":"r5"}" style="font-size:10px">${id==="invPot"?"无敌":"神"}</span>` : "";
       h += `<tr><td>${IT[id].ic} ${IT[id].n}${rareTag}${potTag}</td>`
         +`<td class="info">${Math.floor(m.mid)}💰</td>`
         +`<td class="info">${mkAvail(id)}</td>`
@@ -2271,12 +2349,13 @@ function renderPanel() {
     h += `</table>`;
   }
   else if (tab === 5) {
-    h += `<div class="hint">🔮 锻造坊｜强化技能 Lv${lv("enh")} +${(forgeBonus()*100).toFixed(0)}%｜<b style="color:#f80">全局锻造系数 ×${forgeCf().toFixed(1)}</b>｜强化失败<b style="color:#6f6">不掉级</b>｜材料不足弹窗提示</div>`;
+    h += `<div class="hint">🔮 锻造坊｜强化技能 Lv${lv("enh")} +${(forgeBonus()*100).toFixed(0)}%｜<b style="color:#f80">全局锻造系数 ×${forgeCf().toFixed(1)}</b>｜强化失败<b style="color:#6f6">不掉级</b>｜背包装备可直接<b style="color:#8af">右键锻造</b></div>`;
     h += `<div class="hint" style="margin-top:8px">—— 已穿戴装备（强化/升阶/附魔/升级/打孔/宝石） ——</div>`;
     SLOTS.forEach((sl)=>{ const e = S.eq[sl.id]; if (e) h += forgeRow(e, "w:"+sl.id); });
-    h += `<div class="hint" style="margin-top:14px;color:#a6f">━━━━━ 🔮 合成系统 ━━━━━</div>`;
+    h += `<div class="hint" style="margin-top:14px;color:#a6f">━━━━━ 🔮 合成系统（批量，无弹窗；🔒锁定装备不参与）━━━━━</div>`;
     const groups = {};
-    bagEquips().forEach(({key,e})=>{
+    bagEquips().forEach(({e})=>{
+      if (e.lock) return;
       const ti = tierIdx(e.reqLv);
       if (ti >= LV_TIERS.length-1) return;
       const k = e.fam+"|"+e.reqLv+"|"+e.rare;
@@ -2284,23 +2363,25 @@ function renderPanel() {
       groups[k].push(e);
     });
     const gList = Object.entries(groups).filter(([k,v])=>v.length>=4);
-    h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">🗡️ 装备合成</span><span class="info">4件相同品质+档次 → 1件下一档（品质/强化/附魔保留）</span>`
-      +`<select id="cmbEq">${gList.length?gList.map(([k,v])=>{
+    h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">🗡️ 装备合成</span><span class="info">4件同品质+档次 → 1件下一档</span>`
+      +`<select id="cmbEq" onchange="updCmbEqN()">${gList.length?gList.map(([k,v])=>{
         const [fam,req,rare] = k.split("|");
-        return `<option value="${k}">${RARE_NAMES[+rare]}·Lv${req}档 ×${v.length}（→Lv${LV_TIERS[tierIdx(+req)+1]}）</option>`;
+        return `<option value="${k}" data-n="${Math.floor(v.length/4)}">${RARE_NAMES[+rare]}·Lv${req}档 ×${v.length}（→Lv${LV_TIERS[tierIdx(+req)+1]}）</option>`;
       }).join(""):`<option value="">（没有可合成的装备组合）</option>`}</select>`
-      +`<button class="act sm" style="background:#a6f" ${gList.length?"":"disabled"} onclick="combineEquip($('cmbEq').value)">合成</button></div>`;
+      +`<span class="info">数量</span><input type="number" id="cmbEqN" min="1" value="${gList.length?Math.floor(gList[0][1].length/4):1}" style="width:60px">`
+      +`<button class="act sm" style="background:#a6f" ${gList.length?"":"disabled"} onclick="combineEquip($('cmbEq').value, +($('cmbEqN').value||1))">合成</button></div>`;
     const gems = Object.keys(S.bag).filter((id)=>/^gem_/.test(id) && bagN(id) >= 4 && +id.split("_")[2] < GEM_MAX);
     const gemsAll = Object.keys(S.bag).filter((id)=>/^gem_/.test(id));
-    h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">💎 宝石合成</span><span class="info">4颗同类同级 → 1颗下一级（每级属性+20%）</span>`
-      +`<select id="cmbGem">${gems.length?gems.map((id)=>{
+    h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">💎 宝石合成</span><span class="info">4颗同类同级 → 1颗下一级</span>`
+      +`<select id="cmbGem" onchange="updCmbGemN()">${gems.length?gems.map((id)=>{
         const m = id.match(/^gem_(\w+)_(\d+)$/);
-        return `<option value="${id}">${IT[id].ic}${IT[id].n}×${bagN(id)}（→${GEM_T[m[1]].n}Lv${+m[2]+1} +${gemVal(m[1],+m[2]+1)}${m[1]==="critDmg"?"%":""}）</option>`;
+        return `<option value="${id}" data-n="${Math.floor(bagN(id)/4)}">${IT[id].ic}${IT[id].n}×${bagN(id)}（→${GEM_T[m[1]].n}Lv${+m[2]+1} +${gemVal(m[1],+m[2]+1)}${m[1]==="critDmg"?"%":""}）</option>`;
       }).join(""):`<option value="">（没有≥4颗的同种宝石）</option>`}</select>`
-      +`<button class="act sm" style="background:#a6f" ${gems.length?"":"disabled"} onclick="combineGem($('cmbGem').value)">合成</button>`
+      +`<span class="info">数量</span><input type="number" id="cmbGemN" min="1" value="${gems.length?Math.floor(bagN(gems[0])/4):1}" style="width:60px">`
+      +`<button class="act sm" style="background:#a6f" ${gems.length?"":"disabled"} onclick="combineGem($('cmbGem').value, +($('cmbGemN').value||1))">合成</button>`
       +(gemsAll.length?`<span class="info">持有：${gemsAll.map((id)=>`${IT[id].ic}${id.split("_")[2]}×${bagN(id)}`).join("、")}</span>`:"<span class='info'>尚未持有宝石（炼虚+或无尽1000层+掉落）</span>")
       +`</div>`;
-    h += `<div class="hint">🔨 打孔锥持有：${bagN("punch")} 个（无尽500层+掉落）｜打孔费用随孔数递增：10万/40万/90万/160万💰</div>`;
+    h += `<div class="hint">🔨 打孔锥持有：${bagN("punch")} 个（无尽500层+掉落）｜打孔费用：10万/40万/90万/160万💰</div>`;
   }
   else if (tab === 6) {
     SK.filter((s)=>s.cat!=="战斗").forEach((s)=>{
@@ -2343,15 +2424,14 @@ function renderPanel() {
   else if (tab === T_ADMIN && isAdmin()) {
     h += `<div class="hint">👑 管理员面板（仅管理员可见）</div>`
       +`<div class="row"><span class="name">💰 金币</span><input type="number" value="${S.gold|0}" onchange="S.gold=Math.max(0,+this.value);saveGame()"> <span class="name">🔔 牛铃</span><input type="number" value="${S.bell}" onchange="S.bell=Math.max(0,+this.value);saveGame()"> <span class="name">⏩ 加速</span><select onchange="setSpd(+this.value)">`+SPEEDS.map((v)=>`<option value="${v}" ${S.speed===v?"selected":""}>${v}×</option>`).join("")+`</select></div>`;
-    /* ★ 账号回档区 */
     h += `<div class="hint" style="color:#f88;margin-top:8px">━━━━━ ⏪ 账号回档（恢复到约一天前）━━━━━</div>`
       +`<div class="row" style="background:#2a1515;border:1px solid #e55"><span class="name" style="color:#f88">⏪ 指定账号回档</span>`
       +`<input id="rbUser" placeholder="账号名" value="${RB?RB.name:''}" style="min-width:120px">`
       +`<button class="act sm" style="background:#e55" onclick="queryBackup()">查询回档点</button>`
-      +`<span class="info">云端每6小时自动快照（保留3天）｜⭐=最接近24小时前的备份｜回档后对方强制下线</span></div>`;
+      +`<span class="info">云端每6小时自动快照（保留3天）｜⭐=最接近24小时前｜回档后对方强制下线</span></div>`;
     if (RB) {
       if (!RB.list.length) {
-        h += `<div class="hint">账号「${RB.name}」暂无云端备份（需该账号更新后至少在线6小时以上）</div>`;
+        h += `<div class="hint">账号「${RB.name}」暂无云端备份（需该账号更新后至少在线保存过一次）</div>`;
       } else {
         let best = null, bestDiff = Infinity;
         RB.list.forEach((b)=>{ const d = Math.abs((Date.now()-new Date(b.created_at))/3600000 - 24); if (d < bestDiff) { bestDiff = d; best = b.created_at; } });
@@ -2366,7 +2446,7 @@ function renderPanel() {
     h += `<div class="row" style="background:#2a1535;border:1px solid #c5f5"><span class="name" style="color:#c5f">🌌 无尽模式</span><span class="info">当前层</span><input type="number" min="1" value="${S.floor}" onchange="S.floor=Math.max(1,+this.value|0);S.monHp=endlessMon(S.floor).hp;S.floorStart=Date.now();saveGame()"><button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(${S.autoNext===false})">通关后${S.autoNext!==false?"自动下一层":"停留本层"}</button><button class="act sm" style="background:#a4a" onclick="toggleEndless(${!S.endless})">${S.endless?"退出无尽":"进入无尽"}</button><button class="act sm" style="background:#49f" onclick="S.floorStart=Date.now();log('⏱ 计时已重置');renderPanel();">重置计时</button></div>`
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">⚡ 并行通道</span><button class="act sm" style="background:#2a5" onclick="S.lanes.forEach(l=>l.open=1);saveGame();renderPanel();">解锁全部</button><button class="act sm" style="background:#e55" onclick="S.lanes.forEach((l,i)=>l.open=i===0?1:0);saveGame();renderPanel();">重置通道</button></div>`
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">💀 死亡复活</span><span class="info">${isDead()?`复活中 ${Math.ceil(deadLeftMs()/1000)}s`:"未死亡"}</span>`+(isDead()?`<button class="act sm" style="background:#49f" onclick="reviveNow();log('⚡ 立即复活');renderPanel();">立即复活</button>`:"")+`</div>`
-      +`<div class="row" style="background:#2a2413;border:1px solid #ffd47944"><span class="name" style="color:#fa0">🧪 神水buff</span><button class="act sm" style="background:#a6f" onclick="S.buffHit=100;S.buffHitMin=20;log('🧪 命中+20分');renderPanel();">命中+20分</button><button class="act sm" style="background:#a6f" onclick="S.buffCd=100000;S.buffCdMin=20;log('💣 暴伤+20分');renderPanel();">暴伤+20分</button><button class="act sm" style="background:#e55" onclick="S.buffHit=0;S.buffHitMin=0;S.buffCd=0;S.buffCdMin=0;log('🧪 已清除');renderPanel();">清除</button></div>`
+      +`<div class="row" style="background:#2a2413;border:1px solid #ffd47944"><span class="name" style="color:#fa0">🧪 神水buff</span><button class="act sm" style="background:#a6f" onclick="S.buffHit=100;S.buffHitMin=20;log('🧪 命中+20分');renderPanel();">命中+20分</button><button class="act sm" style="background:#a6f" onclick="S.buffCd=100000;S.buffCdMin=20;log('💣 暴伤+20分');renderPanel();">暴伤+20分</button><button class="act sm" style="background:#5cf" onclick="S.buffInv=1;S.buffInvMin=20;log('🛉 无敌+20分');renderPanel();">无敌+20分</button><button class="act sm" style="background:#e55" onclick="S.buffHit=0;S.buffHitMin=0;S.buffCd=0;S.buffCdMin=0;S.buffInv=0;S.buffInvMin=0;log('🧪 已清除');renderPanel();">清除</button></div>`
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">🌍 全局配置</span><button class="act sm" style="background:#a6f" onclick="tab=${T_CFG};renderPanel()">前往数值配置</button><button class="act sm" style="background:#2a5" onclick="fetchGlobalCfg()">↻ 拉取云端</button></div>`
       +`<div class="hint">技能等级（上限 ${cfg("skillCap")}）：</div><div class="grid">`;
     SK.forEach((s)=>{ h += `<div class="row"><span class="name">${s.ic} ${s.n}</span><input type="number" value="${lv(s.id)}" min="1" max="${cfg("skillCap")}" onchange="setSkill('${s.id}',+this.value)"></div>`; });
@@ -2430,8 +2510,10 @@ function render() { renderTop(); renderPanel(); }
    ★ 模块 S：交互函数
    ============================================================ */
 function setSpd(v) { if (!SPEEDS.includes(v)) return; S.speed = v; saveGame(); renderSpd(); log(`⏩ 游戏速度：${v}×`); }
-function setAutoTrash(k, v) { S.autoTrash[k] = v; saveGame(); renderPanel(); log(`⚡ 自动处理：${["关闭","💰自动出售","⚒️自动分解"][S.autoTrash.mode]}｜阈值：${RARE_NAMES[S.autoTrash.rare]}及以下`); }
+function setAutoTrash(k, v) { S.autoTrash[k] = v; saveGame(); renderPanel(); log(`⚡ 自动处理：${["关闭","💰自动出售","⚒️自动分解"][S.autoTrash.mode]}｜阈值：${RARE_NAMES[S.autoTrash.rare]}及以下（🔒锁定装备免疫）`); }
 function setPot(i, k, v) { if (!S.pots[i]) S.pots[i] = {id:"",cond:"hp",val:30}; S.pots[i][k] = v; if (k === "cond") S.pots[i].t = null; saveGame(); renderPanel(); }
+function updCmbEqN() { const s = $("cmbEq"); if (!s || !s.selectedOptions[0]) return; const n = $("cmbEqN"); if (n) n.value = Math.max(1, +s.selectedOptions[0].dataset.n || 1); }
+function updCmbGemN() { const s = $("cmbGem"); if (!s || !s.selectedOptions[0]) return; const n = $("cmbGemN"); if (n) n.value = Math.max(1, +s.selectedOptions[0].dataset.n || 1); }
 function pickEndlessFloor(f) {
   if (!S.endless) { log("⚠️ 请先进入无尽模式"); return; }
   f = Math.max(1, Math.min(Math.max(1,S.bestFloor), f|0));
@@ -2458,9 +2540,11 @@ function useXpItem(id) {
 function usePotItem(id) {
   const b = POTBUFF[id]; if (!b) return;
   if (!take(id, 1)) return;
+  const txt = b.k === "hit" ? "攻击100%命中" : b.k === "inv" ? "无敌（免疫怪物伤害）" : "暴击伤害+100000%";
   if (b.k === "hit") { S.buffHit = b.v; S.buffHitMin = b.mm; }
+  else if (b.k === "inv") { S.buffInv = b.v; S.buffInvMin = b.mm; }
   else { S.buffCd = b.v; S.buffCdMin = b.mm; }
-  log(`🧪 ${IT[id].n} 生效：${b.k==="hit"?"攻击100%命中":"暴击伤害+100000%"}，持续 ${b.mm} 分钟`);
+  log(`🧪 ${IT[id].n} 生效：${txt}，持续 ${b.mm} 分钟`);
   renderPanel();
 }
 function gotoPage(p) { bagPage = Math.min(MAX_PAGES-1, Math.max(0, p)); selSlot = null; renderPanel(); }
@@ -2493,7 +2577,9 @@ function unequip(slotid) {
 }
 function sellEq(eqUid) {
   const k = findEqKey(eqUid); if (!k) return;
-  const e = S.slotMap[k]; const g = sellPriceEq(e);
+  const e = S.slotMap[k];
+  if (e.lock) { log(`🔒 ${eqName(e)} 已锁定，请先解锁再出售（右键装备 → 解锁）`); return; }
+  const g = sellPriceEq(e);
   if (e.rare >= 2 && !confirm(`确认出售 ${eqName(e)}（${RARE_NAMES[e.rare]}）？\n将获得 ${g}💰`)) return;
   if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`, 1); });
   delete S.slotMap[k];
@@ -2504,6 +2590,7 @@ function sellEq(eqUid) {
 function salvageEq(eqUid) {
   const k = findEqKey(eqUid); if (!k) return;
   const e = S.slotMap[k];
+  if (e.lock) { log(`🔒 ${eqName(e)} 已锁定，请先解锁再分解（右键装备 → 解锁）`); return; }
   if (e.rare >= 3) {
     const mats = salvageRareMats(e); if (!mats) return;
     if (!confirm(`确认分解 ${eqName(e)}（${RARE_NAMES[e.rare]}）？\n将获得：${matsSummary(mats)}`)) return;
@@ -2529,36 +2616,35 @@ function salvageEq(eqUid) {
 function batchSellRare(r) {
   const pv = batchPreview((e)=>e.rare===r);
   if (!pv.cnt) { log("没有符合条件的装备"); return; }
-  if (!confirm(`确认出售全部【${RARE_NAMES[r]}】装备？\n共 ${pv.cnt} 件，合计 ${pv.gold}💰`)) return;
+  if (!confirm(`确认出售全部【${RARE_NAMES[r]}】装备？\n共 ${pv.cnt} 件，合计 ${pv.gold}💰（🔒锁定装备已排除）`)) return;
   let g = 0, n = 0;
-  bagEquips().forEach(({key,e})=>{ if (e.rare===r && e.rare<3) { g += sellPriceEq(e); if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); }); delete S.slotMap[key]; if (selSlot===key) selSlot = null; n++; } });
+  bagEquips().forEach(({key,e})=>{ if (!e.lock && e.rare===r && e.rare<3) { g += sellPriceEq(e); if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); }); delete S.slotMap[key]; if (selSlot===key) selSlot = null; n++; } });
   S.gold += g;
   log(`💰 批量出售 ${RARE_NAMES[r]}装备 ×${n}，共得 ${g}💰`); renderPanel();
 }
 function batchSellTier(t) {
   const pv = batchPreview((e)=>e.reqLv <= t);
   if (!pv.cnt) { log("没有符合条件的装备"); return; }
-  if (!confirm(`确认出售全部 Lv≤${t} 档装备（传奇以下）？\n共 ${pv.cnt} 件，合计 ${pv.gold}💰`)) return;
+  if (!confirm(`确认出售全部 Lv≤${t} 档装备（传奇以下）？\n共 ${pv.cnt} 件，合计 ${pv.gold}💰（🔒锁定装备已排除）`)) return;
   let g = 0, n = 0;
-  bagEquips().forEach(({key,e})=>{ if (e.rare<3 && e.reqLv <= t) { g += sellPriceEq(e); if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); }); delete S.slotMap[key]; if (selSlot===key) selSlot = null; n++; } });
+  bagEquips().forEach(({key,e})=>{ if (!e.lock && e.rare<3 && e.reqLv <= t) { g += sellPriceEq(e); if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); }); delete S.slotMap[key]; if (selSlot===key) selSlot = null; n++; } });
   S.gold += g;
   log(`💰 批量出售 Lv≤${t} 装备 ×${n}，共得 ${g}💰`); renderPanel();
 }
 function batchSalvageRare(r) {
   const pv = batchPreview((e)=>e.rare===r);
   if (!pv.cnt) { log("没有符合条件的装备"); return; }
-  if (!confirm(`确认分解全部【${RARE_NAMES[r]}】装备？\n共 ${pv.cnt} 件\n产出：${matsSummary(pv.mats)} ＋金币`)) return;
+  if (!confirm(`确认分解全部【${RARE_NAMES[r]}】装备？\n共 ${pv.cnt} 件\n产出：${matsSummary(pv.mats)} ＋金币（🔒锁定装备已排除）`)) return;
   const mats = {}; let n = 0, g = 0;
   bagEquips().forEach(({key,e})=>{
-    if (e.rare===r && e.rare<3) {
-      const {mat,mn} = salvageGain(e);
-      mats[mat] = (mats[mat]||0)+mn;
-      g += Math.floor(sellPriceEq(e)*0.15);
-      if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); });
-      delete S.slotMap[key];
-      if (selSlot===key) selSlot = null;
-      n++;
-    }
+    if (e.lock || e.rare!==r || e.rare>=3) return;
+    const {mat,mn} = salvageGain(e);
+    mats[mat] = (mats[mat]||0)+mn;
+    g += Math.floor(sellPriceEq(e)*0.15);
+    if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); });
+    delete S.slotMap[key];
+    if (selSlot===key) selSlot = null;
+    n++;
   });
   let full = false;
   for (const k in mats) { if (!addIt(k, mats[k])) { full = true; log(`🎒 ${IT[k].n} 部分未能入包！`); } }
@@ -2567,11 +2653,11 @@ function batchSalvageRare(r) {
   renderPanel();
 }
 function batchSalvageHigh(r) {
-  const list = bagEquips().filter(({e})=>e.rare===r);
+  const list = bagEquips().filter(({e})=>e.rare===r && !e.lock);
   if (!list.length) { log("没有符合条件的装备"); return; }
   let total = {};
   list.forEach(({e})=>{ const m = salvageRareMats(e); for (const k in m) total[k] = (total[k]||0)+m[k]; });
-  if (!confirm(`确认分解全部【${RARE_NAMES[r]}】装备 ×${list.length}？\n合计产出：${matsSummary(total)}`)) return;
+  if (!confirm(`确认分解全部【${RARE_NAMES[r]}】装备 ×${list.length}？\n合计产出：${matsSummary(total)}（🔒锁定装备已排除）`)) return;
   let full = false;
   list.forEach(({key,e})=>{
     const m = salvageRareMats(e);
@@ -2586,18 +2672,17 @@ function batchSalvageHigh(r) {
 function batchSalvageTier(t) {
   const pv = batchPreview((e)=>e.reqLv <= t);
   if (!pv.cnt) { log("没有符合条件的装备"); return; }
-  if (!confirm(`确认分解全部 Lv≤${t} 档装备（传奇以下）？\n共 ${pv.cnt} 件\n产出：${matsSummary(pv.mats)} ＋金币`)) return;
+  if (!confirm(`确认分解全部 Lv≤${t} 档装备（传奇以下）？\n共 ${pv.cnt} 件\n产出：${matsSummary(pv.mats)} ＋金币（🔒锁定装备已排除）`)) return;
   const mats = {}; let n = 0, g = 0;
   bagEquips().forEach(({key,e})=>{
-    if (e.rare<3 && e.reqLv <= t) {
-      const {mat,mn} = salvageGain(e);
-      mats[mat] = (mats[mat]||0)+mn;
-      g += Math.floor(sellPriceEq(e)*0.15);
-      if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); });
-      delete S.slotMap[key];
-      if (selSlot===key) selSlot = null;
-      n++;
-    }
+    if (e.lock || e.rare>=3 || e.reqLv > t) return;
+    const {mat,mn} = salvageGain(e);
+    mats[mat] = (mats[mat]||0)+mn;
+    g += Math.floor(sellPriceEq(e)*0.15);
+    if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); });
+    delete S.slotMap[key];
+    if (selSlot===key) selSlot = null;
+    n++;
   });
   let full = false;
   for (const k in mats) { if (!addIt(k, mats[k])) { full = true; log(`🎒 ${IT[k].n} 部分未能入包！`); } }
