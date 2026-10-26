@@ -140,6 +140,9 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
 .ctxMenu button:hover{border-color:#ffd479;color:#ffd479}
 .ctxMenu button:disabled{color:#555;cursor:not-allowed}
 .ctxMenu .sep{height:1px;background:#3a4166;margin:4px 0}
+.pmRow{background:#152035;border-left:3px solid #5cf}
+.pmMine{background:#1a2a20;border-left:3px solid #5c5}
+.pmTag{color:#5cf;font-weight:bold}
 
 @media (max-width:768px){
   body{font-size:13px}
@@ -412,7 +415,7 @@ async function queryBackup() {
   const { data: bks, error } = await sb.from("save_backups").select("data,created_at").eq("name", nm).order("created_at", { ascending: false }).limit(20);
   if (error) { sbErr(error); RB = null; renderPanel(); return; }
   RB = { name: nm, uid: sv.id, list: bks || [] };
-  log(`📂 账号「${nm}」找到 ${RB.list.length} 个备份点${RB.list.length ? "，⭐=最接近一天前" : "（暂无备份，无法回档）"}`);
+  log(`📂 账号「${RB.name}」找到 ${RB.list.length} 个备份点${RB.list.length ? "，⭐=最接近一天前" : "（暂无备份，无法回档）"}`);
   renderPanel();
 }
 async function doRollback(created_at) {
@@ -579,6 +582,7 @@ function authGuest() { doLogin("guest"); enterGame(); }
 function doLogin(u) { CUR = u; LOGGED_IN = true; localStorage.setItem(SES_KEY, u); }
 function logout() {
   saveGame(); cloudSignOut();
+  if (pmSub) { try { sb.removeChannel(pmSub); } catch (e) {} pmSub = null; }
   CUR = null; LOGGED_IN = false;
   localStorage.removeItem(SES_KEY);
   clearRemember();
@@ -642,7 +646,6 @@ defIt("xingHui1","星辉砂·微","💠","gold",10000000);
 defIt("xingHui2","星辉砂·耀","🔷","gold",20000000);
 defIt("xingHui3","星辉砂·炽","🔶","gold",40000000);
 defIt("xingHui4","星辉砂·极","🌟","gold",80000000);
-/* ★ v1.20 内丹/翅膀材料 */
 defIt("yaoDan","妖丹","🧿","nd",200);
 defIt("diLingDan","地灵丹","💊","nd",2000);
 defIt("tianYuanDan","天元丹","🏮","nd",20000);
@@ -673,7 +676,7 @@ const BELL_MAT = {
 const POT_MK = { hitPot:1000000 };
 const matStr = (m) => Object.entries(m).map(([k,v]) => `${IT[k].ic}${IT[k].n}×${v}`).join("＋");
 const RARE_MATS = { xianGu:1, xianYu:1, soul:1, shenShi:1 };
-/* ★ v1.20 材料合成链（4低→1高；分解 1高→4低） */
+/* 材料合成链（4低→1高；分解 1高→4低） */
 const MAT_CHAINS = [
   ["xingSui","yunTie","longJin","fengYu","daoZe","hunDunJing"],
   ["xianGu","xianYu","soul","shenShi"],
@@ -682,6 +685,8 @@ const MAT_CHAINS = [
 ];
 const MAT_NEXT = {}, MAT_PREV = {};
 MAT_CHAINS.forEach((ch) => { for (let i = 0; i < ch.length; i++) { if (i < ch.length-1) MAT_NEXT[ch[i]] = ch[i+1]; if (i > 0) MAT_PREV[ch[i]] = ch[i-1]; } });
+/* ★ v1.21 玩家市场：可交易物品（与服务端 market_is_tradeable 白名单一致） */
+const PM_TRADEABLE = /^(milk|starMilk|herb|flax|ore|log|oak|ingot|plank|cloth|bread|cake|spaceCake|tea|coffee|effTea|sage|xianGu|xianYu|soul|shenShi|yaoDan|diLingDan|tianYuanDan|yuLing|xingSui|yunTie|longJin|fengYu|daoZe|hunDunJing|xingHui[1-4]|gem_(atk|def|hp|critDmg)_\d+)$/;
 
 /* ============================================================
    ★ 模块 D：17 技能
@@ -949,7 +954,7 @@ const $ = (i) => document.getElementById(i);
 const lv = (id) => S.skills[id].lv;
 const totalLv = () => SK.reduce((a,s)=>a+lv(s.id),0);
 const effCap = () => cfg("skillCap") + (S ? (S.reb||0) : 0) * 60;
-const maxRare = () => Math.min(11, 4 + (S ? (S.reb||0) : 0));
+function maxRare() { return Math.min(11, 4 + (S ? (S.reb||0) : 0)); }
 function maxCombatLv() { let m = 0; for (const k of COMBAT_SK) m = Math.max(m, lv(k)); return m; }
 function log(m) {
   const e = $("log"); if (!e) return;
@@ -1183,7 +1188,6 @@ function giveStarterGear() {
   log("🎁 初始赠送：新手六件套（含🥾鞋子、🧤手套），已自动穿上！");
 }
 function migrateEquips() {
-  /* v1.20：附魔已取消，旧装备附魔/词缀清零 */
   const fix = (e) => {
     if (!e) return;
     if (e.holes == null) e.holes = 0;
@@ -1363,7 +1367,6 @@ function combineGem(gemId, n) {
   else log("宝石合成失败：数量不足（4颗起）");
   renderPanel();
 }
-/* ★ v1.20 材料合成/分解（4低→1高 / 1高→4低） */
 function combineMat(id, n) {
   const up = MAT_NEXT[id]; if (!up) { log("该材料已是最高阶，无法再合成"); return; }
   n = Math.max(1, Math.min(n|0, Math.floor(bagN(id)/4)));
@@ -1479,7 +1482,7 @@ function autoForgeUI(e, ref) {
 }
 
 /* ============================================================
-   ★ 模块 K：属性与命中（v1.20：内丹/翅膀乘算 + 新生存公式）
+   ★ 模块 K：属性与命中（比值减伤 + 内丹/翅膀乘算）
    ============================================================ */
 function P() {
   const eq = S.eq;
@@ -1490,11 +1493,9 @@ function P() {
     atkB += v.atk||0; defB += v.def||0; hpB += v.hp||0; evaB += v.eva||0;
     crit += v.crit||0; critDmg += v.critDmg||0; aspd += v.aspd||0; ls += v.ls||0;
   }
-  /* ★ v1.20：内丹每级+0.5%、翅膀每阶+5%（乘算，作用于全属性） */
   const ndMul = 1 + (S.neidan ? S.neidan.lv : 0) * 0.005;
   const wgMul = 1 + (S.wing ? S.wing.stage : 0) * 0.05;
   const GM = ndMul * wgMul;
-  /* ★ v1.20：血量改1.6次幂曲线（对抗高层怪物指数攻击） */
   const baseHp = 50 + Math.floor(Math.pow(lv("hp"), 1.6) * 6) + hpB;
   return { acc:Math.floor((10+lv("acc")*2+atkB)*GM), pow:Math.floor((5+lv("pow")*2+atkB)*GM), def:Math.floor((5+lv("def")*2+defB)*GM),
     maxHp:Math.floor(baseHp*GM),
@@ -1508,7 +1509,6 @@ function P() {
     ls:Math.min(100, ls),
     ndMul, wgMul };
 }
-/* ★ v1.20：减伤比值制——基础40% + 防御/(防御+怪物攻击)×45%，封顶85% */
 function dmgReduce(def, atk) {
   const ratio = def/(atk+def);
   return Math.min(0.85, 0.40 + ratio*0.45);
@@ -1577,7 +1577,7 @@ function doAction(a, q) {
 }
 
 /* ============================================================
-   ★ 模块 M：战斗引擎（v1.20：比值减伤）
+   ★ 模块 M：战斗引擎
    ============================================================ */
 let atkCd = 0, monCd = 0, lastFloorLog = 0;
 function tickPots(dt) {
@@ -1666,7 +1666,6 @@ function tickCombat(dt) {
     monCd = 1.8;
     if (S.buffInvMin > 0) return;
     if (Math.random() < hitRate(m.atk, p.eva)) {
-      /* ★ v1.20：比值减伤（基础40%+防御占比45%，封顶85%） */
       S.hp -= Math.max(1, Math.floor(m.atk*(1-dmgReduce(p.def, m.atk))*(0.8+Math.random()*0.4)));
       if (S.hp <= 0) S.hp = 0;
     }
@@ -1694,7 +1693,6 @@ function dropRareMat(f) {
     const id = "xingHui"+g;
     if (addIt(id,1)) log(`💠 无尽第${f}层掉落 ${IT[id].ic}${IT[id].n}×1！（可兑换 ${GOLD_REDEEM[id].toLocaleString()}💰）`);
   }
-  /* ★ v1.20 内丹/翅膀材料 */
   if (Math.random() < 0.05) { if (addIt("yaoDan",1)) log(`🧿 无尽第${f}层掉落妖丹×1！（内丹材料 +1经验）`); }
   if (f >= 1000 && Math.random() < 0.03) { if (addIt("diLingDan",1)) log(`💊 无尽第${f}层掉落地灵丹×1！（内丹材料 +10经验）`); }
   if (f >= 2500 && Math.random() < 0.02) { if (addIt("tianYuanDan",1)) log(`🏮 无尽第${f}层掉落天元丹×1！（内丹材料 +100经验）`); }
@@ -1744,7 +1742,6 @@ function killMon(m, q, lane) {
   if (st === "magic") { addXp("mag", m.xp); addXp("acc", m.xp*0.12); }
   ["def","hp","eva"].forEach((k)=>addXp(k, m.xp*0.25));
   if (Math.random() < m.drop) dropEq(m);
-  /* ★ v1.20：妖丹（普通图也掉，真仙怪×3） */
   if (!S.endless && Math.random() < 0.05) {
     const n = m.i >= 90 ? 3 : 1;
     if (addIt("yaoDan", n)) log(`🧿 ${m.n} 掉落妖丹×${n}（内丹材料 +${n}经验）`);
@@ -1770,7 +1767,7 @@ function killMon(m, q, lane) {
 }
 
 /* ============================================================
-   ★ 模块 N：市场（专属材料不出售）
+   ★ 模块 N：NPC市场 + ★v1.21 玩家交易市场
    ============================================================ */
 const MK = {};
 const MK_SPREAD = 0.8;
@@ -1857,6 +1854,160 @@ function mkSell(id, n) {
   renderPanel();
 }
 
+/* ★ v1.21 玩家交易市场（挂单制：挂售/买入/撤单/实时） */
+let pmOrders = [], pmMine = [], pmFilter = "", pmSub = null, pmLastFetch = 0, pmBusy = false;
+function pmCanUse() { return CLOUD_ON() && LOGGED_IN && CUR !== "guest"; }
+async function syncFromCloud() {
+  const cloud = await cloudFetch();
+  if (cloud) {
+    localStorage.setItem(saveKeyOf(CUR), JSON.stringify(cloud.data));
+    if (loadGame()) { render(); log("🔄 已从云端同步最新存档（玩家市场交易生效）"); }
+  }
+}
+async function pmFetch(silent) {
+  if (!pmCanUse()) return;
+  pmLastFetch = Date.now();
+  let q = sb.from("market_orders").select("id,seller_id,seller_name,item_id,qty,unit_price,created_at")
+          .eq("status", "active").order("unit_price", { ascending: true })
+          .order("created_at", { ascending: true }).limit(100);
+  if (pmFilter) q = q.like("item_id", "%" + pmFilter + "%");
+  const { data, error } = await q;
+  if (error) { sbErr(error); return; }
+  pmOrders = data || [];
+  if (!silent) renderPanel();
+}
+async function pmFetchMine(silent) {
+  if (!pmCanUse()) return;
+  const id = await cloudUid();
+  if (!id) return;
+  const { data, error } = await sb.from("market_orders")
+    .select("id,item_id,qty,unit_price,created_at")
+    .eq("seller_id", id).eq("status", "active").order("created_at", { ascending: false }).limit(20);
+  if (error) { sbErr(error); return; }
+  pmMine = data || [];
+  if (!silent) renderPanel();
+}
+function pmAutoRefresh() {
+  if (!pmCanUse() || tab !== 5) return;
+  if (Date.now() - pmLastFetch > 30000) { pmFetch(true); pmFetchMine(true); }
+}
+function pmUI() {
+  if (!pmCanUse()) return `<div class="hint" style="color:#5cf;margin-top:10px">🤝 玩家市场：需注册账号并登录云端后开放（游客不可交易）</div>`;
+  let h = `<div class="hint" style="color:#5cf;margin-top:14px">━━━━━ 🤝 玩家市场（挂单制｜成交收2%税｜每人最多20个挂单｜按单价升序，同价先挂先卖）━━━━━</div>`;
+  /* 挂单出售表单 */
+  const sellables = Object.keys(S.bag).filter((id)=>PM_TRADEABLE.test(id));
+  h += `<div class="row pmRow"><span class="name pmTag">📤 挂单出售</span>`
+    +`<select id="pmItem" style="max-width:170px">${sellables.length?sellables.map((id)=>`<option value="${id}">${IT[id].ic}${IT[id].n}×${bagN(id)}</option>`).join(""):`<option value="">（背包中没有可交易物品）</option>`}</select>`
+    +`<span class="info">数量</span><input type="number" id="pmQty" min="1" value="10" style="width:55px">`
+    +`<span class="info">单价</span><input type="number" id="pmPrice" min="1" value="100" style="width:75px">💰/个`
+    +`<button class="act sm" style="background:#5cf" ${sellables.length?"":"disabled"} onclick="pmPlace()">📤 挂单</button>`
+    +`<span class="info">挂牌后材料立即从背包转入市场托管，撤单/成交后返还</span></div>`;
+  /* 我的挂单 */
+  h += `<div class="hint" style="color:#5c5;margin-top:8px">—— 📥 我的挂单（${pmMine.length}/20）——</div>`;
+  if (!pmMine.length) h += `<div class="hint">暂无挂单</div>`;
+  else {
+    h += `<table><tr><th>物品</th><th>剩余数量</th><th>单价</th><th>挂单时间</th><th></th></tr>`;
+    pmMine.forEach((o) => {
+      const it = IT[o.item_id];
+      h += `<tr class="pmMine"><td>${it?it.ic+it.n:o.item_id}</td><td>${o.qty}</td>`
+        +`<td><b style="color:#ffd479">${o.unit_price.toLocaleString()}💰</b></td>`
+        +`<td class="info">${new Date(o.created_at).toLocaleString()}</td>`
+        +`<td><button class="act sm" style="background:#e55" onclick="pmCancel(${o.id})">撤单返还</button></td></tr>`;
+    });
+    h += `</table>`;
+  }
+  /* 市场挂单列表 */
+  h += `<div class="row"><span class="name pmTag">🔍 筛选</span>`
+    +`<input style="flex:1;min-width:120px" placeholder="物品ID（如 yaoDan / gem_atk / xingHui）…" value="${pmFilter}" onchange="pmFilter=this.value;pmFetch()">`
+    +`<button class="act sm" onclick="pmFetch();pmFetchMine()">↻ 刷新</button>`
+    +`<button class="act sm" style="background:${pmSub?"#5c5":"#3a4166"}" onclick="pmRealtimeToggle()">${pmSub?"📡 实时:开":"📡 实时:关"}</button></div>`;
+  if (!pmOrders.length) {
+    h += `<div class="hint">暂无活跃挂单${pmFilter?"（试试清空筛选）":""}——成为第一个卖家？</div>`;
+  } else {
+    h += `<table><tr><th>物品</th><th>数量</th><th>单价</th><th>总价</th><th>卖家</th><th>买入</th></tr>`;
+    pmOrders.forEach((o) => {
+      const it = IT[o.item_id];
+      const mine = (o.seller_id === PM_UID);
+      h += `<tr class="${mine?"pmMine":"pmRow"}"><td>${it?it.ic+it.n:o.item_id}</td><td>${o.qty}</td>`
+        +`<td><b style="color:#ffd479">${o.unit_price.toLocaleString()}💰</b></td>`
+        +`<td>${(o.unit_price*o.qty).toLocaleString()}💰</td>`
+        +`<td class="info">${mine?"<b style='color:#5c5'>我</b>":o.seller_name.slice(0,10)}</td>`
+        +`<td>${mine?"<span class='info'>自己的单</span>":`<input type="number" min="1" max="${o.qty}" value="${Math.min(o.qty,1)}" style="width:45px" id="bq_${o.id}">`
+          +`<button class="act sm" style="background:#5cf" onclick="pmBuy(${o.id})">买入</button>`}</td></tr>`;
+    });
+    h += `</table>`;
+  }
+  return h;
+}
+let PM_UID = null;
+async function pmInitUid() { if (pmCanUse() && !PM_UID) PM_UID = await cloudUid(); }
+async function pmPlace() {
+  if (pmBusy) return;
+  const itemId = $("pmItem").value, qty = +$("pmQty").value, price = +$("pmPrice").value;
+  if (!itemId) { log("⚠️ 请选择要挂单的物品"); return; }
+  if (!qty || qty < 1) { log("⚠️ 数量必须≥1"); return; }
+  if (!price || price < 1) { log("⚠️ 单价必须≥1金币"); return; }
+  if (qty > bagN(itemId)) { log(`⚠️ 持有量不足：${IT[itemId].n}×${bagN(itemId)}`); return; }
+  if (!confirm(`确认挂单出售？\n\n${IT[itemId].ic}${IT[itemId].n}×${qty} @ ${price.toLocaleString()}💰/个\n总价 ${(price*qty).toLocaleString()}💰（成交后收2%税）\n\n材料将立即从背包转入市场托管。`)) return;
+  pmBusy = true;
+  try {
+    await sb.rpc("market_place_order", { p_item_id: itemId, p_qty: qty, p_unit_price: price });
+    log(`📤 挂单成功：${IT[itemId].n}×${qty} @${price.toLocaleString()}💰/个`);
+    await syncFromCloud();
+    await pmFetch(true); await pmFetchMine(true);
+    render();
+  } catch (e) { log("❌ 挂单失败：" + (e.message || e)); }
+  pmBusy = false;
+}
+async function pmBuy(orderId) {
+  if (pmBusy) return;
+  const qty = +($("bq_"+orderId) || {}).value || 1;
+  if (!qty || qty < 1) { log("⚠️ 购买数量必须≥1"); return; }
+  const o = pmOrders.find((x)=>x.id === orderId);
+  if (!o) { log("⚠️ 挂单不存在，请刷新"); return; }
+  if (!confirm(`确认买入？\n\n${IT[o.item_id]?IT[o.item_id].n:o.item_id}×${Math.min(qty,o.qty)} @ ${o.unit_price.toLocaleString()}💰/个\n共 ${(o.unit_price*Math.min(qty,o.qty)).toLocaleString()}💰（含2%税，由卖家承担）`)) return;
+  pmBusy = true;
+  try {
+    const { data, error } = await sb.rpc("market_buy_order", { p_order_id: orderId, p_buy_qty: qty });
+    if (error) throw error;
+    log(`🤝 买入成功：×${data.bought}，花费 ${(+data.cost).toLocaleString()}💰`);
+    await syncFromCloud();
+    await pmFetch(true); await pmFetchMine(true);
+    render();
+  } catch (e) { log("❌ 买入失败：" + (e.message || e)); }
+  pmBusy = false;
+}
+async function pmCancel(orderId) {
+  if (pmBusy) return;
+  if (!confirm(`确认撤单？挂单剩余数量将全部返还背包。`)) return;
+  pmBusy = true;
+  try {
+    await sb.rpc("market_cancel_order", { p_order_id: orderId });
+    log(`📥 撤单成功，材料已返还`);
+    await syncFromCloud();
+    await pmFetch(true); await pmFetchMine(true);
+    render();
+  } catch (e) { log("❌ 撤单失败：" + (e.message || e)); }
+  pmBusy = false;
+}
+function pmRealtimeToggle() {
+  if (!pmCanUse()) return;
+  if (pmSub) {
+    try { sb.removeChannel(pmSub); } catch (e) {}
+    pmSub = null;
+    log("📡 玩家市场实时订阅已关闭");
+    renderPanel();
+    return;
+  }
+  pmSub = sb.channel("market")
+    .on("postgres_changes", { event: "*", schema: "public", table: "market_orders" },
+      () => { pmFetch(true); pmFetchMine(true); })
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") log("📡 玩家市场实时订阅已开启（新挂单自动刷新）");
+      renderPanel();
+    });
+}
+
 /* ============================================================
    ★ 模块 O：房屋 & 任务 & 转生 & 牛铃商店 & 内丹 & 翅膀
    ============================================================ */
@@ -1909,7 +2060,7 @@ function redeemGold(id) {
   renderTop(); renderPanel();
 }
 
-/* ★ v1.20 内丹（方案A·万法增幅） */
+/* 内丹（方案A·万法增幅） */
 const ND_PILL_XP = { yaoDan:1, diLingDan:10, tianYuanDan:100 };
 const ND_MAX_LV = 100;
 function ndXpNeed(n) { return Math.floor(50*Math.pow(1.05,n)); }
@@ -1928,7 +2079,7 @@ function usePill(id, n) {
   saveGame(); renderTop(); renderPanel();
 }
 
-/* ★ v1.20 翅膀（方案A·战斗底座） */
+/* 翅膀（方案A·战斗底座） */
 const WING_NAMES = ["凡羽","灵羽","玄羽","天羽","金羽","圣羽","神羽","鸿蒙之翼","太初之翼","无极之翼","天道之翼","混沌之翼"];
 const WING_FEATHER = [10,30,80,200,500,1200,3000,7000,15000,35000,80000];
 const wingGold = (st) => Math.floor(50000*Math.pow(2.2, st));
@@ -1969,7 +2120,7 @@ function rebirth() {
   const keepTrash = Object.assign({}, S.autoTrash);
   const keepAutoNext = S.autoNext;
   const keepPots = JSON.parse(JSON.stringify(S.pots));
-  const keepNd = S.neidan, keepWing = S.wing;   /* ★ 内丹/翅膀转生保留 */
+  const keepNd = S.neidan, keepWing = S.wing;
   S.sp = 20+S.reb*20; S.reb++;
   S.skills = defSkills();
   for (const k in S.slotMap) { if (typeof S.slotMap[k] === "object") delete S.slotMap[k]; }
@@ -2179,6 +2330,7 @@ function loop() {
     const busy = ae && (ae.tagName === "INPUT" || ae.tagName === "SELECT" || ae.tagName === "TEXTAREA");
     renderTop();
     if (!busy) renderPanel();
+    pmAutoRefresh();
   }
 }
 setInterval(loop, 1000);
@@ -2323,9 +2475,7 @@ function renderBagSearchRes() {
   box.replaceWith(tmp.firstElementChild ? tmp.firstElementChild : tmp);
 }
 
-/* ============================================================
-   ★ 右键菜单
-   ============================================================ */
+/* 右键菜单 */
 function openEqMenu(key, ev) {
   const v = S.slotMap[key];
   if (!v || typeof v !== "object") return;
@@ -2364,9 +2514,7 @@ document.addEventListener("contextmenu", (ev) => {
   if (m && !m.contains(ev.target) && m.style.display === "block" && !(ev.target.closest && ev.target.closest(".cell"))) hideEqMenu();
 });
 
-/* ============================================================
-   ★ 帮助页内容（版本记录仅管理员可见）
-   ============================================================ */
+/* 帮助页 */
 function helpHTML() {
   let h = `
 <div class="hint">📖 欢迎来到银河牧场！这是完整的新手上手指南。</div>
@@ -2376,66 +2524,74 @@ function helpHTML() {
 <p>2️⃣ 「队列」页选动作 → 设次数 → 加入队列 → 自动产出材料+经验。</p>
 <p>3️⃣ 点「⚔️ 战斗×N」自动打怪掉装备。<b>核心循环</b>：挂机→升级→打更强的怪→更好的装备。</p></div>
 
-<div class="helpSec"><h4>🏆 二、12品质体系</h4>
+<div class="helpSec"><h4>🤝 二、玩家市场（v1.21新增）</h4>
+<p>· 「市场」页下半部分是<b>玩家交易市场</b>：挂单制，类似拍卖行。</p>
+<p>· <b>挂单出售</b>：选材料→设数量和单价→挂单，材料立即转入市场托管；每人最多20个挂单。</p>
+<p>· <b>买入</b>：浏览挂单列表（按单价升序，同价先挂先卖），输入数量点买入，金币直接结算。</p>
+<p>· <b>撤单</b>：「我的挂单」里随时撤单，剩余数量全额返还背包。</p>
+<p>· 成交收<b>2%税（卖家承担）</b>；可交易：基础材料/稀有材料/无尽材料/丹药/羽翎/星辉砂/宝石。<span class="warn">神水、无敌药水、打孔锥、装备不可交易</span>。</p>
+<p>· 点「📡 实时」开启订阅后，别人挂的新单自动刷新。<span class="warn">仅注册账号可交易，游客不可</span>。</p></div>
+
+<div class="helpSec"><h4>🏆 三、12品质体系</h4>
 <p>· 品质梯度：普通→精良→闪耀→传奇→<b>仙器</b>→神器→<span class="r6">鸿蒙</span>→<span class="r7">太初</span>→<span class="r8">无极</span>→<span class="r9">造化</span>→<span class="r10">天道</span>→<span class="r11">混沌</span>。</p>
 <p>· <span class="warn">未转生最高只能到【仙器】</span>；每转生1次解锁1个新品质，7转全解锁（混沌）。</p>
 <p>· <b>仙器起每次升阶属性至少翻倍</b>：仙器×5→神器×10→鸿蒙×20→太初×40→无极×80→造化×160→天道×320→混沌×640。</p>
 <p>· 新品质（鸿蒙~混沌）<b>无尽1500层起掉落</b>，每+400层解锁下一档（2%小概率），且受转生解锁上限约束。</p></div>
 
-<div class="helpSec"><h4>⚔️ 三、档位与穿戴</h4>
+<div class="helpSec"><h4>⚔️ 四、档位与穿戴</h4>
 <p>· 档位上限 <b>Lv500</b>（249后每25级一档）。普通十境掉落<b>维持Lv249封顶不变</b>。</p>
 <p>· <b>Lv250+装备仅无尽模式掉落</b>：1500层起，每+300层解锁一个新档（1500→Lv275 … 4200→Lv500）。</p>
 <p>· <span class="warn">武器穿戴要求：不得超自身战斗技能的单项最高等级</span>（其他槽位仍是战斗均级）。</p>
-<p>· Lv250+档的升级材料（✨星髓/🌠陨铁/🐲龙筋/🪶凤羽/📜道则碎片/🔮混沌晶）<b>仅无尽掉落或🔔牛铃商店购买</b>，市场不出售。</p></div>
+<p>· Lv250+档的升级材料（✨星髓/🌠陨铁/🐲龙筋/🪶凤羽/📜道则碎片/🔮混沌晶）<b>仅无尽掉落或🔔牛铃商店/🤝玩家市场购买</b>。</p></div>
 
-<div class="helpSec"><h4>🧿 四、内丹（v1.20·方案A·万法增幅）</h4>
+<div class="helpSec"><h4>🧿 五、内丹（万法增幅）</h4>
 <p>· <b>每级全属性 +0.5%</b>（乘算面板），Lv100 = <b>+50%</b>。<span class="kw">转生完整保留</span>。</p>
 <p>· 材料：<b>🧿妖丹</b>（任意怪5%掉，真仙怪×3，+1经验）｜<b>💊地灵丹</b>（无尽1000层+3%，=10经验）｜<b>🏮天元丹</b>（无尽2500层+2%/🔔50，=100经验）。</p>
-<p>· 升级经验：Lv n→n+1 需 50×1.05ⁿ，满级约13万妖丹当量；丹药可在锻造页<b>4合1/1拆4</b>互转。</p></div>
+<p>· 升级经验：Lv n→n+1 需 50×1.05ⁿ，满级约13万妖丹当量；丹药可在锻造页<b>4合1/1拆4</b>互转，也可在🤝玩家市场买卖。</p></div>
 
-<div class="helpSec"><h4>🕊️ 五、翅膀（v1.20·方案A·战斗底座）</h4>
+<div class="helpSec"><h4>🕊️ 六、翅膀（战斗底座）</h4>
 <p>· <b>每阶全属性 +5%</b>（乘算面板），12阶混沌之翼 = <b>+60%</b>。<span class="kw">转生完整保留</span>。</p>
 <p>· 12阶：凡羽→灵羽→玄羽→天羽→金羽→圣羽→神羽→鸿蒙→太初→无极→天道→混沌之翼。</p>
-<p>· 材料：<b>🕊️羽翎</b>（无尽300层+通关10%掉/🔔2）＋金币（5万×2.2^阶，最后一阶约2.9亿）。升阶100%成功。</p></div>
+<p>· 材料：<b>🕊️羽翎</b>（无尽300层+通关10%掉/🔔2/🤝玩家市场）＋金币（5万×2.2^阶，最后一阶约2.9亿）。升阶100%成功。</p></div>
 
-<div class="helpSec"><h4>💠 六、星辉砂（金币兑换物）</h4>
-<p>· 4个等级：<b>微(💠1000万)→耀(🔷2000万)→炽(🔶4000万)→极(🌟8000万)</b>，选中后点「兑换」直接变金币。</p>
+<div class="helpSec"><h4>💠 七、星辉砂（金币兑换物）</h4>
+<p>· 4个等级：<b>微(💠1000万)→耀(🔷2000万)→炽(🔶4000万)→极(🌟8000万)</b>，选中后点「兑换」直接变金币；也可在🤝玩家市场交易。</p>
 <p>· 无尽1500层起掉落（4%），每+500层解锁下一等级；🔔牛铃商店也可购买（100/200/400/800🔔）。</p></div>
 
-<div class="helpSec"><h4>🎯 七、自动锻造（仅限背包装备）</h4>
+<div class="helpSec"><h4>🎯 八、自动锻造（仅限背包装备）</h4>
 <p>· <span class="warn">自动锻造只对<b>背包中</b>的装备生效</span>——在背包选中装备后的详情行设置目标（强化+X、品质X、档位LvX）。</p>
 <p>· 每秒自动尝试（强化→升阶→升档），全部达标或材料不足自动停止并提示缺什么。</p>
 <p>· <b>已穿戴的装备不支持自动锻造</b>（锻造页仅手动操作），需要自动锻造请先卸下放入背包。</p></div>
 
-<div class="helpSec"><h4>⚔️ 八、生存机制（v1.20改版）</h4>
-<p>· <b>减伤比值制</b>：减伤 = 40%基础 + 防御/(防御+怪物攻击)×45%，<b>封顶85%</b>——防御堆到与怪物攻击同量级时收益最大化，防御重新成为核心属性。</p>
+<div class="helpSec"><h4>⚔️ 九、生存机制</h4>
+<p>· <b>减伤比值制</b>：减伤 = 40%基础 + 防御/(防御+怪物攻击)×45%，<b>封顶85%</b>——防御堆到与怪物攻击同量级时收益最大化。</p>
 <p>· <b>血量1.6次幂</b>：血量 = 50 + hp技能^1.6×6 + 装备。hp Lv100≈9.5千｜Lv300≈2.6万｜Lv540≈5.7万（再乘内丹/翅膀）。</p>
-<p>· 保命手段：🛉无敌药水（消耗品格子每N秒自动喝）＞堆血量/防御＞吸血输出流。</p>
-<p>· <span class="warn">附魔功能已于v1.20取消</span>：装备不再有◆附魔与词缀，旧装备附魔自动清零（强化/品质/档位不受影响）。</p></div>
+<p>· 保命手段：🛉无敌药水（消耗品格子每N秒自动喝）＞堆血量/防御＞吸血输出流。</p></div>
 
-<div class="helpSec"><h4>🌌 九、无尽模式总览</h4>
+<div class="helpSec"><h4>🌌 十、无尽模式总览</h4>
 <p>· 300层+🕊️羽翎｜500层+🔨打孔锥｜1000层+💎宝石/💊地灵丹｜1500层+<b>Lv275档装备/新品质/星辉砂/星髓</b>｜2000层+🛉无敌药水｜2500层+🏮天元丹｜<b>每300层一新档装备、每400层一新品质、每500层一级星辉砂</b>。</p>
 <p>· 材料掉落与武器掉落同步：陨铁1800+、龙筋2100+、凤羽2500+、道则2900+、混沌晶3300+。无尽每层击杀5%掉🧿妖丹。</p></div>
 
-<div class="helpSec"><h4>💎 十、宝石系统（v1.20：Lv30）</h4>
+<div class="helpSec"><h4>💎 十一、宝石系统（Lv30）</h4>
 <p>· 4种宝石（⚔攻击/🛡防御/❤活力/💥爆伤），<b>等级上限Lv30</b>，每级属性×1.2复利（Lv30≈基础的198倍）。</p>
-<p>· 获取：炼虚+怪5%/无尽1000层+（层数越深等级越高，2450层+可到Lv30）｜4合1合成升一级。</p></div>
+<p>· 获取：炼虚+怪5%/无尽1000层+（层数越深等级越高，2450层+可到Lv30）｜4合1合成升一级｜🤝玩家市场可交易。</p></div>
 
-<div class="helpSec"><h4>🔔 十一、牛铃商店</h4>
-<p>· 💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；<b>🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔</b>（皆可批量）。</p></div>
+<div class="helpSec"><h4>🔔 十二、牛铃商店</h4>
+<p>· 💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔（皆可批量）。</p></div>
 
-<div class="helpSec"><h4>💡 十二、实用小技巧</h4>
+<div class="helpSec"><h4>💡 十三、实用小技巧</h4>
 <p>· 背包右键装备 = 快捷锻造/锁定；批量分解支持<b>神器~混沌全部品质</b>（锻造页/背包页）。</p>
 <p>· 锻造页<b>材料合成（4低→1高）/材料分解（1高→4低）</b>：星髓链、仙骨链、星辉砂链、丹药链均可互转。</p>
 <p>· 冲Lv500武器路线：7转（上限540）→ 战斗单项练到500 → 无尽4200层刷Lv500档 → 升阶到混沌（×640）→ 内丹/翅膀补面板。</p>
-<p>· 星辉砂是后期主要金币来源；翅膀后期一阶要几亿金币，正好用它兑。</p></div>
+<p>· 🤝玩家市场卖多余材料赚金币；买别人挂的低价材料省时间——自由定价，看好行情再出手。</p></div>
 `;
   if (isAdmin()) {
     h += `
-<div class="helpSec"><h4>📜 十三、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.20</span><b>修行系统+生存改版</b>：①批量分解扩展到神器~混沌全部品质；②锻造页新增材料合成(4合1)/分解(1拆4)，覆盖星髓链/仙骨链/星辉砂链/丹药链；③宝石上限Lv30；④<b>附魔功能移除</b>（旧装备附魔清零）；⑤新增「修行」页：内丹（方案A，Lv100每级+0.5%乘算）+翅膀（方案A，12阶每阶+5%），均转生保留，材料妖丹/地灵丹/天元丹/羽翎；⑥生存改版：减伤比值制（40%基础+占比45%封顶85%）+血量1.6次幂曲线。</p>
+<div class="helpSec"><h4>📜 十四、版本更新记录（仅管理员可见）</h4>
+<p><span class="verTag">v1.21</span><b>玩家交易市场一期</b>：市场页新增玩家市场（挂单制：挂售/买入/撤单/我的挂单管理/📡实时订阅/筛选）；服务端RPC事务撮合（行锁防双花、2%税、20挂单上限、可交易白名单）；交易后自动从云端同步存档；修复v1.20点金动作语法错误。</p>
+<p><span class="verTag">v1.20</span><b>修行系统+生存改版</b>：批量分解扩展到神器~混沌；材料合成(4合1)/分解(1拆4)；宝石Lv30；附魔移除；内丹（Lv100每级+0.5%）+翅膀（12阶每阶+5%）转生保留；减伤比值制+血量1.6次幂。</p>
 <p><span class="verTag">v1.19</span><b>自动锻造范围调整</b>：仅对背包装备生效。</p>
-<p><span class="verTag">v1.18</span><b>品质/档位/材料大扩展</b>：品质12档；档位至Lv500；转生每转上限+60；无尽新材料6种；星辉砂4等级金币兑换物。</p>
+<p><span class="verTag">v1.18</span><b>品质/档位/材料大扩展</b>。</p>
 <p><span class="verTag">v1.17</span><b>自动锻造与账号充值</b>。</p>
 <p><span class="verTag">v1.16</span><b>右键锻造与无敌药水</b>。</p>
 <p><span class="verTag">v1.15</span><b>管理员账号回档</b>。</p>
@@ -2458,15 +2614,13 @@ function helpHTML() {
   return h;
 }
 
-/* ============================================================
-   ★ 面板渲染
-   ============================================================ */
+/* 面板渲染 */
 function renderPanel() {
   const scr = IS_MOBILE ? $("panel").scrollTop : 0;
   buildTabs();
   if (tab >= TABS.length) tab = TABS.length-1;
   const T_ADMIN = TABS.indexOf("管理员"), T_CFG = TABS.indexOf("数值配置"), T_HELP = TABS.indexOf("帮助");
-  $("tabs").innerHTML = TABS.map((t,i)=>`<button class="${i===tab?"active":""}" onclick="tab=${i};renderPanel()">${t}</button>`).join("");
+  $("tabs").innerHTML = TABS.map((t,i)=>`<button class="${i===tab?"active":""}" onclick="tab=${i};renderPanel();pmInitUid();pmFetch();pmFetchMine()">${t}</button>`).join("");
   const el = $("panel");
   let h = "";
   if (tab === 0) {
@@ -2518,10 +2672,9 @@ function renderPanel() {
     h += `<div class="hint">单项战斗技能最高：<b style="color:#ffd479">Lv${maxCombatLv()}</b>（决定武器穿戴上限，当前可穿 Lv≤${maxCombatLv()} 武器）</div>`;
   }
   else if (tab === 2) {
-    /* ★ 修行页：内丹 + 翅膀 */
     const nd = S.neidan, w = S.wing;
     const ndMax = nd.lv >= ND_MAX_LV;
-    h += `<div class="hint">🧿 <b style="color:#c5f">内丹 · 万法增幅</b> —— 每级全属性 <b style="color:#fa0">+0.5%</b>（乘算面板，Lv100=+50%）｜<b style="color:#5c5">转生完整保留</b>｜🧿妖丹(怪5%/无尽5%)+1经验｜💊地灵丹(无尽1000层+3%)=10｜🏮天元丹(无尽2500层+2%/🔔50)=100｜丹药可在锻造页4合1/1拆4</div>`;
+    h += `<div class="hint">🧿 <b style="color:#c5f">内丹 · 万法增幅</b> —— 每级全属性 <b style="color:#fa0">+0.5%</b>（乘算面板，Lv100=+50%）｜<b style="color:#5c5">转生完整保留</b>｜🧿妖丹(怪5%/无尽5%)+1经验｜💊地灵丹(无尽1000层+3%)=10｜🏮天元丹(无尽2500层+2%/🔔50)=100｜丹药可在锻造页4合1/1拆4，可在🤝玩家市场交易</div>`;
     h += `<div class="row"><span class="name" style="color:#c5f">🧿 内丹 Lv.${nd.lv}${ndMax?' <span style="color:#fa0">MAX</span>':""}</span><span class="info">当前全属性加成 <b style="color:#fa0">+${(nd.lv*0.5).toFixed(1)}%</b>｜经验 ${ndMax?"—":(nd.xp|0)+"/"+ndXpNeed(nd.lv)}</span></div>`;
     if (!ndMax) h += `<div class="bar"><div class="xp" style="width:${Math.min(100,nd.xp/ndXpNeed(nd.lv)*100)}%"></div></div>`;
     h += `<div class="row"><span class="name">服用数量</span><input type="number" min="1" value="${ndQty}" onchange="ndQty=Math.max(1,+this.value|0)">`
@@ -2529,7 +2682,7 @@ function renderPanel() {
       +`<button class="act sm" style="background:#5a5" ${(!ndMax&&bagN("diLingDan"))?"":"disabled"} onclick="usePill('diLingDan',ndQty)">💊地灵丹×${ndQty}（+${ndQty*10}经验）</button>`
       +`<button class="act sm" style="background:#5a5" ${(!ndMax&&bagN("tianYuanDan"))?"":"disabled"} onclick="usePill('tianYuanDan',ndQty)">🏮天元丹×${ndQty}（+${ndQty*100}经验）</button>`
       +`<span class="info">持有：🧿${bagN("yaoDan")}｜💊${bagN("diLingDan")}｜🏮${bagN("tianYuanDan")}${ndMax?"（已满级）":""}</span></div>`;
-    h += `<div class="hint" style="margin-top:12px">🕊️ <b style="color:#8df">翅膀 · 战斗底座</b> —— 每阶全属性 <b style="color:#fa0">+5%</b>（乘算面板，12阶混沌之翼=+60%）｜<b style="color:#5c5">转生完整保留</b>｜🕊️羽翎（无尽300层+通关10%/🔔2）＋金币，升阶100%成功</div>`;
+    h += `<div class="hint" style="margin-top:12px">🕊️ <b style="color:#8df">翅膀 · 战斗底座</b> —— 每阶全属性 <b style="color:#fa0">+5%</b>（乘算面板，12阶混沌之翼=+60%）｜<b style="color:#5c5">转生完整保留</b>｜🕊️羽翎（无尽300层+通关10%/🔔2/🤝玩家市场）＋金币，升阶100%成功</div>`;
     h += `<div class="row"><span class="name" style="color:#8df">${w.stage?"🕊️ "+WING_NAMES[w.stage-1]:"🕊️ 翅膀未觉醒"}</span><span class="info">当前全属性加成 <b style="color:#fa0">+${w.stage*5}%</b>${w.stage>=12?"｜已达最高阶":""}</span></div>`;
     if (w.stage < 12) {
       const need = WING_FEATHER[w.stage], gold = wingGold(w.stage);
@@ -2599,7 +2752,6 @@ function renderPanel() {
       h += `<button class="act sm" style="background:${["#554","#464","#455"][r]}" ${pv.cnt?"":"disabled"} onclick="batchSalvageRare(${r})">⚒️分解${RARE_NAMES[r]} ${pv.cnt?`×${pv.cnt}`:"(无)"}</button>`;
     });
     h += `</div>`;
-    /* ★ v1.20：神器~混沌全部品质批量分解 */
     h += `<div class="row" style="background:#1c2036">`;
     [3,4].forEach((r)=>{
       const cnt = bagEquips().filter((x)=>x.e.rare===r && !x.e.lock).length;
@@ -2714,7 +2866,7 @@ function renderPanel() {
     }
   }
   else if (tab === 5) {
-    h += `<div class="hint">拍卖行｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜>49金收2%税｜💎宝石/✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b style="color:#f80">不出售</b>（仅掉落或🔔牛铃商店）｜<b style="color:#8af">卖出数量上限 = 背包持有量</b></div>`;
+    h += `<div class="hint">拍卖行（NPC）｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜>49金收2%税｜💎宝石/✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b style="color:#f80">不出售</b>（仅掉落/🔔牛铃商店/🤝玩家市场）｜<b style="color:#8af">卖出数量上限 = 背包持有量</b></div>`;
     h += `<div class="row"><span class="name">📦 交易数量</span><input type="number" min="1" value="${mkQty}" onchange="mkQty=Math.max(1,+this.value|0)"> <span class="info">买入受市场库存限制；卖出受背包持有量限制（订单不足按兜底价成交）</span></div>`;
     h += `<table><tr><th>物品</th><th>基准价</th><th>市场库存</th><th>买入</th><th>卖出</th><th>背包</th></tr>`;
     for (const id in MK) {
@@ -2730,6 +2882,8 @@ function renderPanel() {
         +`<td>${bagN(id)||0}</td></tr>`;
     }
     h += `</table>`;
+    /* ★ v1.21：玩家交易市场 */
+    h += pmUI();
   }
   else if (tab === 6) {
     h += `<div class="hint">🔮 锻造坊｜强化技能 Lv${lv("enh")} +${(forgeBonus()*100).toFixed(0)}%｜<b style="color:#f80">全局锻造系数 ×${forgeCf().toFixed(1)}</b>｜强化+${ENH_MAX}｜品质上限<b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（转生解锁）｜背包装备可直接<b style="color:#8af">右键锻造</b>｜<b style="color:#5c5">🎯自动锻造仅限背包装备</b>｜附魔已取消</div>`;
@@ -2764,9 +2918,7 @@ function renderPanel() {
       +`<button class="act sm" style="background:#a6f" ${gems.length?"":"disabled"} onclick="combineGem($('cmbGem').value, +($('cmbGemN').value||1))">合成</button>`
       +(gemsAll.length?`<span class="info">持有：${gemsAll.map((id)=>`${IT[id].ic}${id.split("_")[2]}×${bagN(id)}`).join("、")}</span>`:"<span class='info'>尚未持有宝石（炼虚+或无尽1000层+掉落）</span>")
       +`</div>`;
-    /* ★ v1.20：材料合成/分解 */
     const mUp = Object.keys(MAT_NEXT).filter((id)=>bagN(id) >= 4);
-    const mUpAll = Object.keys(MAT_NEXT);
     h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">🧪 材料合成</span><span class="info">4个低阶 → 1个高阶（星髓链/仙骨链/星辉砂链/丹药链）</span>`
       +`<select id="cmbMat">${mUp.length?mUp.map((id)=>`<option value="${id}" data-n="${Math.floor(bagN(id)/4)}">${IT[id].ic}${IT[id].n}×${bagN(id)}（→${IT[MAT_NEXT[id]].ic}${IT[MAT_NEXT[id]].n}）</option>`).join(""):`<option value="">（没有≥4个的可合成材料）</option>`}</select>`
       +`<span class="info">数量</span><input type="number" id="cmbMatN" min="1" value="${mUp.length?Math.floor(bagN(mUp[0])/4):1}" style="width:60px">`
@@ -2802,7 +2954,7 @@ function renderPanel() {
     h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；怪物属性增强；<b style="color:#fa0">但获得：等级上限+60、解锁下一品质、技能点，且🧿内丹与🕊️翅膀完整保留</b>。7转后：上限${cfg("skillCap")+420}、品质全解锁（混沌）。</div>`;
   }
   else if (tab === 10) {
-    h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b>｜✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b>常年大量供应</b>（市场不卖）</div>`;
+    h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b>｜✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b>常年大量供应</b></div>`;
     h += `<div class="row"><span class="name">📦 材料购买数量</span><input type="number" min="1" value="${bellQty}" onchange="bellQty=Math.max(1,+this.value|0)"> <span class="info">对下方全部材料/星辉砂/丹药/羽翎生效</span></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">💣 弑神狂暴水（暴伤+10万% / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#a6f" onclick="buyBell('critPot',100,1)">购买</button></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">🛉 无敌药水（免疫怪物伤害 / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#5cf" onclick="buyBell('invPot',100,1)">购买</button></div>`;
@@ -2829,7 +2981,7 @@ function renderPanel() {
   }
   else if (tab === 11) {
     const A = accs();
-    h += `<div class="hint">当前账号：<b style="color:#ffd479">${CUR==="guest"?"游客":CUR}</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}｜云端：<b class="${CLOUD_ON()?"cloudOk":"cloudNo"}">${CLOUD_ON()?"已连接":"未连接"}</b>｜<b style="color:#8af">单点登录：同账号他处登录时本机自动下线</b></div>`
+    h += `<div class="hint">当前账号：<b style="color:#ffd479">${CUR==="guest"?"游客":CUR}</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}｜云端：<b class="${CLOUD_ON()?"cloudOk":"cloudNo"}">${CLOUD_ON()?"已连接":"未连接"}</b>｜<b style="color:#8af">单点登录：同账号他处登录时本机自动下线</b>｜🤝玩家市场需注册账号</div>`
       +`<div class="row"><span class="name">☁️ 立即同步云端</span><button class="act sm" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="cloudSave()">上传</button></div>`
       +`<div class="row"><span class="name">🚪 退出并切换账号</span><button class="act sm" onclick="logout()">退出登录</button></div>`
       +`<div class="row"><span class="name">💾 导出存档</span><button class="act sm" onclick="exportSave()">导出</button></div>`
