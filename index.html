@@ -43,6 +43,9 @@ input[type=number]{width:70px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .card{background:#1c2036;border:1px solid #3a4166;border-radius:6px;padding:10px}
 .r0{color:#bbb}.r1{color:#6f6}.r2{color:#5af}.r3{color:#c5f}.r4{color:#fa0;text-shadow:0 0 6px #fa06}.r5{color:#f44;text-shadow:0 0 8px #f446}
+.r6{color:#ffd700;text-shadow:0 0 7px #ffd70088}.r7{color:#ffa54a;text-shadow:0 0 7px #ffa54a88}
+.r8{color:#00e5ff;text-shadow:0 0 7px #00e5ff88}.r9{color:#d500f9;text-shadow:0 0 9px #d500f988}
+.r10{color:#fff;text-shadow:0 0 9px #fff9}.r11{color:#ff4dd2;text-shadow:0 0 11px #ff4dd2bb}
 .zonebar{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:8px}
 .zonebar button{padding:4px 8px;background:#242a45;border:1px solid #3a4166;color:#9ab;border-radius:4px;cursor:pointer;font-size:11px}
 .zonebar button.on{background:#3a4166;color:#ffd479}
@@ -427,7 +430,7 @@ async function doRollback(created_at) {
 }
 
 /* ============================================================
-   ★ 管理员账号充值/发放（v1.17）
+   ★ 管理员账号充值/发放
    ============================================================ */
 let AD_ACC = null;
 async function adQueryAcc() {
@@ -471,6 +474,7 @@ async function adGrantEq() {
   const fam = $("adGFam").value, slot = $("adGSlot").value;
   const tier = +$("adGTier").value, rare = +$("adGRare").value;
   const plus = Math.min(ENH_MAX, Math.max(0, +$("adGPlus").value|0));
+  const ench = Math.min(ENCH_MAX, Math.max(0, +$("adGEnch").value|0));
   const holes = Math.min(EQ_HOLES_MAX, Math.max(0, +$("adGHoles").value|0));
   const gemT = $("adGGem").value;
   const d = AD_ACC.data;
@@ -480,7 +484,8 @@ async function adGrantEq() {
   if (d.uid == null) d.uid = 1;
   const e = rollEq(fam, tier, slot, 0);
   e.rare = rare; e.n = PREFIX[rare]+e.n.replace(RARE_STRIP,"");
-  e.plus = plus; e.lock = false;
+  e.plus = plus; e.ench = ench; e.lock = false;
+  if (e.ench > 0) e.affix = Object.assign({}, AFFIXES[Math.random()*AFFIXES.length|0]);
   if (holes > 0) { e.holes = holes; e.gems = Array.from({length:holes}, ()=>gemT?{t:gemT,l:20}:null); }
   rollSpecials(e);
   e.uid = d.uid++;
@@ -606,7 +611,7 @@ function enterGame() {
 }
 
 /* ============================================================
-   ★ 模块 C：物品注册
+   ★ 模块 C：物品注册（含无尽新材料 + 星辉砂）
    ============================================================ */
 const IT = {};
 const defIt = (id, n, ic, tp, val, heal, mp) => { IT[id] = { id, n, ic, tp, val, heal: heal || 0, mp: mp || 0 }; };
@@ -629,6 +634,20 @@ defIt("hitPot","百发神水","🧪","pot",1000000);
 defIt("critPot","弑神狂暴水","💣","pot",1000000);
 defIt("invPot","无敌药水","🛉","pot",10000000);
 defIt("punch","打孔锥","🔨","spec",50000);
+/* ★ v1.18 无尽新材料（仅无尽掉落 + 牛铃商店） */
+defIt("xingSui","星髓","✨","emat",50000);
+defIt("yunTie","陨铁","🌠","emat",80000);
+defIt("longJin","龙筋","🐲","emat",150000);
+defIt("fengYu","凤羽","🪶","emat",200000);
+defIt("daoZe","道则碎片","📜","emat",400000);
+defIt("hunDunJing","混沌晶","🔮","emat",1000000);
+/* ★ v1.18 星辉砂（金币兑换物，4等级） */
+defIt("xingHui1","星辉砂·微","💠","gold",10000000);
+defIt("xingHui2","星辉砂·耀","🔷","gold",20000000);
+defIt("xingHui3","星辉砂·炽","🔶","gold",40000000);
+defIt("xingHui4","星辉砂·极","🌟","gold",80000000);
+const GOLD_REDEEM = { xingHui1:10000000, xingHui2:20000000, xingHui3:40000000, xingHui4:80000000 };
+const ENDLESS_ONLY = { xingSui:1, yunTie:1, longJin:1, fengYu:1, daoZe:1, hunDunJing:1, xingHui1:1, xingHui2:1, xingHui3:1, xingHui4:1 };
 const GEM_T = {
   atk:     { n:"攻击宝石", ic:"⚔", ck:"gemAtk" },
   def:     { n:"防御宝石", ic:"🛡", ck:"gemDef" },
@@ -644,8 +663,11 @@ const POTBUFF = {
   critPot: { k:"critDmg", v:100000, mm:20 },
   invPot:  { k:"inv",     v:1,      mm:20 }
 };
-/* ★ v1.17：弑神水/无敌药水迁移到牛铃商店（100🔔），市场仅保留百发神水 */
 const BELL_SHOP = { critPot:100, invPot:100 };
+const BELL_MAT = {
+  xingSui:5, yunTie:8, longJin:15, fengYu:25, daoZe:40, hunDunJing:70,
+  xingHui1:100, xingHui2:200, xingHui3:400, xingHui4:800
+};
 const POT_MK = { hitPot:1000000 };
 const matStr = (m) => Object.entries(m).map(([k,v]) => `${IT[k].ic}${IT[k].n}×${v}`).join("＋");
 const RARE_MATS = { xianGu:1, xianYu:1, soul:1, shenShi:1 };
@@ -662,6 +684,7 @@ const SK = [
   {id:"hp",n:"生命",ic:"❤️",cat:"战斗"},{id:"rng",n:"远程",ic:"🏹",cat:"战斗"},{id:"eva",n:"闪避",ic:"💨",cat:"战斗"},{id:"mag",n:"魔法",ic:"🔮",cat:"战斗"}
 ];
 const SKM = {}; SK.forEach((s) => { SKM[s.id] = s; });
+const COMBAT_SK = ["acc","pow","def","hp","rng","eva","mag"];
 
 /* ============================================================
    ★ 模块 E：动作列表
@@ -719,7 +742,7 @@ const SLOTS = [
 const EQIC = {weapon:"⚔️",helmet:"⛑️",armor:"🛡️",boots:"🥾",gloves:"🧤",ring:"💍"};
 
 /* ============================================================
-   ★ 模块 G：怪物定义（含转生增强系数）
+   ★ 模块 G：怪物定义（普通十境掉落档位维持249封顶不变）
    ============================================================ */
 const ELE = ["炼气","筑基","金丹","元婴","化神","炼虚","合体","大乘","渡劫","真仙"];
 const CRE = [
@@ -741,7 +764,8 @@ function rebCf() { return Math.pow(1 + cfg("rebMonCf"), (S && S.reb) ? S.reb : 0
 function mon(i, lv) {
   const L = lv - 1; const b = i; const D = diff(); const R = rebCf();
   const z = Math.min(9, (i/10)|0); const c = i%10;
-  const eqT = Math.min(LV_TIERS.length-1, Math.floor(b/100*LV_TIERS.length));
+  /* ★ 普通十境掉落档位封顶Lv249（不变） */
+  const eqT = Math.min(13, Math.floor(b/100*14));
   return { i, lv, n: ELE[z] + "·" + CRE[z][c][0], ic: CRE[z][c][1],
     hp: Math.floor(60*Math.pow(1.07,b)*Math.pow(1.7,L)*Math.pow(D,1.5)*R),
     atk: Math.floor(4*Math.pow(1.045,b)*Math.pow(1.4,L)*Math.pow(D,1.2)*atkCf()*R),
@@ -754,6 +778,11 @@ function mon(i, lv) {
     eqLv: LV_TIERS[eqT] };
 }
 const zoneGemLv = (z) => Math.min(11, 1+(z-5)*2);
+/* ★ v1.18 无尽档位：<1500层维持原曲线；1500层起每300层解锁一档直至Lv500 */
+function endlessEqLv(f) {
+  if (f < 1500) return LV_TIERS[Math.min(13, Math.floor(f/12))];
+  return LV_TIERS[Math.min(LV_TIERS.length-1, 13 + Math.floor((f-1500)/300))];
+}
 function endlessMon(f) {
   const D = diff(); const R = rebCf();
   const mid = (f-1)%100;
@@ -775,7 +804,7 @@ function endlessMon(f) {
     xp: Math.floor(35*Math.pow(1.35,seg)*Math.pow(1.06,w)*Math.pow(D,1.3)*R),
     gold: Math.floor(12*Math.pow(1.3,seg)*Math.pow(1.05,w)*Math.pow(D,1.1)*R),
     drop: Math.min(0.95,(0.28+0.003*f)*cfg("dropCf")), rb,
-    eqLv: LV_TIERS[Math.min(LV_TIERS.length-1, Math.floor(f/12))] };
+    eqLv: endlessEqLv(f) };
 }
 function xpNeed(lv) { return Math.floor((300*lv + 25*lv*lv) * cfg("xpCf")); }
 function maxCleared(i) { for (let l = 5; l >= 1; l--) if (S.kills[i+"-"+l]) return l; return 0; }
@@ -896,7 +925,7 @@ function newGameState() {
     deadUntil:0, lastTick:Date.now() };
   migrateBag();
 }
-let S = null, selSlot = null, bagPage = 0, potSel = null, bagSearch = "";
+let S = null, selSlot = null, bagPage = 0, potSel = null, bagSearch = "", bellQty = 1;
 function deadLeftMs() { return S.deadUntil - Date.now(); }
 function isDead() { return S.deadUntil > Date.now(); }
 function reviveNow() { S.deadUntil = 0; const p = P(); S.hp = p.maxHp; S.mp = p.maxMp; S.monHp = curMon().hp; atkCd = 0; monCd = 1.0; }
@@ -909,6 +938,10 @@ function floorLeftMs() { return FLOOR_LIMIT*1000 - (Date.now() - (S.floorStart||
 const $ = (i) => document.getElementById(i);
 const lv = (id) => S.skills[id].lv;
 const totalLv = () => SK.reduce((a,s)=>a+lv(s.id),0);
+/* ★ v1.18：技能等级上限 = 基础上限 + 转生×60；品质上限 = 4 + 转生（封顶混沌） */
+const effCap = () => cfg("skillCap") + (S ? (S.reb||0) : 0) * 60;
+const maxRare = () => Math.min(11, 4 + (S ? (S.reb||0) : 0));
+function maxCombatLv() { let m = 0; for (const k of COMBAT_SK) m = Math.max(m, lv(k)); return m; }
 function log(m) {
   const e = $("log"); if (!e) return;
   e.innerHTML = `<div>[${new Date().toLocaleTimeString()}] ${m}</div>` + e.innerHTML;
@@ -997,24 +1030,28 @@ function globalSpd() { return 1+spBonus(); }
 let XP_GAIN = null;
 function addXp(id, amt) {
   const s = S.skills[id];
-  if (s.lv >= cfg("skillCap")) return;
+  const cap = effCap();
+  if (s.lv >= cap) return;
   const xb = S.xpMin > 0 ? 1+(S.xpMult||0) : 1;
   const real = amt*(1+spBonus()+houseBonus(id))*xb;
   if (XP_GAIN) XP_GAIN[id] = (XP_GAIN[id]||0)+real;
   s.xp += real;
-  while (s.xp >= xpNeed(s.lv) && s.lv < cfg("skillCap")) { s.xp -= xpNeed(s.lv); s.lv++; checkLanes(); log(`⭐ [${SKM[id].n}] 升到 ${s.lv} 级！`); if (s.lv >= 100) log(`🔥 ${SKM[id].n} 已达100级，可执行转生！`); }
+  while (s.xp >= xpNeed(s.lv) && s.lv < cap) { s.xp -= xpNeed(s.lv); s.lv++; checkLanes(); log(`⭐ [${SKM[id].n}] 升到 ${s.lv} 级！`); if (s.lv >= 100) log(`🔥 ${SKM[id].n} 已达100级，可执行转生！`); }
 }
 function canAfford(mats, gold) { if (S.gold < gold) return false; for (const k in mats) if (bagN(k) < mats[k]) return false; return true; }
 function payCost(mats, gold) { S.gold -= gold; for (const k in mats) take(k, mats[k]); }
 
 /* ============================================================
-   ★ 模块 J：装备系统（含打孔/宝石/锁定/自动锻造）
+   ★ 模块 J：装备系统（12品质 / 附魔20 / 档位至500）
    ============================================================ */
-const RARE_NAMES = ["普通","精良","闪耀","传奇","仙器","神器"];
-const PREFIX = ["","精良的","闪耀的","传奇的","仙器的","神器的"];
-const RARE_MULT = [1,1.5,2.2,3,5,8];
-const RARE_STRIP = /^精良的|^闪耀的|^传奇的|^仙器的|^神器的|^新手/;
+const RARE_NAMES = ["普通","精良","闪耀","传奇","仙器","神器","鸿蒙","太初","无极","造化","天道","混沌"];
+const PREFIX = ["","精良的","闪耀的","传奇的","仙器的","神器的","鸿蒙的","太初的","无极的","造化的","天道的","混沌的"];
+/* ★ 仙器起每次升阶属性至少翻倍：5→10→20→40→80→160→320→640 */
+const RARE_MULT = [1,1.5,2.2,3,5,10,20,40,80,160,320,640];
+const RARE_STRIP = /^精良的|^闪耀的|^传奇的|^仙器的|^神器的|^鸿蒙的|^太初的|^无极的|^造化的|^天道的|^混沌的|^新手/;
+const RARE_COLOR = ["#888","#6f6","#5af","#c5f","#fa0","#f44","#ffd700","#ffa54a","#00e5ff","#d500f9","#ffffff","#ff4dd2"];
 const ENH_MAX = 20;
+const ENCH_MAX = 20;   /* ★ v1.18 附魔上限20 */
 const ENH_DROP_CAP = 15;
 const AFFIXES = [
   {k:"atk",n:"锋利",per:1.2},{k:"hp",n:"活力",per:8},{k:"def",n:"坚韧",per:0.6},{k:"eva",n:"灵巧",per:1.5}
@@ -1025,6 +1062,13 @@ const QUAL = [
   {mats:{ingot:10,effTea:1},gold:1000,rate:0.45},
   {mats:{sage:2,xianGu:5},gold:20000,rate:0.30},
   {mats:{xianGu:3,soul:2,sage:5},gold:100000,rate:0.20},
+  /* ★ 新品质升阶（材料仅无尽/牛铃商店） */
+  {mats:{longJin:3,xingSui:5},gold:500000,rate:0.15},
+  {mats:{longJin:6,fengYu:3},gold:2000000,rate:0.12},
+  {mats:{daoZe:3,fengYu:6},gold:8000000,rate:0.10},
+  {mats:{daoZe:6,hunDunJing:1},gold:30000000,rate:0.08},
+  {mats:{daoZe:12,hunDunJing:3},gold:100000000,rate:0.06},
+  {mats:{daoZe:20,hunDunJing:8},gold:500000000,rate:0.05},
   null
 ];
 const ENCH = [
@@ -1033,10 +1077,28 @@ const ENCH = [
   {mats:{starMilk:10,ingot:5},gold:500,rate:0.65},
   {mats:{plank:10,cloth:10},gold:1200,rate:0.50},
   {mats:{sage:1,effTea:3},gold:3000,rate:0.35},
-  {mats:{sage:3,spaceCake:5},gold:8000,rate:0.20}
+  {mats:{sage:3,spaceCake:5},gold:8000,rate:0.20},
+  /* ★ v1.18 附魔6~20级 */
+  {mats:{sage:5,spaceCake:8},gold:30000,rate:0.18},
+  {mats:{sage:6,spaceCake:10},gold:50000,rate:0.16},
+  {mats:{sage:8,spaceCake:12},gold:80000,rate:0.14},
+  {mats:{sage:10,spaceCake:15},gold:120000,rate:0.12},
+  {mats:{sage:12,spaceCake:20},gold:200000,rate:0.11},
+  {mats:{sage:15,spaceCake:25},gold:300000,rate:0.10},
+  {mats:{sage:18,spaceCake:30},gold:500000,rate:0.09},
+  {mats:{sage:22,spaceCake:35},gold:800000,rate:0.08},
+  {mats:{sage:26,spaceCake:40},gold:1200000,rate:0.07},
+  {mats:{sage:30,spaceCake:50},gold:2000000,rate:0.065},
+  {mats:{sage:35,spaceCake:60},gold:3000000,rate:0.06},
+  {mats:{sage:40,spaceCake:70},gold:5000000,rate:0.055},
+  {mats:{sage:45,spaceCake:80},gold:8000000,rate:0.05},
+  {mats:{sage:50,spaceCake:90},gold:12000000,rate:0.045},
+  {mats:{sage:60,spaceCake:100},gold:20000000,rate:0.04}
 ];
-const LV_TIERS = [1,15,30,60,85,95,120,140,160,180,200,220,240,249];
-const EQ_MAX_LV = 249;
+/* ★ v1.18 档位扩至Lv500（249后每25级一档；250+升级材料为无尽新材料） */
+const LV_TIERS = [1,15,30,60,85,95,120,140,160,180,200,220,240,249,275,300,325,350,375,400,425,450,475,500];
+const EQ_MAX_LV = 500;
+const CRAFT_TIER_CAP = 249;   /* 制造封顶249档，250+仅无尽掉落/合成/升级 */
 const UPGRADE = [
   {to:15,mats:{ore:20,log:10},gold:500},
   {to:30,mats:{ingot:15,cloth:10},gold:2000},
@@ -1051,6 +1113,16 @@ const UPGRADE = [
   {to:220,mats:{sage:25,xianYu:20,soul:8},gold:15000000},
   {to:240,mats:{sage:30,soul:15,shenShi:6},gold:25000000},
   {to:249,mats:{sage:40,soul:25,shenShi:10},gold:40000000},
+  {to:275,mats:{xingSui:5,sage:10},gold:60000000},
+  {to:300,mats:{xingSui:8,longJin:1},gold:100000000},
+  {to:325,mats:{xingSui:12,longJin:2},gold:160000000},
+  {to:350,mats:{yunTie:5,longJin:3},gold:250000000},
+  {to:375,mats:{yunTie:8,daoZe:1},gold:400000000},
+  {to:400,mats:{yunTie:12,daoZe:2},gold:600000000},
+  {to:425,mats:{daoZe:4,hunDunJing:1},gold:900000000},
+  {to:450,mats:{daoZe:6,hunDunJing:1},gold:1300000000},
+  {to:475,mats:{daoZe:8,hunDunJing:2},gold:1800000000},
+  {to:500,mats:{daoZe:10,hunDunJing:4},gold:2500000000},
   null
 ];
 const tierIdx = (req) => Math.max(0, LV_TIERS.indexOf(req));
@@ -1117,7 +1189,14 @@ function eqValStr(e) {
 const gemCount = (e) => (Array.isArray(e.gems) ? e.gems.filter(Boolean).length : 0);
 const eqName = (e) => `${e.lock?"🔒":""}${e.n} +${e.plus}${e.ench>0?" ◆"+e.ench:""}${gemCount(e)?` 💎${gemCount(e)}/${e.holes||0}`:""}`;
 function combatLvAvg() { return (lv("acc")+lv("pow")+lv("def")+lv("hp")+lv("rng")+lv("eva")+lv("mag"))/7|0; }
-function canWear(e) { return combatLvAvg() >= Math.min(cfg("skillCap"), e.reqLv); }
+/* ★ v1.18：武器穿戴不得超单项战斗技能最高等级；其他槽位维持战斗均级 */
+function canWear(e) {
+  if (e.slot === "weapon") return maxCombatLv() >= e.reqLv;
+  return combatLvAvg() >= Math.min(effCap(), e.reqLv);
+}
+function wearNeedTxt(e) {
+  return e.slot === "weapon" ? `需单项战斗Lv${e.reqLv}` : `需战斗均Lv${Math.min(effCap(), e.reqLv)}`;
+}
 function giveStarterGear() {
   const mk = (slot,atk,hp,def,eva,dmgT)=>({uid:uid++,fam:"iron",reqLv:1,rare:0,plus:0,ench:0,affix:null,slot,n:"新手"+SLOTS.find((s)=>s.id===slot).n,dmgT:dmgT||"thrust",atk,hp,def,eva,holes:0,gems:[],lock:false});
   S.eq.weapon = mk("weapon",6,0,0,0,"thrust");
@@ -1143,7 +1222,9 @@ function sellPriceEq(e) {
   const base = EQFAM[e.fam].base*(1+e.reqLv*0.15)*RARE_MULT[e.rare];
   return Math.floor(base*(1.5+e.plus*0.3+e.ench*0.5));
 }
-const RARE_UP_MATS = [null,null,null,{sage:2,xianGu:5},{xianGu:3,soul:2,sage:5},{soul:3,shenShi:2}];
+/* ★ 新品质分解返还（按新升阶材料的三成左右） */
+const RARE_UP_MATS = [null,null,null,{sage:2,xianGu:5},{xianGu:3,soul:2,sage:5},{soul:3,shenShi:2},
+  {longJin:1,xingSui:3},{longJin:2,fengYu:2},{daoZe:2,fengYu:3},{daoZe:4,hunDunJing:1},{daoZe:6,hunDunJing:2},{daoZe:8,hunDunJing:4}];
 const rebSalvMult = () => 1+(S.reb||0)*0.2;
 function salvageRareMats(e) {
   const base = RARE_UP_MATS[e.rare];
@@ -1155,6 +1236,8 @@ function salvageRareMats(e) {
 function extCost(e, gold) {
   if (e.rare === 4) return { mats:{xianYu:2}, gold:gold*4 };
   if (e.rare === 5) return { mats:{shenShi:2}, gold:gold*8 };
+  if (e.rare >= 6 && e.rare <= 8) return { mats:{daoZe:1}, gold:gold*16 };
+  if (e.rare >= 9) return { mats:{hunDunJing:1}, gold:gold*24 };
   return { mats:{}, gold };
 }
 function enhCost(e) { return Math.floor(80*(1+e.reqLv*0.1)*Math.pow(1.7,e.plus)); }
@@ -1173,10 +1256,14 @@ function doEnh(ref) {
 function qualRate(r) { return Math.min(0.95,(QUAL[r].rate+forgeBonus())*forgeCf()); }
 function upQuality(ref) {
   const e = getEq(ref); if (!e) return;
-  if (e.rare >= 5) { log("已达神器品质，无法再升阶"); return; }
+  if (e.rare >= maxRare()) {
+    log(e.rare >= 11 ? "已达混沌品质（全游戏最高）" : `已达当前转生解锁的品质上限【${RARE_NAMES[maxRare()]}】（再转生解锁更高品质）`);
+    return;
+  }
   const c = QUAL[e.rare];
+  if (!c) { log("已达最高品质，无法再升阶"); return; }
   const lack = lackOf(c.mats, c.gold);
-  if (lack) { alert(`❌ 升阶失败——材料不足！\n\n缺少：${lack}`); return; }
+  if (lack) { alert(`❌ 升阶失败——材料不足！\n\n缺少：${lack}\n\n（新材料仅无尽模式掉落或🔔牛铃商店购买）`); return; }
   payCost(c.mats, c.gold);
   addXp("enh", 80+e.rare*60);
   if (Math.random() < qualRate(e.rare)) {
@@ -1198,7 +1285,7 @@ function enchFullCost(e, t) {
 }
 function doEnch(ref) {
   const e = getEq(ref); if (!e) return;
-  if (e.ench >= 5) { log("附魔已达魔纹Ⅴ（满级）"); return; }
+  if (e.ench >= ENCH_MAX) { log("附魔已达◆20（满级）"); return; }
   const t = e.ench+1;
   const ef = enchFullCost(e, t);
   const lack = lackOf(ef.mats, ef.gold);
@@ -1210,19 +1297,19 @@ function doEnch(ref) {
     if (!e.affix) {
       e.affix = Object.assign({}, AFFIXES[Math.random()*AFFIXES.length|0]);
       const affName = {atk:"攻击",hp:"血量",def:"防御",eva:"闪避"}[e.affix.k];
-      log(`🔮 附魔成功 → 魔纹${"ⅠⅡⅢⅣⅤ"[t-1]}！觉醒词缀「${e.affix.n}」（${affName}+${affixVal(e)}）`);
-    } else { log(`🔮 附魔成功 → 魔纹${"ⅠⅡⅢⅣⅤ"[t-1]}！词缀「${e.affix.n}」提升至 +${affixVal(e)}`); }
+      log(`🔮 附魔成功 → ◆${t}！觉醒词缀「${e.affix.n}」（${affName}+${affixVal(e)}）`);
+    } else { log(`🔮 附魔成功 → ◆${t}！词缀「${e.affix.n}」提升至 +${affixVal(e)}`); }
   } else { log(`💔 附魔失败，材料已消耗`); }
   renderPanel();
 }
 function upgCfg(e) { return UPGRADE[tierIdx(e.reqLv)]; }
-function tierRate(e) { return Math.min(0.95, Math.max(0.05, (0.95 - tierIdx(e.reqLv)*0.055 + forgeBonus()) * forgeCf())); }
+function tierRate(e) { return Math.min(0.95, Math.max(0.05, (0.95 - tierIdx(e.reqLv)*0.035 + forgeBonus()) * forgeCf())); }
 function upTier(ref) {
   const e = getEq(ref); if (!e) return;
   const c = upgCfg(e);
   if (!c) { log(`已达最高档次 Lv${EQ_MAX_LV}，无法再升级`); return; }
   const lack = lackOf(c.mats, c.gold);
-  if (lack) { alert(`❌ 装备升级失败——材料不足！\n\n缺少：${lack}`); return; }
+  if (lack) { alert(`❌ 装备升级失败——材料不足！\n\n缺少：${lack}\n\n（Lv250+档的升级材料仅无尽模式掉落或🔔牛铃商店购买）`); return; }
   payCost(c.mats, c.gold);
   addXp("enh", 100+tierIdx(e.reqLv)*80);
   const r = tierRate(e);
@@ -1283,7 +1370,7 @@ function combineEquip(key, n) {
   n = Math.max(1, n|0);
   let done = 0;
   for (let i = 0; i < n; i++) {
-    const list = bagEquips().filter(({e}) => !e.lock && (e.fam+"|"+e.reqLv+"|"+e.rare) === key && tierIdx(e.reqLv) < LV_TIERS.length-1).slice(0,4);
+    const list = bagEquips().filter(({e})=> !e.lock && (e.fam+"|"+e.reqLv+"|"+e.rare) === key && tierIdx(e.reqLv) < LV_TIERS.length-1).slice(0,4);
     if (list.length < 4) break;
     const keep = list[0].e;
     const ti = tierIdx(keep.reqLv);
@@ -1323,16 +1410,16 @@ function combineGem(gemId, n) {
 }
 
 /* ============================================================
-   ★ 自动锻造（v1.17）：设目标后每秒自动尝试，达标/缺料自动停
+   ★ 自动锻造
    ============================================================ */
-function ensureAuto(e) { if (!e.auto) e.auto = { plus:e.plus, ench:e.ench, rare:e.rare, tier:e.reqLv, on:false }; return e.auto; }
+function ensureAuto(e) { if (!e.auto) e.auto = { plus:e.plus, ench:Math.min(e.ench,ENCH_MAX), rare:Math.min(e.rare,maxRare()), tier:e.reqLv, on:false }; return e.auto; }
 function setAF(ref, k, v) {
   const e = getEq(ref); if (!e) return;
   const t = ensureAuto(e);
   v = +v; if (isNaN(v)) return;
   if (k === "plus") t.plus = Math.min(ENH_MAX, Math.max(0, v|0));
-  if (k === "ench") t.ench = Math.min(5, Math.max(0, v|0));
-  if (k === "rare") t.rare = Math.min(5, Math.max(0, v|0));
+  if (k === "ench") t.ench = Math.min(ENCH_MAX, Math.max(0, v|0));
+  if (k === "rare") t.rare = Math.min(maxRare(), Math.max(0, v|0));
   if (k === "tier") t.tier = Math.min(EQ_MAX_LV, Math.max(1, v|0));
   saveGame(); renderPanel();
 }
@@ -1350,7 +1437,6 @@ function autoForgeTick() {
     const t = e.auto;
     if (!t || !t.on) return;
     const stop = (msg) => { t.on = false; log(`🎯 自动锻造停止：${eqName(e)} —— ${msg}`); renderPanel(); };
-    /* 顺序：强化 → 附魔 → 升阶品质 → 升级档位 */
     if (e.plus < t.plus) {
       const ef = enhFullCost(e);
       if (!canAfford(ef.mats, ef.gold)) return stop(`强化材料不足（需 ${matStr(ef.mats)}＋${ef.gold.toLocaleString()}💰）`);
@@ -1372,9 +1458,9 @@ function autoForgeTick() {
       } else log(`🎯 自动附魔失败`);
       return;
     }
-    if (e.rare < t.rare) {
+    if (e.rare < t.rare && e.rare < maxRare()) {
       const c = QUAL[e.rare];
-      if (!c) return stop("已达神器品质，无法再升阶");
+      if (!c) return stop("已达最高品质，无法再升阶");
       if (!canAfford(c.mats, c.gold)) return stop(`升阶材料不足（需 ${matStr(c.mats)}＋${c.gold.toLocaleString()}💰）`);
       payCost(c.mats, c.gold);
       addXp("enh", 80+e.rare*60);
@@ -1392,7 +1478,7 @@ function autoForgeTick() {
       const c = upgCfg(e);
       if (!c) return stop(`已达最高档次 Lv${EQ_MAX_LV}`);
       if (c.to > t.tier) {
-        /* 下一档超过目标档：直接判定完成（档位只能逐级跳） */
+        /* 下一档超过目标档：视为完成 */
       } else {
         if (!canAfford(c.mats, c.gold)) return stop(`升级材料不足（需 ${matStr(c.mats)}＋${c.gold.toLocaleString()}💰）`);
         payCost(c.mats, c.gold);
@@ -1410,7 +1496,6 @@ function autoForgeTick() {
         return;
       }
     }
-    /* 全部达标 */
     t.on = false;
     log(`✅ 自动锻造完成：${eqName(e)}【强化+${e.plus}｜◆${e.ench}｜${RARE_NAMES[e.rare]}｜Lv${e.reqLv}档】`);
     renderPanel();
@@ -1425,8 +1510,8 @@ function autoForgeUI(e, ref) {
     +`<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">`
     +`<span class="name" style="color:#5c5">🎯 自动锻造</span>`
     +`<span class="info">强化+</span><input type="number" min="0" max="${ENH_MAX}" value="${t.plus}" style="width:48px" onchange="setAF(${ra},'plus',this.value)">`
-    +`<span class="info">◆附魔</span><input type="number" min="0" max="5" value="${t.ench}" style="width:44px" onchange="setAF(${ra},'ench',this.value)">`
-    +`<span class="info">🏆品质</span><select onchange="setAF(${ra},'rare',+this.value)" style="max-width:80px">${RARE_NAMES.map((n,i)=>`<option value="${i}" ${t.rare===i?"selected":""}>${n}</option>`).join("")}</select>`
+    +`<span class="info">◆附魔</span><input type="number" min="0" max="${ENCH_MAX}" value="${t.ench}" style="width:44px" onchange="setAF(${ra},'ench',this.value)">`
+    +`<span class="info">🏆品质</span><select onchange="setAF(${ra},'rare',+this.value)" style="max-width:80px">${RARE_NAMES.slice(0, maxRare()+1).map((n,i)=>`<option value="${i}" ${t.rare===i?"selected":""}>${n}</option>`).join("")}</select>`
     +`<span class="info">⬆档位</span><select onchange="setAF(${ra},'tier',+this.value)" style="max-width:90px">${LV_TIERS.map((v2)=>`<option value="${v2}" ${t.tier===v2?"selected":""}>Lv${v2}</option>`).join("")}</select>`
     +`<button class="act sm" style="background:${t.on?"#e55":"#2a5"}" onclick="toggleAF(${ra})">${t.on?"■ 停止":"▶ 开始"}</button>`
     +`</div>`
@@ -1614,6 +1699,7 @@ function tickCombat(dt) {
     }
   }
 }
+/* ★ v1.18 无尽掉落：新材料 + 星辉砂 */
 function dropRareMat(f) {
   const drops = [[60,"xianGu",0.08],[100,"xianYu",0.05],[200,"soul",0.03],[300,"shenShi",0.02]];
   for (const [min,id,ch] of drops) {
@@ -1627,6 +1713,17 @@ function dropRareMat(f) {
     if (addIt(id,1)) log(`💎 无尽第${f}层掉落 ${IT[id].n}（+${gemVal(t,l)}${t==="critDmg"?"%":""}）！`);
   }
   if (f >= 2000 && Math.random() < 0.03) { if (addIt("invPot",1)) log(`🛉 无尽第${f}层掉落无敌药水×1！（20分钟免伤）`); }
+  /* 新材料：与对应武器掉落层数同步解锁 */
+  const NM = [[1500,"xingSui",0.05],[1800,"yunTie",0.04],[2100,"longJin",0.03],[2500,"fengYu",0.025],[2900,"daoZe",0.02],[3300,"hunDunJing",0.015]];
+  for (const [min,id,ch] of NM) {
+    if (f >= min && Math.random() < ch) { if (addIt(id,1)) log(`✨ 无尽第${f}层掉落 ${IT[id].ic}${IT[id].n}×1！（高级锻造材料）`); }
+  }
+  /* 星辉砂：1500层起，每+500层解锁下一等级 */
+  if (f >= 1500 && Math.random() < 0.04) {
+    const g = f >= 3000 ? 4 : f >= 2500 ? 3 : f >= 2000 ? 2 : 1;
+    const id = "xingHui"+g;
+    if (addIt(id,1)) log(`💠 无尽第${f}层掉落 ${IT[id].ic}${IT[id].n}×1！（可兑换 ${GOLD_REDEEM[id].toLocaleString()}💰）`);
+  }
 }
 function dropZoneGem(i) {
   const z = Math.min(9, (i/10)|0);
@@ -1647,13 +1744,20 @@ function rollHighRare(i) {
   if (r < p5+p4+p3) return 3;
   return 0;
 }
+/* ★ v1.18 掉落逻辑：品质受转生解锁封顶；无尽1500层起2%概率掉新品质（每+400层一档） */
 function dropEq(m) {
   const fam = ["iron","steel","bow","staff","leather","robe"][Math.random()*6|0];
   const e = rollEq(fam, m.eqLv, null, m.rb);
-  const rr = rollHighRare(m.i % 10000 > 10000 ? 99 : (m.i < 10000 ? m.i : 99));
+  let rr = rollHighRare(m.i < 10000 ? m.i : 99);
+  if (S.endless && S.floor >= 1500 && Math.random() < 0.02) {
+    const fq = Math.min(11, 6 + Math.floor((S.floor-1500)/400));
+    const q = Math.min(fq, maxRare());
+    if (q > rr) rr = q;
+  }
+  rr = Math.min(rr, maxRare());
   if (rr > e.rare) { e.rare = rr; e.n = PREFIX[rr]+e.n.replace(RARE_STRIP,""); rollSpecials(e); }
   const hp = m.hp;
-  if (S.endless) { e.plus = Math.min(ENH_MAX, Math.floor(hp/8000*Math.random())); e.ench = Math.min(5, Math.floor(hp/150000*Math.random())); }
+  if (S.endless) { e.plus = Math.min(ENH_MAX, Math.floor(hp/8000*Math.random())); e.ench = Math.min(ENCH_MAX, Math.floor(hp/150000*Math.random())); }
   else { e.plus = Math.min(ENH_DROP_CAP, Math.floor(hp/2500*Math.random())); e.ench = Math.min(5, Math.floor(hp/60000*Math.random())); }
   if (e.ench > 0) e.affix = Object.assign({}, AFFIXES[Math.random()*AFFIXES.length|0]);
   addEq(e);
@@ -1688,7 +1792,7 @@ function killMon(m, q, lane) {
 }
 
 /* ============================================================
-   ★ 模块 N：市场（宝石/牛铃商品不出售；卖出上限=背包持有量）
+   ★ 模块 N：市场（宝石/无尽专属材料/星辉砂不出售）
    ============================================================ */
 const MK = {};
 const MK_SPREAD = 0.8;
@@ -1697,7 +1801,8 @@ function mkSeed() {
   for (const id in IT) {
     if (id === "token") continue;
     if (/^gem_/.test(id)) continue;
-    if (BELL_SHOP[id]) continue;   /* ★ 牛铃商店商品不进市场 */
+    if (BELL_SHOP[id]) continue;
+    if (ENDLESS_ONLY[id]) continue;   /* ★ v1.18 无尽专属材料不进市场 */
     MK[id] = { mid:IT[id].val*(0.95+Math.random()*0.1), p0:IT[id].val };
     mkRefresh(id);
   }
@@ -1746,7 +1851,6 @@ function mkBuy(id, n) {
   log(`🛒 买入 ${IT[id].n}×${got}，花 ${cost}💰`);
   renderPanel();
 }
-/* ★ v1.17 修复：卖出数量上限=背包持有量；订单不足的部分按兜底价自动成交 */
 function mkSell(id, n) {
   n = Math.max(1, n|0);
   const have = bagN(id);
@@ -1764,7 +1868,6 @@ function mkSell(id, n) {
       rev += gross - tax; got += t; o.q -= t; left -= t; lastP = o.p;
       if (!o.q) m.buy.shift();
     } else {
-      /* 订单吃完后剩余部分按兜底价（最后成交价或中间价×0.8）成交 */
       const p = Math.max(1, Math.floor(lastP || m.mid*MK_SPREAD));
       const t = left;
       const gross = p*t; const tax = p > 49 ? Math.floor(gross*0.02) : 0;
@@ -1811,12 +1914,21 @@ function upBadge() {
   S.gold -= c; S.badge++;
   log(`🎖️ 任务徽章 +${S.badge}`);
 }
-function buyBell(id, cost) {
-  if (S.bell < cost) { log(`🔔 牛铃不足（需要 ${cost}，现有 ${S.bell}）`); return; }
-  if (!addIt(id, 1)) { log("🎒 背包已满"); return; }
-  S.bell -= cost;
-  log(`🛒 花费 ${cost}🔔 购买 ${IT[id].ic}${IT[id].n}×1`);
+function buyBell(id, cost, qty) {
+  qty = Math.max(1, qty|0);
+  if (S.bell < cost*qty) { log(`🔔 牛铃不足（需要 ${cost*qty}，现有 ${S.bell}）`); return; }
+  for (let i = 0; i < qty; i++) { if (!addIt(id, 1)) { log(`🎒 背包已满（已购入 ${i} 个）`); qty = i; break; } }
+  if (qty <= 0) return;
+  S.bell -= cost*qty;
+  log(`🛒 花费 ${cost*qty}🔔 购买 ${IT[id].ic}${IT[id].n}×${qty}`);
   renderPanel();
+}
+function redeemGold(id) {
+  const g = GOLD_REDEEM[id]; if (!g) return;
+  if (!take(id, 1)) return;
+  S.gold += g;
+  log(`💰 兑换 ${IT[id].ic}${IT[id].n} → ${g.toLocaleString()} 金币！`);
+  renderTop(); renderPanel();
 }
 function canRebirth() { return SK.some((s)=>lv(s.id) >= 100); }
 let rebirthArm = 0;
@@ -1854,7 +1966,7 @@ function rebirth() {
   S.monHp = mon(0,1).hp;
   giveStarterGear();
   const cf = rebCf();
-  log(`🌀 第 ${S.reb} 次转生完成！保留 ${S.sp} 技能点｜怪物属性增强至 ×${cf.toFixed(2)}（每转+${(cfg("rebMonCf")*100)|0}%叠乘）｜高品分解加成 ×${rebSalvMult().toFixed(1)}`);
+  log(`🌀 第 ${S.reb} 次转生完成！保留 ${S.sp} 技能点｜怪物属性增强至 ×${cf.toFixed(2)}｜技能等级上限 → ${effCap()}（每转+60）｜品质解锁 → ${RARE_NAMES[maxRare()]}（每转+1档）｜高品分解加成 ×${rebSalvMult().toFixed(1)}`);
 }
 
 /* ============================================================
@@ -2034,7 +2146,6 @@ function loop() {
   S.lastTick = now;
   saveT += real;
   if (saveT > 5) { saveT = 0; saveGame(); }
-  /* ★ 自动锻造：每真实1秒尝试一次（不受游戏加速影响） */
   afT += real;
   if (afT >= 1) { afT = 0; autoForgeTick(); }
   simAcc += real*(S.speed||1);
@@ -2066,7 +2177,7 @@ function buildTabs() {
   TABS.push("帮助");
 }
 let tab = 0, zone = 0, qSel = "milk1", qNum = 10;
-const RARE_COLOR = ["#888","#6f6","#5af","#c5f","#fa0","#f44"];
+const RARE_COLOR_ARR = RARE_COLOR;
 const POT_ITEMS = Object.keys(IT).filter((id)=>IT[id].heal||IT[id].mp||XPIT[id]||POTBUFF[id]);
 const BATCH_TIERS = [15,30,60,85,95,120,160,200,249];
 function renderSpd() {
@@ -2093,13 +2204,15 @@ function renderTop() {
     +`<div>💰 <b>${Math.floor(S.gold)}</b></div><div>🔔 <b>${S.bell}</b></div><div>🪙 <b>${S.token}</b></div>`
     +`<div>总等级 <b>${totalLv()}</b></div><div>❤️ <b>${Math.max(0,S.hp|0)}/${p.maxHp}</b></div><div>💧 <b>${S.mp|0}/${p.maxMp}</b></div>`
     +deadTag+endTag+atTag+xpTag+hitTag+cdTag+invTag
-    +`<div>🎒 <b>${usedSlots()}</b>格</div><div>✨ <b>Lv${lv("enh")}</b></div><div>🌀 <b>${S.reb}</b>/7${S.reb?`（怪×${rebCf().toFixed(1)}）`:""}</div>`
+    +`<div>🎒 <b>${usedSlots()}</b>格</div><div>✨ <b>Lv${lv("enh")}</b></div><div>🌀 <b>${S.reb}</b>/7<span style="color:#889">（上限${effCap()}｜品质${RARE_NAMES[maxRare()]}）</span></div>`
     +`<div>🗺️ <b>${Object.keys(S.kills).length}/500</b></div><div style="color:#f80">👹 <b>${diff().toFixed(1)}×</b></div>`;
 }
 function forgeRow(e, ref) {
   const ef = enhFullCost(e); const r = enhRate(e); const maxed = e.plus >= ENH_MAX;
-  const qc = e.rare >= 5 ? null : QUAL[e.rare];
-  const ec = e.ench >= 5 ? null : enchFullCost(e, e.ench+1);
+  const qMaxed = e.rare >= maxRare();
+  const qc = (!qMaxed && QUAL[e.rare]) ? QUAL[e.rare] : null;
+  const eMaxed = e.ench >= ENCH_MAX;
+  const ec = (!eMaxed && ENCH[e.ench+1]) ? enchFullCost(e, e.ench+1) : null;
   const uc = upgCfg(e);
   const ur = tierRate(e);
   const ra = refAttr(ref);
@@ -2109,10 +2222,10 @@ function forgeRow(e, ref) {
   h += `<div class="row" style="background:#1c2036;margin-left:14px">`
     +`<span class="info">🔨 强化 ${e.plus}/${ENH_MAX}：${maxed?"已满":`${matStr(ef.mats)}＋${ef.gold}💰｜${(r*100).toFixed(0)}%｜失败不掉级`}</span>`
     +`<button class="act sm" ${maxed||!canAfford(ef.mats,ef.gold)?"disabled":""} onclick="doEnh(${ra});renderPanel()">强化</button>`
-    +`<span class="info">🏆 升阶：${e.rare>=5?"已达神器（满阶）":`${matStr(qc.mats)}＋${qc.gold}💰｜${(qualRate(e.rare)*100).toFixed(0)}%`}</span>`
-    +`<button class="act sm" style="background:#a6f" ${e.rare>=5||!canAfford(qc.mats,qc.gold)?"disabled":""} onclick="upQuality(${ra})">升阶</button>`
-    +`<span class="info">🔮 附魔：${e.ench>=5?"满":`${matStr(ec.mats)}＋${ec.gold}💰｜${(enchRate(e.ench+1)*100).toFixed(0)}%`}</span>`
-    +`<button class="act sm" style="background:#c62" ${e.ench>=5||!canAfford(ec.mats,ec.gold)?"disabled":""} onclick="doEnch(${ra})">附魔</button>`
+    +`<span class="info">🏆 升阶：${qMaxed?(e.rare>=11?"混沌已是最高":`已达转生解锁上限【${RARE_NAMES[maxRare()]}】`):`${matStr(qc.mats)}＋${qc.gold}💰｜${(qualRate(e.rare)*100).toFixed(0)}%`}</span>`
+    +`<button class="act sm" style="background:#a6f" ${qMaxed||!canAfford(qc.mats,qc.gold)?"disabled":""} onclick="upQuality(${ra})">升阶</button>`
+    +`<span class="info">🔮 附魔 ${e.ench}/${ENCH_MAX}：${eMaxed?"已满":`${matStr(ec.mats)}＋${ec.gold}💰｜${(enchRate(e.ench+1)*100).toFixed(0)}%`}</span>`
+    +`<button class="act sm" style="background:#c62" ${eMaxed||!canAfford(ec.mats,ec.gold)?"disabled":""} onclick="doEnch(${ra})">附魔</button>`
     +`</div>`;
   h += `<div class="row" style="background:#1c2036;margin-left:14px">`
     +`<span class="info">⬆️ 装备升级：${uc?`Lv${e.reqLv}→Lv${uc.to}档｜<b style="color:#f80">${(ur*100).toFixed(0)}%</b>｜${matStr(uc.mats)}＋${uc.gold}💰`:`已达 Lv${EQ_MAX_LV} 满档`}</span>`
@@ -2152,14 +2265,14 @@ function eqCraftUI() {
   const a = ACT.find((x)=>x.id===qSel);
   if (!a || !a.outEq) return "";
   const skillLv = lv(a.sk);
-  const avail = LV_TIERS.filter((t)=>t <= skillLv);
+  const avail = LV_TIERS.filter((t)=>t <= Math.min(skillLv, CRAFT_TIER_CAP));
   if (!avail.length) return `<span class="info" style="color:#f66">${SKM[a.sk].n} Lv${skillLv} 不足以制造装备</span>`;
   const defTier = avail.includes(a.lv) ? a.lv : avail[avail.length-1];
   const slots = a.slots || SLOTS.map((s)=>s.id);
   return `<span class="info">档位</span> `
     +`<select id="eqTier">`+LV_TIERS.map((t)=>{
-        const lock = t > skillLv;
-        return `<option value="${t}" ${t===defTier?"selected":""} ${lock?"disabled":""}>Lv${t}${lock?`（需Lv${t}🔒）`:(tierIdx(t)>0?`（材料×${1+tierIdx(t)*2}）`:"")}</option>`;
+        const lock = t > Math.min(skillLv, CRAFT_TIER_CAP);
+        return `<option value="${t}" ${t===defTier?"selected":""} ${lock?"disabled":""}>Lv${t}${t>CRAFT_TIER_CAP?"（仅无尽掉落）":lock?`（需Lv${t}🔒）`:(tierIdx(t)>0?`（材料×${1+tierIdx(t)*2}）`:"")}</option>`;
       }).join("")+`</select> `
     +`<span class="info">槽位</span> `
     +`<select id="eqSlot">${slots.map((s)=>`<option value="${s}">${EQIC[s]} ${SLOTS.find((x)=>x.id===s).n}</option>`).join("")}</select>`;
@@ -2176,7 +2289,7 @@ function bagSearchHTML() {
   for (const k in S.slotMap) {
     const v = S.slotMap[k];
     if (typeof v === "string") {
-      if (IT[v].n.toLowerCase().includes(q) || v.toLowerCase().includes(q)) {
+      if (IT[v] && (IT[v].n.toLowerCase().includes(q) || v.toLowerCase().includes(q))) {
         rows += `<div class="row srchRow"><span class="name">${IT[v].ic} ${IT[v].n} ×${bagN(v)}</span><span class="info">基准价${IT[v].val}｜位于第${(+k.split("_")[0])+1}页</span><button class="act sm" onclick="gotoPage(${+k.split("_")[0]});selSlot='${k}';renderPanel()">跳转</button></div>`;
       }
     } else {
@@ -2203,19 +2316,21 @@ function openEqMenu(key, ev) {
   ev.preventDefault(); ev.stopPropagation();
   const e = v; const ra = e.uid;
   const ef = enhFullCost(e);
-  const qc = e.rare < 5 ? QUAL[e.rare] : null;
-  const ec = e.ench < 5 ? enchFullCost(e, e.ench+1) : null;
+  const qMaxed = e.rare >= maxRare();
+  const qc = (!qMaxed && QUAL[e.rare]) ? QUAL[e.rare] : null;
+  const eMaxed = e.ench >= ENCH_MAX;
+  const ec = (!eMaxed && ENCH[e.ench+1]) ? enchFullCost(e, e.ench+1) : null;
   const uc = upgCfg(e);
   const pc = punchCost(e);
   const okWear = canWear(e);
   let h = `<div style="padding:4px 6px;color:#ffd479;font-size:12px;font-weight:bold" class="r${e.rare}">${EQIC[e.slot]} ${eqName(e)}</div>`
     +`<div style="padding:0 6px 4px;color:#889;font-size:10px">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}档】${eqValStr(e)}</div>`
     +`<button onclick="hideEqMenu();doEnh(${ra});renderPanel()" ${e.plus>=ENH_MAX||!canAfford(ef.mats,ef.gold)?"disabled":""}>🔨 强化（${e.plus>=ENH_MAX?"已满":(enhRate(e)*100).toFixed(0)+"%｜"+ef.gold+"💰"}）</button>`
-    +`<button onclick="hideEqMenu();upQuality(${ra})" ${e.rare>=5||!canAfford(qc?qc.mats:{},qc?qc.gold:0)?"disabled":""}>🏆 升阶（${e.rare>=5?"满阶":(qualRate(e.rare)*100).toFixed(0)+"%｜"+qc.gold+"💰"}）</button>`
-    +`<button onclick="hideEqMenu();doEnch(${ra})" ${e.ench>=5||!canAfford(ec?ec.mats:{},ec?ec.gold:0)?"disabled":""}>🔮 附魔（${e.ench>=5?"已满":(enchRate(e.ench+1)*100).toFixed(0)+"%｜"+ec.gold+"💰"}）</button>`
+    +`<button onclick="hideEqMenu();upQuality(${ra})" ${qMaxed||!qc||!canAfford(qc.mats,qc.gold)?"disabled":""}>🏆 升阶（${qMaxed?(e.rare>=11?"最高":"转生解锁上限"):(qualRate(e.rare)*100).toFixed(0)+"%｜"+qc.gold+"💰"}）</button>`
+    +`<button onclick="hideEqMenu();doEnch(${ra})" ${eMaxed||!ec||!canAfford(ec.mats,ec.gold)?"disabled":""}>🔮 附魔（${eMaxed?"已满":(enchRate(e.ench+1)*100).toFixed(0)+"%｜"+ec.gold+"💰"}）</button>`
     +`<button onclick="hideEqMenu();upTier(${ra})" ${!uc||!canAfford(uc.mats,uc.gold)?"disabled":""}>⬆️ 升级档位（${uc?"→Lv"+uc.to+"｜"+(tierRate(e)*100).toFixed(0)+"%":"已满档"}）</button>`
     +`<button onclick="hideEqMenu();punchEq(${ra})" ${(e.holes||0)>=EQ_HOLES_MAX||!canAfford(pc.mats,pc.gold)?"disabled":""}>🔨 打孔（${(e.holes||0)>=EQ_HOLES_MAX?"已满4孔":pc.gold.toLocaleString()+"💰"}）</button>`
-    +(okWear?`<button onclick="hideEqMenu();equipIt(${ra})">⚔️ 穿戴</button>`:`<button disabled>⚔️ 穿戴（需战斗均Lv${Math.min(cfg("skillCap"),e.reqLv)}）</button>`)
+    +(okWear?`<button onclick="hideEqMenu();equipIt(${ra})">⚔️ 穿戴</button>`:`<button disabled>⚔️ 穿戴（${wearNeedTxt(e)}）</button>`)
     +`<div class="sep"></div>`
     +`<button onclick="hideEqMenu();selSlot='${key}';renderPanel()" style="color:#5c5;border-color:#5c5">🎯 自动锻造设置（在下方详情行）</button>`
     +`<button onclick="hideEqMenu();toggleEqLock(${ra})" style="${e.lock?"color:#e55;border-color:#e55":"color:#8af;border-color:#8af"}">${e.lock?"🔓 解锁（恢复可出售/分解）":"🔒 锁定（防止出售/分解）"}</button>`;
@@ -2249,58 +2364,47 @@ function helpHTML() {
 <p>2️⃣ 「队列」页选动作 → 设次数 → 加入队列 → 自动产出材料+经验。</p>
 <p>3️⃣ 点「⚔️ 战斗×N」自动打怪掉装备。<b>核心循环</b>：挂机→升级→打更强的怪→更好的装备。</p></div>
 
-<div class="helpSec"><h4>⚡ 二、队列与并行通道</h4>
-<p>· <b>5 条并行通道</b>独立执行。通道2~5按总等级解锁（Lv100/250/450/700，转生保留）。</p>
-<p>· 技能超需求等级有<b>效率加成</b>。材料不足自动暂停等待。<span class="warn">战斗同一时间只能一场</span>。</p></div>
+<div class="helpSec"><h4>🏆 二、12品质体系（v1.18）</h4>
+<p>· 品质梯度：普通→精良→闪耀→传奇→<b>仙器</b>→神器→<span class="r6">鸿蒙</span>→<span class="r7">太初</span>→<span class="r8">无极</span>→<span class="r9">造化</span>→<span class="r10">天道</span>→<span class="r11">混沌</span>。</p>
+<p>· <span class="warn">未转生最高只能到【仙器】</span>；每转生1次解锁1个新品质，7转全解锁（混沌）。</p>
+<p>· <b>仙器起每次升阶属性至少翻倍</b>：仙器×5→神器×10→鸿蒙×20→太初×40→无极×80→造化×160→天道×320→混沌×640。</p>
+<p>· 新品质（鸿蒙~混沌）<b>无尽1500层起掉落</b>，每+400层解锁下一档（2%小概率），且受转生解锁上限约束。</p></div>
 
-<div class="helpSec"><h4>⚔️ 三、战斗系统</h4>
-<p>· <b>修仙十境</b>100种怪。掉落档位均匀递进；掉率随境界递减（炼气38%→真仙8%）。</p>
-<p>· 普通图掉落强化封顶 <span class="kw">+15</span>（无尽+20）。强化失败不掉级。</p>
-<p>· <b>炼虚起怪物掉落低级宝石（5%）</b>：炼虚Lv1~3 → 真仙Lv9~11。</p>
-<p>· 命中区间制永不归零。死亡30秒真实复活。</p></div>
+<div class="helpSec"><h4>⚔️ 三、档位与穿戴（v1.18）</h4>
+<p>· 档位上限 <b>Lv500</b>（249后每25级一档）。普通十境掉落<b>维持Lv249封顶不变</b>。</p>
+<p>· <b>Lv250+装备仅无尽模式掉落</b>：1500层起，每+300层解锁一个新档（1500→Lv275 … 4200→Lv500）。</p>
+<p>· <span class="warn">武器穿戴要求：不得超自身战斗技能的单项最高等级</span>（其他槽位仍是战斗均级）。</p>
+<p>· Lv250+档的升级材料（✨星髓/🌠陨铁/🐲龙筋/🪶凤羽/📜道则碎片/🔮混沌晶）<b>仅无尽掉落或🔔牛铃商店购买</b>，市场不出售。</p></div>
 
-<div class="helpSec"><h4>🌌 四、无尽模式</h4>
-<p>· 层数无限，每层限时 ${FLOOR_LIMIT/60} 分钟。掉率随层递增。</p>
-<p>· 500层+掉🔨打孔锥（5%）；1000层+掉💎宝石（4%）；2000层+掉🛉无敌药水（3%）。</p>
-<p>· 里程碑：60层🦴、100层🟩、200层🫧、300层🪩。</p></div>
+<div class="helpSec"><h4>🌀 四、转生（v1.18强化）</h4>
+<p>· 每转生1次：<b>技能等级上限+60</b>（7转=基础120+420=540，够穿Lv500武器）＋<b>解锁1个新品质</b>＋技能点20+。</p>
+<p>· 怪物属性每转×1.5叠乘。重置技能/装备/房屋/怪物解锁；保留技能点/通道/设置。</p></div>
 
-<div class="helpSec"><h4>🗡️ 五、背包右键菜单与自动锻造</h4>
-<p>· 在背包<b>右键点击装备</b>（手机长按）：🔨强化 / 🏆升阶 / 🔮附魔 / ⬆️升级档位 / 🔨打孔 / ⚔️穿戴。</p>
-<p>· <b>🎯 自动锻造</b>：在装备详情行（或锻造页穿戴装备行）设置四项目标——强化+X、◆附魔X、品质X、档位LvX → 点「▶开始」。系统<b>每秒自动尝试</b>（顺序：强化→附魔→升阶→升档），全部达标或材料不足时自动停止并提示缺什么。</p>
-<p>· 右键菜单还能 <b>🔒锁定装备</b>——锁定的装备<b>无法出售、分解、被自动处理、被合成消耗</b>。</p></div>
+<div class="helpSec"><h4>💠 五、星辉砂（金币兑换物）</h4>
+<p>· 4个等级：<b>微(💠1000万)→耀(🔷2000万)→炽(🔶4000万)→极(🌟8000万)</b>，选中后点「兑换」直接变金币。</p>
+<p>· 无尽1500层起掉落（4%），每+500层解锁下一等级；🔔牛铃商店也可购买（100/200/400/800🔔）。</p></div>
 
-<div class="helpSec"><h4>💎 六、打孔与宝石系统</h4>
-<p>· 每件装备最多 <b>4 孔</b>。宝石四类×20级，1级基础值：⚔+${gl.atk}、🛡+${gl.def}、❤+${gl.hp}血、💥+${gl.critDmg}%；<b>每级+20%复利</b>。</p>
-<p>· 宝石合成（4合1）无弹窗可批量；获取：普通图炼虚+、无尽1000层+；<b>市场不出售宝石</b>。</p></div>
+<div class="helpSec"><h4>🔮 六、附魔20级（v1.18）</h4>
+<p>· 附魔上限提升到 <b>◆20</b>（原◆5）。6~20级消耗贤者之石+太空蛋糕递增，成功率从18%降至4%。</p>
+<p>· ◆20 = 基础属性×3.0，词缀数值同步放大。配合强化+20（×4）总计×12倍。</p></div>
 
-<div class="helpSec"><h4>🔮 七、合成系统（锻造页下方）</h4>
-<p>· <b>装备合成</b>：4件相同品质+档次 → 1件下一档。无确认弹窗，可设数量批量合成（默认=最大次数）。锁定装备不参与。</p></div>
+<div class="helpSec"><h4>🌌 七、无尽模式总览</h4>
+<p>· 500层+🔨打孔锥｜1000层+💎宝石｜1500层+<b>Lv275档装备/新品质/星辉砂/星髓</b>｜2000层+🛉无敌药水｜<b>每300层一新档装备、每400层一新品质、每500层一新星辉砂</b>。</p>
+<p>· 材料掉落与武器掉落同步：陨铁1800+、龙筋2100+、凤羽2500+、道则2900+、混沌晶3300+。</p></div>
 
-<div class="helpSec"><h4>🧪 八、神水与药水（🔔牛铃商店有售）</h4>
-<p>· 🧪百发神水（100%命中/20分）——市场偶现100万/瓶；冲泡技能可酿造。</p>
-<p>· 💣弑神狂暴水（暴伤+10万%/20分）——<b>🔔牛铃商店 100🔔/瓶</b>（市场已下架）。</p>
-<p>· 🛉无敌药水（免疫伤害/20分）——<b>🔔牛铃商店 100🔔/瓶</b>；无尽2000层+也可掉落（3%）。</p></div>
+<div class="helpSec"><h4>🔔 八、牛铃商店</h4>
+<p>· 💣弑神水/🛉无敌药水 100🔔；<b>无尽新材料大量供应</b>：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔。</p></div>
 
-<div class="helpSec"><h4>💰 九、市场</h4>
-<p>· 卖出价 = 买入价 × 80%；<b>卖出数量上限 = 背包持有量</b>（订单不足时剩余部分按兜底价自动成交）。</p>
-<p>· 💣弑神水 / 🛉无敌药水已迁至牛铃商店，市场不再出售。</p></div>
-
-<div class="helpSec"><h4>🌀 十、转生系统</h4>
-<p>· 任一技能100级可转，最多7转。二次点击确认。重置技能/装备/房屋/怪物解锁；保留技能点/通道/设置。</p>
-<p>· <span class="warn">每次转生全部怪物属性 ×(1+系数)（默认+50%叠乘）</span>。</p></div>
-
-<div class="helpSec"><h4>🌙 十一、账号与安全</h4>
-<p>· <b>单点登录</b>：同账号只能一处在线。云存档60秒同步 + 每6小时云端快照（管理员可回档）。</p></div>
-
-<div class="helpSec"><h4>💡 十二、实用小技巧</h4>
-<p>· 毕业装备设好自动锻造目标挂机即可，无需反复手点；材料囤够再启动效率最高。</p>
-<p>· 锁定+自动分解是防误卖组合：毕业件🔒后放心开"自动分解≤传奇"。</p>
-<p>· 消耗品格子可挂无敌药水（HP条件或每N秒触发），冲高层无尽自动续盾。</p></div>
+<div class="helpSec"><h4>💡 九、实用小技巧</h4>
+<p>· 背包右键装备 = 快捷锻造/锁定；设🎯自动锻造目标后挂机即可。</p>
+<p>· 冲Lv500武器路线：7转（上限540）→ 战斗单项练到500 → 无尽4200层刷Lv500档 → 升阶到混沌（×640）。</p>
+<p>· 星辉砂是后期主要金币来源，背包囤着直接兑换。</p></div>
 `;
   if (isAdmin()) {
     h += `
-<div class="helpSec"><h4>📜 十三、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.17</span><b>自动锻造与账号充值</b>：装备可设<b>自动锻造目标</b>（强化/附魔/品质/档位），每秒自动尝试，达标或缺料自动停；💣弑神水+🛉无敌药水<b>迁入牛铃商店</b>（100🔔）；市场卖出数量上限改为<b>背包持有量</b>（订单不足按兜底价成交）；管理员页新增<b>账号充值/发放</b>（金币/牛铃/定制装备，写云端+强制下线）。</p>
+<div class="helpSec"><h4>📜 十、版本更新记录（仅管理员可见）</h4>
+<p><span class="verTag">v1.18</span><b>品质/档位/材料大扩展</b>：品质12档（鸿蒙~混沌，仙器起升阶至少翻倍，转生逐级解锁）；档位至Lv500（无尽1500层起每300层一档）；附魔◆20；转生每转上限+60；武器穿戴改为单项战斗技能限制；无尽新材料6种（仅无尽+牛铃商店）；星辉砂4等级金币兑换物（1000万起翻倍）。</p>
+<p><span class="verTag">v1.17</span><b>自动锻造与账号充值</b>。</p>
 <p><span class="verTag">v1.16</span><b>右键锻造与无敌药水</b>。</p>
 <p><span class="verTag">v1.15</span><b>管理员账号回档</b>。</p>
 <p><span class="verTag">v1.14</span><b>属性面板与宝石经济</b>。</p>
@@ -2371,14 +2475,15 @@ function renderPanel() {
       });
     });
     if (!S.lanes.some((l)=>l.open&&l.items.length)) h += `<div class="info">所有通道均为空，从上方添加任务开始吧。</div>`;
-    h += `<div class="hint">📌 每通道容量 ${QMAX()} 格｜战斗同一时间只能一场</div>`;
+    h += `<div class="hint">📌 每通道容量 ${QMAX()} 格｜战斗同一时间只能一场｜制造档位封顶Lv249（250+仅无尽掉落）</div>`;
     h += `<div class="row"><span class="name">条件触发</span><span class="info">HP&lt;</span> <input type="number" value="${S.autoHp}" onchange="S.autoHp=Math.min(90,Math.max(5,+this.value));saveGame()">% 自动吃食物｜MP&lt; <input type="number" value="${S.autoMp}" onchange="S.autoMp=Math.min(90,Math.max(5,+this.value));saveGame()">% 自动喝饮料</div>`;
   }
   else if (tab === 1) {
-    h += `<div class="hint">17种技能。总等级 ${totalLv()}｜上限 ${cfg("skillCap")}（全局）${S.xpMin>0?`｜📖 经验buff +${((S.xpMult||0)*100)|0}%（剩 ${Math.ceil(S.xpMin)} 分钟）`:""}。</div><table><tr><th>技能</th><th>等级</th><th>经验</th><th>进度</th></tr>`;
-    SK.forEach((s)=>{ const x = S.skills[s.id]; const maxed = x.lv >= cfg("skillCap");
+    h += `<div class="hint">17种技能。总等级 ${totalLv()}｜当前上限 <b style="color:#fa0">${effCap()}</b>（基础${cfg("skillCap")}＋转生${S.reb}×60）${S.xpMin>0?`｜📖 经验buff +${((S.xpMult||0)*100)|0}%（剩 ${Math.ceil(S.xpMin)} 分钟）`:""}。</div><table><tr><th>技能</th><th>等级</th><th>经验</th><th>进度</th></tr>`;
+    SK.forEach((s)=>{ const x = S.skills[s.id]; const maxed = x.lv >= effCap();
       h += `<tr><td>${s.ic} ${s.n}<span class="info">（${s.cat}）</span></td><td><b>${x.lv}</b>${maxed?' <span style="color:#fa0;font-size:10px">MAX</span>':""}</td><td class="info">${maxed?"—":`${x.xp|0}/${xpNeed(x.lv)}`}</td><td><div class="bar" style="width:120px"><div class="xp" style="width:${maxed?100:x.xp/xpNeed(x.lv)*100}%"></div></div></td></tr>`; });
     h += `</table>`;
+    h += `<div class="hint">单项战斗技能最高：<b style="color:#ffd479">Lv${maxCombatLv()}</b>（决定武器穿戴上限，当前可穿 Lv≤${maxCombatLv()} 武器）</div>`;
   }
   else if (tab === 2) {
     const AT = S.autoTrash;
@@ -2386,7 +2491,7 @@ function renderPanel() {
       +`<span class="name" style="color:#8af">⚡ 自动处理（掉落即执行，🔒锁定装备免疫）</span>`
       +`<select onchange="setAutoTrash('mode',+this.value)"><option value="0" ${AT.mode===0?"selected":""}>关闭</option><option value="1" ${AT.mode===1?"selected":""}>💰 自动出售</option><option value="2" ${AT.mode===2?"selected":""}>⚒️ 自动分解</option></select>`
       +`<span class="info">品质阈值：</span>`
-      +`<select onchange="setAutoTrash('rare',+this.value)"><option value="0" ${AT.rare===0?"selected":""}>普通及以下</option><option value="1" ${AT.rare===1?"selected":""}>精良及以下</option><option value="2" ${AT.rare===2?"selected":""}>闪耀及以下</option><option value="3" ${AT.rare===3?"selected":""}>传奇及以下</option><option value="4" ${AT.rare===4?"selected":""}>仙器及以下</option><option value="5" ${AT.rare===5?"selected":""}>神器及以下</option></select></div>`;
+      +`<select onchange="setAutoTrash('rare',+this.value)">${RARE_NAMES.map((n,i)=>`<option value="${i}" ${AT.rare===i?"selected":""}>${n}及以下</option>`).join("")}</select></div>`;
     h += `<div class="row"><span class="name">🔍 搜索背包</span><input id="bagSearchIn" style="flex:1" placeholder="输入物品或装备名称（支持模糊匹配）…" value="${bagSearch}" oninput="bagSearch=this.value;renderBagSearchRes()"><button class="act sm" style="background:#e55" onclick="bagSearch='';renderPanel()">清空</button></div>`;
     h += bagSearchHTML();
     h += `<div class="pagenav"><button class="act sm" onclick="gotoPage(bagPage-1)">◀ 上一页</button><span>第 <input type="number" min="1" max="${MAX_PAGES}" value="${bagPage+1}" onchange="gotoPage((+this.value|0)-1)"> / ${MAX_PAGES} 页</span><button class="act sm" onclick="gotoPage(bagPage+1)">下一页 ▶</button><span class="info">已用 ${usedSlots()} 格</span><button class="act sm" onclick="gotoFirstUsed()">跳首件</button><button class="act sm" onclick="gotoFreeSlot()">跳空格</button><button class="act sm" style="background:#a6f" onclick="compactBag()">🧹 整理</button></div>`;
@@ -2396,7 +2501,7 @@ function renderPanel() {
       const k = bagPage+"_"+c; const v = S.slotMap[k];
       if (v == null) h += `<div class="cell" onclick="selSlot='${k}';renderPanel()"></div>`;
       else if (typeof v === "object") {
-        const e = v; const rc = RARE_COLOR[e.rare] || "#888";
+        const e = v; const rc = RARE_COLOR_ARR[e.rare] || "#888";
         h += `<div class="cell ${selSlot===k?"sel":""} ${e.lock?"locked":""}" onclick="selSlot='${k}';renderPanel()" oncontextmenu="openEqMenu('${k}',event)" title="${e.n} +${e.plus}【${RARE_NAMES[e.rare]}】${e.lock?"（已锁定）":""}" style="border-color:${rc}77"><span class="idx">${c+1}</span><span class="ic">${EQIC[e.slot]||"⚔️"}</span><span class="cnt" style="color:${rc}">${e.lock?"🔒":""}${e.auto&&e.auto.on?"🎯":""}+${e.plus}${e.ench?"◆"+e.ench:""}${gemCount(e)?"💎"+gemCount(e):""}</span></div>`;
       } else {
         const it = IT[v];
@@ -2408,23 +2513,24 @@ function renderPanel() {
     if (selV && typeof selV === "object") {
       const e = selV; const ok = canWear(e); const ra = e.uid;
       h += `<div class="row"><span class="name r${e.rare}">${eqName(e)}</span><span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}】${eqValStr(e)}${e.ench>0&&e.affix?`｜词缀「${e.affix.n}」+${affixVal(e)}`:""}｜宝石 ${(e.gems||[]).filter(Boolean).map((g)=>`${GEM_T[g.t].ic}Lv${g.l}`).join(" ")||"无"}/${e.holes||0}孔${e.lock?"｜<b style='color:#e55'>🔒已锁定</b>":""}</span>`
-        +`<button class="act sm" ${ok?"":"disabled"} onclick="equipIt(${ra})">${ok?"穿戴":"需战斗均Lv"+Math.min(cfg("skillCap"),e.reqLv)}</button>`
+        +`<button class="act sm" ${ok?"":"disabled"} onclick="equipIt(${ra})">${ok?"穿戴":wearNeedTxt(e)}</button>`
         +`<button class="act sm" style="background:${e.lock?"#e55":"#8af"}" onclick="toggleEqLock(${ra})">${e.lock?"🔓解锁":"🔒锁定"}</button>`
         +`<button class="act sm" style="background:#da5" ${e.lock?"disabled":""} onclick="sellEq(${ra})">💰出售 ${sellPriceEq(e)}</button>`
         +`<button class="act sm" style="background:#7a6" ${e.lock?"disabled":""} onclick="salvageEq(${ra})">⚒️分解${e.rare>=3?"（升阶材料）":""}</button></div>`;
       h += autoForgeUI(e, e.uid);
     } else if (selV && IT[selV]) {
       const it = IT[selV]; const n = bagN(selV);
-      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:""}基准价${it.val}</span>`
+      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:it.tp==="emat"?"无尽锻造材料（仅无尽掉落/牛铃商店）｜":it.tp==="gold"?"金币兑换物｜":""}基准价${it.val}</span>`
         +(it.heal?`<button class="act sm" onclick="eatItem('${selV}')">吃(+${it.heal}HP)</button>`:"")
         +(it.mp?`<button class="act sm" onclick="drinkItem('${selV}')">喝(+${it.mp}MP)</button>`:"")
         +(it.tp==="tea"?`<button class="act sm" onclick="if(take('${selV}',1)){S.teaMin=10;log('🫖 效率茶生效');renderPanel();}">喝(效率+10%)</button>`:"")
         +(it.tp==="xp"?`<button class="act sm" style="background:#5a5" onclick="useXpItem('${selV}')">喝(经验+${(XPIT[selV].m*100)|0}%/${XPIT[selV].mm}分)</button>`:"")
         +(POTBUFF[selV]?`<button class="act sm" style="background:#a6f" onclick="usePotItem('${selV}')">喝(${POTBUFF[selV].k==="hit"?"命中100%":POTBUFF[selV].k==="inv"?"无敌20分":"暴伤+10万%"}/${POTBUFF[selV].mm}分)</button>`:"")
+        +(GOLD_REDEEM[selV]?`<button class="act sm" style="background:#da5" onclick="redeemGold('${selV}')">💰兑换 ${(GOLD_REDEEM[selV]/10000).toLocaleString()}万金币</button>`:"")
         +`<button class="act sm" onclick="if(take('${selV}',1)){renderPanel();}">丢弃×1</button>`
         +`<button class="act sm" style="background:#e55" onclick="if(take('${selV}',${n})){renderPanel();}">清空</button></div>`;
     } else {
-      h += `<div class="hint">点击格子选中物品/装备；<b style="color:#8af">装备格右键</b>打开快捷菜单。装备格边框：灰/绿/蓝/紫/橙/红 = 普通/精良/闪耀/传奇/仙器/神器；🎯=自动锻造中。</div>`;
+      h += `<div class="hint">点击格子选中物品/装备；<b style="color:#8af">装备格右键</b>打开快捷菜单。边框色：灰/绿/蓝/紫/橙/红/金/橙金/青/紫金/白/粉 = 普通→混沌；🎯=自动锻造中。💠星辉砂选中后可兑换金币。</div>`;
     }
     h += `<div class="hint" style="margin-top:10px">已穿戴（6槽位）：</div><div class="grid3">`;
     SLOTS.forEach((sl)=>{
@@ -2465,7 +2571,7 @@ function renderPanel() {
     h += `<div class="row endless"><span class="name" style="color:#c5f">🌌 无尽模式</span> `
       +(S.endless
         ?`<span style="color:#c5f;font-size:16px;font-weight:bold">当前第 ${S.floor} 层</span><span class="info">最高纪录 <b style="color:#ffd479">${S.bestFloor}</b> 层</span><span class="timerTxt">⏱ ${Math.max(0,Math.ceil(floorLeftMs()/1000))}s / ${FLOOR_LIMIT/60}min</span><button class="act sm" style="background:#a4a" onclick="toggleEndless(false)">⏸ 退出无尽</button>`
-        :`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">层数无限｜每层限时${FLOOR_LIMIT/60}分钟｜掉率随层递增｜500层+🔨｜1000层+💎｜<b style="color:#5cf">2000层+🛉无敌药水</b></span>`)
+        :`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">1500层+：新档装备/新品质/星辉砂/星髓｜每300层一档装备、每400层一档品质、每500层一级星辉砂</span>`)
       +`</div>`;
     if (S.endless) {
       h += `<div class="bar timerbar"><div style="width:${Math.max(0,Math.min(100,floorLeftMs()/(FLOOR_LIMIT*1000)*100))}%"></div></div>`;
@@ -2478,11 +2584,15 @@ function renderPanel() {
       const drop = endlessMon(S.floor);
       const seg = Math.floor((S.floor-1)/100);
       const gemL = S.floor >= 1000 ? Math.min(20, 1+Math.floor((S.floor-1000)/50)) : 0;
-      h += `<div class="row endless" style="opacity:.85"><span class="info">第 ${seg+1} 大关第 ${(S.floor-1)%100+1} 层｜掉率 <b style="color:#ffd479">${(drop.drop*100).toFixed(0)}%</b>｜档位 <b style="color:#ffd479">Lv${drop.eqLv}</b>${S.reb?`｜转生增强 ×${rebCf().toFixed(2)}`:""}｜${S.floor>=500?"🔨5% ":""}${gemL?`💎Lv${gemL} 4% `:""}${S.floor>=2000?'<b style="color:#5cf">🛉3%</b>':""}</span></div>`;
+      const fq = S.floor >= 1500 ? Math.min(11, 6 + Math.floor((S.floor-1500)/400)) : 0;
+      const qTxt = fq ? `｜<b class="r${Math.min(fq,maxRare())}">${RARE_NAMES[Math.min(fq,maxRare())]}</b>2%` : "";
+      const nmat = S.floor>=3300?"星髓/陨铁/龙筋/凤羽/道则/混沌晶":S.floor>=2900?"星髓/陨铁/龙筋/凤羽/道则":S.floor>=2500?"星髓/陨铁/龙筋/凤羽":S.floor>=2100?"星髓/陨铁/龙筋":S.floor>=1800?"星髓/陨铁":S.floor>=1500?"星髓":"";
+      const sand = S.floor>=1500?`｜💠星辉砂·${["","微","耀","炽","极"][S.floor>=3000?4:S.floor>=2500?3:S.floor>=2000?2:1]} 4%`:"";
+      h += `<div class="row endless" style="opacity:.85"><span class="info">第 ${seg+1} 大关第 ${(S.floor-1)%100+1} 层｜掉率 <b style="color:#ffd479">${(drop.drop*100).toFixed(0)}%</b>｜档位 <b style="color:#ffd479">Lv${drop.eqLv}</b>${S.reb?`｜转生增强 ×${rebCf().toFixed(2)}`:""}｜${S.floor>=500?"🔨5% ":""}${gemL?`💎Lv${gemL} 4% `:""}${qTxt}${nmat?`｜${nmat}`:""}${sand}</span></div>`;
     } else {
       h += `<div class="zonebar">`+ELE.map((e,z)=>`<button class="${z===zone?"on":""} ${z>=5?"hz":""}" onclick="zone=${z};renderPanel()">${z+1}.${e}</button>`).join("")+`</div>`;
       const zgem = zone >= 5 ? `｜💎宝石Lv${zoneGemLv(zone)}~${Math.min(11,zoneGemLv(zone)+2)}（5%）` : "";
-      h += `<div class="hint" style="color:#f80">🔥 掉落：炼气Lv1档 → 真仙Lv249档｜掉率递减：炼气38% → 真仙8%｜掉落强化封顶+15${zgem}${S.reb?`｜<b>转生增强 ×${rebCf().toFixed(2)} 生效中</b>`:""}</div>`;
+      h += `<div class="hint" style="color:#f80">🔥 掉落：炼气Lv1档 → 真仙Lv249档（封顶不变）｜掉率递减：炼气38% → 真仙8%｜掉落强化封顶+15｜品质封顶<b>${RARE_NAMES[maxRare()]}</b>（转生解锁更高）${zgem}${S.reb?`｜<b>转生增强 ×${rebCf().toFixed(2)} 生效中</b>`:""}</div>`;
       for (let c = 0; c < 10; c++) {
         const i = zone*10+c;
         const b = mon(i,1); const m5 = mon(i,5); const cls = maxCleared(i);
@@ -2535,7 +2645,7 @@ function renderPanel() {
     }
   }
   else if (tab === 4) {
-    h += `<div class="hint">拍卖行｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜>49金收2%税｜<b style="color:#c5f">💎宝石不出售</b>｜<b style="color:#fa0">💣弑神水/🛉无敌药水已迁至🔔牛铃商店</b>｜<b style="color:#8af">卖出数量上限 = 背包持有量</b></div>`;
+    h += `<div class="hint">拍卖行｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜>49金收2%税｜💎宝石/✨无尽新材料/💠星辉砂<b style="color:#f80">不出售</b>（仅无尽掉落或🔔牛铃商店）｜<b style="color:#8af">卖出数量上限 = 背包持有量</b></div>`;
     h += `<div class="row"><span class="name">📦 交易数量</span><input type="number" min="1" value="${mkQty}" onchange="mkQty=Math.max(1,+this.value|0)"> <span class="info">买入受市场库存限制；卖出受背包持有量限制（订单不足按兜底价成交）</span></div>`;
     h += `<table><tr><th>物品</th><th>基准价</th><th>市场库存</th><th>买入</th><th>卖出</th><th>背包</th></tr>`;
     for (const id in MK) {
@@ -2553,7 +2663,7 @@ function renderPanel() {
     h += `</table>`;
   }
   else if (tab === 5) {
-    h += `<div class="hint">🔮 锻造坊｜强化技能 Lv${lv("enh")} +${(forgeBonus()*100).toFixed(0)}%｜<b style="color:#f80">全局锻造系数 ×${forgeCf().toFixed(1)}</b>｜强化失败<b style="color:#6f6">不掉级</b>｜背包装备可直接<b style="color:#8af">右键锻造</b>｜<b style="color:#5c5">🎯自动锻造</b>：设目标后每秒自动尝试</div>`;
+    h += `<div class="hint">🔮 锻造坊｜强化技能 Lv${lv("enh")} +${(forgeBonus()*100).toFixed(0)}%｜<b style="color:#f80">全局锻造系数 ×${forgeCf().toFixed(1)}</b>｜强化+${ENH_MAX}｜附魔◆${ENCH_MAX}｜品质上限<b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（转生解锁）｜背包装备可直接<b style="color:#8af">右键锻造</b>｜<b style="color:#5c5">🎯自动锻造</b></div>`;
     h += `<div class="hint" style="margin-top:8px">—— 已穿戴装备（含🎯自动锻造设置） ——</div>`;
     SLOTS.forEach((sl)=>{ const e = S.eq[sl.id]; if (e) h += forgeRow(e, "w:"+sl.id); });
     h += `<div class="hint" style="margin-top:14px;color:#a6f">━━━━━ 🔮 合成系统（批量，无弹窗；🔒锁定装备不参与）━━━━━</div>`;
@@ -2567,7 +2677,7 @@ function renderPanel() {
       groups[k].push(e);
     });
     const gList = Object.entries(groups).filter(([k,v])=>v.length>=4);
-    h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">🗡️ 装备合成</span><span class="info">4件同品质+档次 → 1件下一档</span>`
+    h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">🗡️ 装备合成</span><span class="info">4件同品质+档次 → 1件下一档（可合成至Lv500）</span>`
       +`<select id="cmbEq" onchange="updCmbEqN()">${gList.length?gList.map(([k,v])=>{
         const [fam,req,rare] = k.split("|");
         return `<option value="${k}" data-n="${Math.floor(v.length/4)}">${RARE_NAMES[+rare]}·Lv${req}档 ×${v.length}（→Lv${LV_TIERS[tierIdx(+req)+1]}）</option>`;
@@ -2586,6 +2696,7 @@ function renderPanel() {
       +(gemsAll.length?`<span class="info">持有：${gemsAll.map((id)=>`${IT[id].ic}${id.split("_")[2]}×${bagN(id)}`).join("、")}</span>`:"<span class='info'>尚未持有宝石（炼虚+或无尽1000层+掉落）</span>")
       +`</div>`;
     h += `<div class="hint">🔨 打孔锥持有：${bagN("punch")} 个（无尽500层+掉落）｜打孔费用：10万/40万/90万/160万💰</div>`;
+    h += `<div class="hint" style="color:#5cf">✨ 无尽新材料持有：星髓${bagN("xingSui")}｜陨铁${bagN("yunTie")}｜龙筋${bagN("longJin")}｜凤羽${bagN("fengYu")}｜道则${bagN("daoZe")}｜混沌晶${bagN("hunDunJing")}（仅无尽掉落/🔔牛铃商店）</div>`;
   }
   else if (tab === 6) {
     SK.filter((s)=>s.cat!=="战斗").forEach((s)=>{
@@ -2602,16 +2713,30 @@ function renderPanel() {
   }
   else if (tab === 8) {
     const armed = Date.now() - rebirthArm < 5000;
-    h += `<div class="row"><span class="name">当前：${S.reb}转｜${S.sp}技能点</span><span class="info">${canRebirth()?"✅ 可转生":"❌ 需任一技能100级"}｜<b style="color:#c5f">怪物属性当前 ×${rebCf().toFixed(2)}</b>｜转生后 ×${Math.pow(1+cfg("rebMonCf"), S.reb+1).toFixed(2)}</span></div>`;
+    h += `<div class="row"><span class="name">当前：${S.reb}转｜${S.sp}技能点</span><span class="info">${canRebirth()?"✅ 可转生":"❌ 需任一技能100级"}｜技能上限 <b style="color:#fa0">${effCap()}</b>（每转+60）｜品质解锁 <b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（每转+1档）｜<b style="color:#c5f">怪物属性 ×${rebCf().toFixed(2)}</b>→转后×${Math.pow(1+cfg("rebMonCf"), S.reb+1).toFixed(2)}</span></div>`;
     h += `<div class="row" style="justify-content:center;padding:12px;flex-direction:column;gap:8px">`
       +`<button class="act rebBtn" style="background:${armed?"#e55":"#2a5"}" ${canRebirth()&&S.reb<7?"":"disabled"} onclick="askRebirth()">${armed?"⚠️ 确认转生（5秒内再点一次）":"🌀 转生"}</button>`
       +`<span class="info">${armed?'<b style="color:#f80">再次点击红色按钮执行转生</b>':"点击后需5秒内二次确认，防误触（手机通用）"}</span></div>`;
-    h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；<b style="color:#c5f">全部怪物属性 ×${(1+cfg("rebMonCf")).toFixed(2)}</b>；保留技能点/通道/设置。</div>`;
+    h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；怪物属性增强；<b style="color:#fa0">但获得：等级上限+60、解锁下一品质、技能点</b>。7转后：上限${cfg("skillCap")+420}、品质全解锁（混沌）。</div>`;
   }
   else if (tab === 9) {
-    h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b></div>`;
-    h += `<div class="row" style="background:#2a2413"><span class="name">💣 弑神狂暴水（暴伤+10万% / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#a6f" onclick="buyBell('critPot',100)">购买</button></div>`;
-    h += `<div class="row" style="background:#2a2413"><span class="name">🛉 无敌药水（免疫怪物伤害 / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#5cf" onclick="buyBell('invPot',100)">购买</button></div>`;
+    h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b>｜✨无尽材料与💠星辉砂<b>常年大量供应</b>（市场不卖）</div>`;
+    h += `<div class="row"><span class="name">📦 材料购买数量</span><input type="number" min="1" value="${bellQty}" onchange="bellQty=Math.max(1,+this.value|0)"> <span class="info">对下方全部材料/星辉砂生效</span></div>`;
+    h += `<div class="row" style="background:#2a2413"><span class="name">💣 弑神狂暴水（暴伤+10万% / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#a6f" onclick="buyBell('critPot',100,1)">购买</button></div>`;
+    h += `<div class="row" style="background:#2a2413"><span class="name">🛉 无敌药水（免疫怪物伤害 / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#5cf" onclick="buyBell('invPot',100,1)">购买</button></div>`;
+    h += `<div class="hint" style="color:#5cf;margin-top:6px">━━━━━ ✨ 无尽锻造材料（大量供应）━━━━━</div>`;
+    h += `<div class="row" style="background:#152035"><span class="name">✨ 星髓（Lv275~325档升级）</span><span class="info">5🔔/个｜持有${bagN("xingSui")}</span><button class="act sm" style="background:#49f" onclick="buyBell('xingSui',5,bellQty)">×${bellQty} 购买</button></div>`;
+    h += `<div class="row" style="background:#152035"><span class="name">🌠 陨铁（Lv350~400档升级）</span><span class="info">8🔔/个｜持有${bagN("yunTie")}</span><button class="act sm" style="background:#49f" onclick="buyBell('yunTie',8,bellQty)">×${bellQty} 购买</button></div>`;
+    h += `<div class="row" style="background:#152035"><span class="name">🐲 龙筋（神器→太初升阶）</span><span class="info">15🔔/个｜持有${bagN("longJin")}</span><button class="act sm" style="background:#49f" onclick="buyBell('longJin',15,bellQty)">×${bellQty} 购买</button></div>`;
+    h += `<div class="row" style="background:#152035"><span class="name">🪶 凤羽（鸿蒙→无极升阶）</span><span class="info">25🔔/个｜持有${bagN("fengYu")}</span><button class="act sm" style="background:#49f" onclick="buyBell('fengYu',25,bellQty)">×${bellQty} 购买</button></div>`;
+    h += `<div class="row" style="background:#152035"><span class="name">📜 道则碎片（无极→天道升阶/Lv425+档）</span><span class="info">40🔔/个｜持有${bagN("daoZe")}</span><button class="act sm" style="background:#49f" onclick="buyBell('daoZe',40,bellQty)">×${bellQty} 购买</button></div>`;
+    h += `<div class="row" style="background:#152035"><span class="name">🔮 混沌晶（天道→混沌升阶/Lv500档）</span><span class="info">70🔔/个｜持有${bagN("hunDunJing")}</span><button class="act sm" style="background:#49f" onclick="buyBell('hunDunJing',70,bellQty)">×${bellQty} 购买</button></div>`;
+    h += `<div class="hint" style="color:#da5;margin-top:6px">━━━━━ 💠 星辉砂（金币兑换物）━━━━━</div>`;
+    h += `<div class="row" style="background:#2a2013"><span class="name">💠 星辉砂·微（兑换1000万💰）</span><span class="info">100🔔｜持有${bagN("xingHui1")}</span><button class="act sm" style="background:#da5" onclick="buyBell('xingHui1',100,1)">购买</button></div>`;
+    h += `<div class="row" style="background:#2a2013"><span class="name">🔷 星辉砂·耀（兑换2000万💰）</span><span class="info">200🔔｜持有${bagN("xingHui2")}</span><button class="act sm" style="background:#da5" onclick="buyBell('xingHui2',200,1)">购买</button></div>`;
+    h += `<div class="row" style="background:#2a2013"><span class="name">🔶 星辉砂·炽（兑换4000万💰）</span><span class="info">400🔔｜持有${bagN("xingHui3")}</span><button class="act sm" style="background:#da5" onclick="buyBell('xingHui3',400,1)">购买</button></div>`;
+    h += `<div class="row" style="background:#2a2013"><span class="name">🌟 星辉砂·极（兑换8000万💰）</span><span class="info">800🔔｜持有${bagN("xingHui4")}</span><button class="act sm" style="background:#da5" onclick="buyBell('xingHui4',800,1)">购买</button></div>`;
+    h += `<div class="hint" style="margin-top:6px">━━━━━ 🛒 其他 ━━━━━</div>`;
     h += `<div class="row"><span class="name">📦 队列位+1（每条并行通道各+1）</span><span class="info">10🔔</span><button class="act sm" onclick="buyPerk('q',10)">购买</button></div>`
       +`<div class="row"><span class="name">🌙 离线上限+2小时</span><span class="info">20🔔</span><button class="act sm" onclick="buyPerk('off',20)">购买</button></div>`;
   }
@@ -2631,7 +2756,6 @@ function renderPanel() {
   else if (tab === T_ADMIN && isAdmin()) {
     h += `<div class="hint">👑 管理员面板（仅管理员可见）</div>`
       +`<div class="row"><span class="name">💰 金币</span><input type="number" value="${S.gold|0}" onchange="S.gold=Math.max(0,+this.value);saveGame()"> <span class="name">🔔 牛铃</span><input type="number" value="${S.bell}" onchange="S.bell=Math.max(0,+this.value);saveGame()"> <span class="name">⏩ 加速</span><select onchange="setSpd(+this.value)">`+SPEEDS.map((v)=>`<option value="${v}" ${S.speed===v?"selected":""}>${v}×</option>`).join("")+`</select></div>`;
-    /* ★ v1.17 账号充值/发放 */
     h += `<div class="hint" style="color:#5cf;margin-top:8px">━━━━━ 💰 账号充值 / 装备发放（写入云端，对方强制下线重登生效）━━━━━</div>`
       +`<div class="row" style="background:#152035;border:1px solid #5cf"><span class="name" style="color:#5cf">👤 目标账号</span>`
       +`<input id="adAcc" placeholder="账号名" style="min-width:120px" onchange="adQueryAcc()">`
@@ -2649,11 +2773,12 @@ function renderPanel() {
         +`<select id="adGTier">${LV_TIERS.map((t)=>`<option value="${t}" ${t===249?"selected":""}>Lv${t}档</option>`).join("")}</select>`
         +`<select id="adGRare">${RARE_NAMES.map((n,i)=>`<option value="${i}" ${i===5?"selected":""}>${n}</option>`).join("")}</select>`
         +`<span class="info">强化+</span><input type="number" id="adGPlus" value="20" min="0" max="${ENH_MAX}" style="width:50px">`
+        +`<span class="info">◆附魔</span><input type="number" id="adGEnch" value="20" min="0" max="${ENCH_MAX}" style="width:50px">`
         +`<span class="info">孔数</span><input type="number" id="adGHoles" value="4" min="0" max="4" style="width:44px">`
         +`<select id="adGGem"><option value="">宝石：无</option>${Object.keys(GEM_T).map((t)=>`<option value="${t}">镶满${GEM_T[t].n}Lv20</option>`).join("")}</select>`
         +`<button class="act sm" style="background:#2a5" onclick="adGrantEq()">发放</button>`
         +`</div>`
-        +`<div class="info" style="margin-top:3px">品质为固定值（不重roll特殊属性细节），发放后直接进入对方背包</div></div>`;
+        +`<div class="info" style="margin-top:3px">品质为固定值（不受目标账号转生解锁限制），发放后直接进入对方背包</div></div>`;
     }
     h += `<div class="hint" style="color:#f88;margin-top:8px">━━━━━ ⏪ 账号回档（恢复到约一天前）━━━━━</div>`
       +`<div class="row" style="background:#2a1515;border:1px solid #e55"><span class="name" style="color:#f88">⏪ 指定账号回档</span>`
@@ -2679,15 +2804,15 @@ function renderPanel() {
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">💀 死亡复活</span><span class="info">${isDead()?`复活中 ${Math.ceil(deadLeftMs()/1000)}s`:"未死亡"}</span>`+(isDead()?`<button class="act sm" style="background:#49f" onclick="reviveNow();log('⚡ 立即复活');renderPanel();">立即复活</button>`:"")+`</div>`
       +`<div class="row" style="background:#2a2413;border:1px solid #ffd47944"><span class="name" style="color:#fa0">🧪 神水buff</span><button class="act sm" style="background:#a6f" onclick="S.buffHit=100;S.buffHitMin=20;log('🧪 命中+20分');renderPanel();">命中+20分</button><button class="act sm" style="background:#a6f" onclick="S.buffCd=100000;S.buffCdMin=20;log('💣 暴伤+20分');renderPanel();">暴伤+20分</button><button class="act sm" style="background:#5cf" onclick="S.buffInv=1;S.buffInvMin=20;log('🛉 无敌+20分');renderPanel();">无敌+20分</button><button class="act sm" style="background:#e55" onclick="S.buffHit=0;S.buffHitMin=0;S.buffCd=0;S.buffCdMin=0;S.buffInv=0;S.buffInvMin=0;log('🧪 已清除');renderPanel();">清除</button></div>`
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">🌍 全局配置</span><button class="act sm" style="background:#a6f" onclick="tab=${T_CFG};renderPanel()">前往数值配置</button><button class="act sm" style="background:#2a5" onclick="fetchGlobalCfg()">↻ 拉取云端</button></div>`
-      +`<div class="hint">技能等级（上限 ${cfg("skillCap")}）：</div><div class="grid">`;
-    SK.forEach((s)=>{ h += `<div class="row"><span class="name">${s.ic} ${s.n}</span><input type="number" value="${lv(s.id)}" min="1" max="${cfg("skillCap")}" onchange="setSkill('${s.id}',+this.value)"></div>`; });
+      +`<div class="hint">技能等级（当前上限 ${effCap()}）：</div><div class="grid">`;
+    SK.forEach((s)=>{ h += `<div class="row"><span class="name">${s.ic} ${s.n}</span><input type="number" value="${lv(s.id)}" min="1" max="${effCap()}" onchange="setSkill('${s.id}',+this.value)"></div>`; });
     h += `</div>`;
     h += `<div class="hint">物品：</div><div class="row"><select id="adIt">${Object.keys(IT).map((id)=>`<option value="${id}">${IT[id].ic}${IT[id].n}</option>`).join("")}</select><input type="number" id="adN" value="100"><button class="act sm" onclick="const i=$('adIt').value;if(addIt(i,+$('adN').value)){renderPanel();}">增加</button></div>`
-      +`<div class="row"><span class="name">👾 跳转怪物</span><input type="number" value="${S.monI}" min="0" max="99" id="adI"><input type="number" value="${S.monLv}" min="1" max="5" id="adL"><button class="act sm" onclick="pickMon(Math.min(99,Math.max(0,+$('adI').value|0)),Math.min(5,Math.max(1,+$('adL').value|0)))">跳转</button> <span class="name">🎁 装备</span><button class="act sm" onclick="addEq(rollEq(['iron','steel','bow','staff','leather','robe'][Math.random()*6|0],60));renderPanel()">随机</button><button class="act sm" onclick="const e=rollEq('steel',${EQ_MAX_LV});e.rare=5;e.plus=15;e.holes=4;e.gems=[{t:'atk',l:20},{t:'atk',l:20},{t:'critDmg',l:20},{t:'critDmg',l:20}];e.n='神器的'+e.n.replace(RARE_STRIP,'');rollSpecials(e);addEq(e);renderPanel()">满配神器</button></div>`
+      +`<div class="row"><span class="name">👾 跳转怪物</span><input type="number" value="${S.monI}" min="0" max="99" id="adI"><input type="number" value="${S.monLv}" min="1" max="5" id="adL"><button class="act sm" onclick="pickMon(Math.min(99,Math.max(0,+$('adI').value|0)),Math.min(5,Math.max(1,+$('adL').value|0)))">跳转</button> <span class="name">🎁 装备</span><button class="act sm" onclick="addEq(rollEq(['iron','steel','bow','staff','leather','robe'][Math.random()*6|0],60));renderPanel()">随机</button><button class="act sm" onclick="const e=rollEq('steel',${EQ_MAX_LV});e.rare=11;e.plus=20;e.ench=20;e.holes=4;e.gems=[{t:'atk',l:20},{t:'atk',l:20},{t:'critDmg',l:20},{t:'critDmg',l:20}];e.n='混沌的'+e.n.replace(RARE_STRIP,'');rollSpecials(e);addEq(e);renderPanel()">满配混沌</button></div>`
       +`<div class="row"><span class="name">🔓 解锁全部怪物</span><button class="act sm" onclick="for(let i=0;i<100;i++)for(let l=1;l<=5;l++)S.kills[i+'-'+l]=1;renderPanel()">解锁</button> <span class="name">🗑️ 清档</span><button class="act sm" style="background:#e55" onclick="if(confirm('确认清空并重新开始？')){localStorage.removeItem(saveKeyOf(CUR));newGameState();giveStarterGear();refreshTasks(true);render();}">重置</button></div>`;
   }
   else if (tab === T_CFG && isAdmin()) {
-    h += `<div class="hint">🌍 <b>全局数值配置（管理员专属）</b>——修改后点「发布全局配置」，所有玩家约1分钟内同步生效。</div>`;
+    h += `<div class="hint">🌍 <b>全局数值配置（管理员专属）</b>——修改后点「发布全局配置」，所有玩家约1分钟内同步生效。基础技能上限之上，每转生自动+60（玩家侧固定规则，不在此配置）。</div>`;
     h += `<div class="cfgSec"><h4>👹 全局怪物系数</h4>`
       + cfgRow("怪物难度系数", "diff", DIFF_MIN, DIFF_MAX)
       + cfgRow("怪物攻击力系数", "monAtkCf", 0.1, 10)
@@ -2701,7 +2826,7 @@ function renderPanel() {
       + cfgRow("防御宝石1级 +", "gemDef", 1, 200)
       + cfgRow("活力宝石1级 +血", "gemHp", 10, 10000)
       + cfgRow("爆伤宝石1级 +%", "gemCritDmg", 10, 10000)
-      + `<div class="cfgHint">宝石数值公式：1级 = 基础值，之后<b>每级在上一级基础上 ×1.2（+20%复利）</b>。当前配置下满级Lv20：⚔攻击+${gemVal("atk",20)}｜🛡防御+${gemVal("def",20)}｜❤血量+${gemVal("hp",20)}｜💥暴伤+${gemVal("critDmg",20)}%。发布后对所有已镶嵌/库存宝石生效。</div>`
+      + `<div class="cfgHint">宝石数值公式：1级 = 基础值，之后<b>每级在上一级基础上 ×1.2（+20%复利）</b>。当前配置下满级Lv20：⚔攻击+${gemVal("atk",20)}｜🛡防御+${gemVal("def",20)}｜❤血量+${gemVal("hp",20)}｜💥暴伤+${gemVal("critDmg",20)}%。</div>`
       + `</div>`;
     h += `<div class="cfgSec"><h4>⬆️ 升级速度</h4>`
       + cfgRow("升级经验系数", "xpCf", 0.1, 10)
@@ -2720,8 +2845,8 @@ function renderPanel() {
       + cfgRow("命中率保底 %", "hitFloor", 1, 50)
       + cfgRow("怪物有效闪避上限 %", "evCapPct", 30, 100)
       + `</div>`;
-    h += `<div class="cfgSec"><h4>⭐ 技能等级上限</h4>`
-      + cfgRow("全技能等级上限", "skillCap", 100, 500)
+    h += `<div class="cfgSec"><h4>⭐ 基础技能等级上限（转生另+60/转）</h4>`
+      + cfgRow("基础技能等级上限", "skillCap", 100, 500)
       + `</div>`;
     h += `<div class="row" style="margin-top:10px">`
       + `<button class="act" style="background:#2a5" onclick="publishGlobalCfg()">🌍 发布全局配置（全体生效）</button>`
@@ -2791,7 +2916,7 @@ function drinkItem(id) { if (isDead()) { log("💀 死亡状态无法使用物�
 function equipIt(eqUid) {
   const k = findEqKey(eqUid); if (!k) return;
   const e = S.slotMap[k];
-  if (!canWear(e)) { log(`战斗平均等级需达到 ${Math.min(cfg("skillCap"), e.reqLv)}`); return; }
+  if (!canWear(e)) { log(`穿戴条件不足：${wearNeedTxt(e)}`); return; }
   const old = S.eq[e.slot];
   delete S.slotMap[k];
   if (old) addEq(old, true);
@@ -2932,7 +3057,7 @@ function addQ() {
   const q = { id:qSel, n:qNum };
   if (a.outEq) {
     const tEl = $("eqTier"); const sEl = $("eqSlot");
-    if (tEl) { q.tier = +tEl.value; if (q.tier > lv(a.sk)) { log(`⚠️ 不足以制造 Lv${q.tier} 档`); return; } }
+    if (tEl) { q.tier = +tEl.value; if (q.tier > Math.min(lv(a.sk), CRAFT_TIER_CAP)) { log(`⚠️ 不足以制造 Lv${q.tier} 档（制造封顶Lv${CRAFT_TIER_CAP}）`); return; } }
     if (sEl) q.slot = sEl.value;
   }
   lane.items.push(q);
@@ -2963,7 +3088,7 @@ function changeQ(li, i, id) {
     if (lv(a.sk) < a.lv) { log(`⚠️ ${SKM[a.sk].n}等级不足`); renderPanel(); return; }
     q.id = id;
     if (a.outEq) {
-      const avail = LV_TIERS.filter((t)=>t <= lv(a.sk));
+      const avail = LV_TIERS.filter((t)=>t <= Math.min(lv(a.sk), CRAFT_TIER_CAP));
       q.tier = avail.length ? avail[avail.length-1] : a.lv;
       q.slot = (a.slots || SLOTS.map((s)=>s.id))[0];
     } else { delete q.tier; delete q.slot; }
@@ -2972,7 +3097,7 @@ function changeQ(li, i, id) {
 }
 function moveQ(li, i, d) { const lane = S.lanes[li]; const q = lane.items.splice(i,1)[0]; lane.items.splice(i+d, 0, q); renderPanel(); }
 function pickMon(i, l) { if (S.endless) toggleEndless(false); S.monI = i; S.monLv = l; S.monHp = mon(i,l).hp; renderPanel(); }
-function setSkill(id, v) { S.skills[id].lv = Math.min(cfg("skillCap"), Math.max(1, v|0)); S.skills[id].xp = 0; saveGame(); checkLanes(); }
+function setSkill(id, v) { S.skills[id].lv = Math.min(effCap(), Math.max(1, v|0)); S.skills[id].xp = 0; saveGame(); checkLanes(); }
 function buyPerk(k, cost) { if (S.bell < cost) return; S.bell -= cost; S.perks[k]++; log("🛒 购买成功"); renderPanel(); }
 async function switchAcc(u) {
   const A = accs();
