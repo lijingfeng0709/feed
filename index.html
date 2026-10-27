@@ -677,7 +677,6 @@ const BELL_MAT = {
 const POT_MK = { hitPot:1000000 };
 const matStr = (m) => Object.entries(m).map(([k,v]) => `${IT[k].ic}${IT[k].n}×${v}`).join("＋");
 const RARE_MATS = { xianGu:1, xianYu:1, soul:1, shenShi:1 };
-/* 材料合成链（4低→1高；分解 1高→4低） */
 const MAT_CHAINS = [
   ["xingSui","yunTie","longJin","fengYu","daoZe","hunDunJing"],
   ["xianGu","xianYu","soul","shenShi"],
@@ -686,7 +685,6 @@ const MAT_CHAINS = [
 ];
 const MAT_NEXT = {}, MAT_PREV = {};
 MAT_CHAINS.forEach((ch) => { for (let i = 0; i < ch.length; i++) { if (i < ch.length-1) MAT_NEXT[ch[i]] = ch[i+1]; if (i > 0) MAT_PREV[ch[i]] = ch[i-1]; } });
-/* ★ v1.21 玩家市场：可交易物品（与服务端 market_is_tradeable 白名单一致） */
 const PM_TRADEABLE = /^(milk|starMilk|herb|flax|ore|log|oak|ingot|plank|cloth|bread|cake|spaceCake|tea|coffee|effTea|sage|xianGu|xianYu|soul|shenShi|yaoDan|diLingDan|tianYuanDan|yuLing|xingSui|yunTie|longJin|fengYu|daoZe|hunDunJing|xingHui[1-4]|gem_(atk|def|hp|critDmg)_\d+)$/;
 
 /* ============================================================
@@ -1768,7 +1766,7 @@ function killMon(m, q, lane) {
 }
 
 /* ============================================================
-   ★ 模块 N：NPC市场 + ★v1.21.1 玩家交易市场（含收益领取）
+   ★ 模块 N：NPC市场 + 玩家交易市场（含收益领取）
    ============================================================ */
 const MK = {};
 const MK_SPREAD = 0.8;
@@ -1855,7 +1853,7 @@ function mkSell(id, n) {
   renderPanel();
 }
 
-/* ★ v1.21.1 玩家交易市场（挂单制：挂售/买入/撤单/实时 + 卖出收益领取） */
+/* ★ 玩家交易市场（挂单制：挂售/买入/撤单/实时 + 卖出收益领取） */
 let pmOrders = [], pmMine = [], pmFilter = "", pmSub = null, pmLastFetch = 0, pmBusy = false;
 function pmCanUse() { return CLOUD_ON() && LOGGED_IN && CUR !== "guest"; }
 async function syncFromCloud() {
@@ -1895,7 +1893,6 @@ function pmAutoRefresh() {
 function pmUI() {
   if (!pmCanUse()) return `<div class="hint" style="color:#5cf;margin-top:10px">🤝 玩家市场：需注册账号并登录云端后开放（游客不可交易）</div>`;
   let h = `<div class="hint" style="color:#5cf;margin-top:14px">━━━━━ 🤝 玩家市场（挂单制｜成交收2%税｜每人最多20个挂单｜按单价升序，同价先挂先卖）━━━━━</div>`;
-  /* 挂单出售表单 */
   const sellables = Object.keys(S.bag).filter((id)=>PM_TRADEABLE.test(id));
   h += `<div class="row pmRow"><span class="name pmTag">📤 挂单出售</span>`
     +`<select id="pmItem" style="max-width:170px">${sellables.length?sellables.map((id)=>`<option value="${id}">${IT[id].ic}${IT[id].n}×${bagN(id)}</option>`).join(""):`<option value="">（背包中没有可交易物品）</option>`}</select>`
@@ -1903,7 +1900,6 @@ function pmUI() {
     +`<span class="info">单价</span><input type="number" id="pmPrice" min="1" value="100" style="width:75px">💰/个`
     +`<button class="act sm" style="background:#5cf" ${sellables.length?"":"disabled"} onclick="pmPlace()">📤 挂单</button>`
     +`<span class="info">挂牌后材料立即从背包转入市场托管，撤单/成交后返还</span></div>`;
-  /* 我的挂单 */
   h += `<div class="hint" style="color:#5c5;margin-top:8px">—— 📥 我的挂单（${pmMine.length}/20）——</div>`;
   if (!pmMine.length) h += `<div class="hint">暂无挂单</div>`;
   else {
@@ -1917,7 +1913,6 @@ function pmUI() {
     });
     h += `</table>`;
   }
-  /* 市场挂单列表 */
   h += `<div class="row"><span class="name pmTag">🔍 筛选</span>`
     +`<input style="flex:1;min-width:120px" placeholder="物品ID（如 yaoDan / gem_atk / xingHui）…" value="${pmFilter}" onchange="pmFilter=this.value;pmFetch()">`
     +`<button class="act sm" onclick="pmFetch();pmFetchMine()">↻ 刷新</button>`
@@ -1992,7 +1987,6 @@ async function pmCancel(orderId) {
   } catch (e) { log("❌ 撤单失败：" + (e.message || e)); }
   pmBusy = false;
 }
-/* ★ v1.21.1 新增：领取卖出收益（服务端账本 → 云端入账 + 本地同步入账） */
 async function claimMarket() {
   if (!pmCanUse() || !S) return;
   try {
@@ -2155,7 +2149,7 @@ function rebirth() {
 }
 
 /* ============================================================
-   ★ 模块 P：存档 / 离线 / 导出导入
+   ★ 模块 P：存档 / 读档自动净化 / 离线 / 导出导入
    ============================================================ */
 function saveGame() {
   if (!LOGGED_IN || !S) return;
@@ -2165,6 +2159,29 @@ function saveGame() {
     if (!saveGame._t) saveGame._t = 0;
     const now = Date.now();
     if (now-saveGame._t > 60000) { saveGame._t = now; cloudSave(); }
+  }
+}
+/* ★ v1.21.2 新增：读档自动净化——清除未知物品ID/失效格子/残缺装备，防止渲染崩溃 */
+function sanitizeSave() {
+  let bad = [];
+  /* 1. 清除 bag 中不在物品注册表里的ID */
+  for (const id in S.bag) { if (!IT[id]) { bad.push(id); delete S.bag[id]; } }
+  /* 2. 清除 slotMap 中的空格子/失效映射/残缺装备对象 */
+  for (const k in S.slotMap) {
+    const v = S.slotMap[k];
+    if (v === null || v === undefined) { delete S.slotMap[k]; bad.push("空格:"+k); continue; }
+    if (typeof v === "string" && (!IT[v] || !S.bag[v])) { delete S.slotMap[k]; bad.push("映射:"+k); continue; }
+    if (typeof v === "object" && (!v.slot || !v.n || !SLOTS.find((s)=>s.id===v.slot))) { delete S.slotMap[k]; bad.push("装备:"+k); continue; }
+  }
+  /* 3. 给 bag 中有但 slotMap 没有的材料补格子 */
+  for (const id in S.bag) { if (!slotOf(id)) { const k = findFreeSlot(); if (k) S.slotMap[k] = id; } }
+  /* 4. 任务板引用了不存在的物品则重刷 */
+  if (Array.isArray(S.tasks)) {
+    S.tasks = S.tasks.map((t)=>(t && IT[t.id]) ? t : genTask());
+  }
+  if (bad.length) {
+    console.warn("🔧 sanitizeSave 清理了坏数据：", bad);
+    setTimeout(()=>log(`🔧 存档自动净化：清理了 ${bad.length} 条异常数据（${bad.slice(0,3).join("、")}${bad.length>3?"等":""}）`), 500);
   }
 }
 function loadGame() {
@@ -2202,12 +2219,16 @@ function loadGame() {
     if (!S.eq) S.eq = {};
     if (!("boots" in S.eq)) S.eq.boots = null;
     if (!("gloves" in S.eq)) S.eq.gloves = null;
+    if (!S.bag) S.bag = {};
+    if (!S.slotMap) S.slotMap = {};
+    /* ★ v1.21.2：读档即净化（在建立映射之前执行） */
+    sanitizeSave();
     migrateBag();
     if (Array.isArray(S.equips)) { S.equips.forEach((e)=>{ if (e && typeof e === "object") addEq(e, true); }); delete S.equips; }
     delete S.diff; delete S.monAtkCf; delete S.forgeCf; delete S.cfg;
     migrateEquips(); checkLanes();
     return true;
-  } catch (e) { return false; }
+  } catch (e) { console.error("读档失败", e); return false; }
 }
 function exportSave() {
   if (!LOGGED_IN || !S) { alert("请先进入游戏再导出存档"); return; }
@@ -2298,7 +2319,7 @@ function showOfflineModal(realEl, simEl, rep) {
   for (const k in rep.gain) g += card(IT[k]?IT[k].ic:"❓", fmtNum(rep.gain[k]));
   if (rep.equips > 0) g += card("🗡️", "装备×"+rep.equips);
   const x = Object.entries(rep.xp).sort((a,b)=>b[1]-a[1])
-    .map(([k,v]) => card(SKM[k].ic, fmtNum(v))).join("");
+    .map(([k,v]) => card(SKM[k]?SKM[k].ic:"❓", fmtNum(v))).join("");
   let u = "";
   for (const k in rep.used) u += card(IT[k]?IT[k].ic:"❓", fmtNum(rep.used[k]));
   $("offBody").innerHTML =
@@ -2327,7 +2348,7 @@ function simCore(sec) {
   if (mkTimer > 60) { mkTimer = 0; mkDrift(); }
 }
 function loop() {
-  if (!LOGGED_IN) return;
+  if (!LOGGED_IN || !S) return;
   const now = Date.now();
   const real = Math.min((now-S.lastTick)/1000, 5);
   S.lastTick = now;
@@ -2350,7 +2371,6 @@ function loop() {
   }
 }
 setInterval(loop, 1000);
-/* ★ v1.21.1：每60秒 拉取全局配置 + 领取市场卖出收益 */
 setInterval(() => { if (LOGGED_IN && CUR !== "guest") { fetchGlobalCfg(); claimMarket(); } }, 60000);
 window.addEventListener("beforeunload", () => {
   if (LOGGED_IN && CUR !== "guest" && CLOUD_ON()) { try { cloudSave(); } catch (e) {} }
@@ -2554,6 +2574,7 @@ function helpHTML() {
 <p>· 品质梯度：普通→精良→闪耀→传奇→<b>仙器</b>→神器→<span class="r6">鸿蒙</span>→<span class="r7">太初</span>→<span class="r8">无极</span>→<span class="r9">造化</span>→<span class="r10">天道</span>→<span class="r11">混沌</span>。</p>
 <p>· <span class="warn">未转生最高只能到【仙器】</span>；每转生1次解锁1个新品质，7转全解锁（混沌）。</p>
 <p>· <b>仙器起每次升阶属性至少翻倍</b>：仙器×5→神器×10→鸿蒙×20→太初×40→无极×80→造化×160→天道×320→混沌×640。</p>
+<p>· 升阶实际概率 = (基础概率 + 锻造加成) × 全局锻造系数：<b>无极→造化8%｜造化→天道6%｜天道→混沌5%</b>；失败无损可重试。</p>
 <p>· 新品质（鸿蒙~混沌）<b>无尽1500层起掉落</b>，每+400层解锁下一档（2%小概率），且受转生解锁上限约束。</p></div>
 
 <div class="helpSec"><h4>⚔️ 四、档位与穿戴</h4>
@@ -2606,29 +2627,11 @@ function helpHTML() {
   if (isAdmin()) {
     h += `
 <div class="helpSec"><h4>📜 十四、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.21.1</span><b>市场收益领取机制</b>：卖出所得改为服务端待领账本（market_payouts），上线时+每60秒自动领取——修复"卖家在线时收益被自动云存档覆盖丢失"的问题；买入函数不再直接写卖家存档。</p>
-<p><span class="verTag">v1.21</span><b>玩家交易市场一期</b>：市场页新增玩家市场（挂单制：挂售/买入/撤单/我的挂单管理/📡实时订阅/筛选）；服务端RPC事务撮合（行锁防双花、2%税、20挂单上限、可交易白名单）；交易后自动从云端同步存档；修复v1.20点金动作语法错误。</p>
-<p><span class="verTag">v1.20</span><b>修行系统+生存改版</b>：批量分解扩展到神器~混沌；材料合成(4合1)/分解(1拆4)；宝石Lv30；附魔移除；内丹（Lv100每级+0.5%）+翅膀（12阶每阶+5%）转生保留；减伤比值制+血量1.6次幂。</p>
-<p><span class="verTag">v1.19</span><b>自动锻造范围调整</b>：仅对背包装备生效。</p>
-<p><span class="verTag">v1.18</span><b>品质/档位/材料大扩展</b>。</p>
-<p><span class="verTag">v1.17</span><b>自动锻造与账号充值</b>。</p>
-<p><span class="verTag">v1.16</span><b>右键锻造与无敌药水</b>。</p>
-<p><span class="verTag">v1.15</span><b>管理员账号回档</b>。</p>
-<p><span class="verTag">v1.14</span><b>属性面板与宝石经济</b>。</p>
-<p><span class="verTag">v1.13</span><b>宝石合成与单点登录</b>。</p>
-<p><span class="verTag">v1.12</span><b>掉率曲线修正</b>。</p>
-<p><span class="verTag">v1.11</span><b>掉落与成长重平衡</b>。</p>
-<p><span class="verTag">v1.10</span><b>全局配置与管理员</b>。</p>
-<p><span class="verTag">v1.9</span><b>修仙怪物与神水</b>。</p>
-<p><span class="verTag">v1.8</span><b>数值自定义</b>。</p>
-<p><span class="verTag">v1.7</span><b>无尽重做</b>。</p>
-<p><span class="verTag">v1.6</span><b>特殊属性</b>。</p>
-<p><span class="verTag">v1.5</span><b>价格档次重制</b>。</p>
-<p><span class="verTag">v1.4</span><b>移动端适配</b>。</p>
-<p><span class="verTag">v1.3</span><b>云存档与账号</b>。</p>
-<p><span class="verTag">v1.2</span><b>并行通道</b>。</p>
-<p><span class="verTag">v1.1</span><b>装备体系</b>。</p>
-<p><span class="verTag">v1.0</span><b>初始版本</b>。</p></div>`;
+<p><span class="verTag">v1.21.2</span><b>读档自动净化</b>：loadGame内置sanitizeSave——自动清除未知物品ID/失效格子/残缺装备/坏任务（修复背包点不开的渲染崩溃）；渲染层加兜底；修复已知市场挂单时"材料不足"误判提示的问题。</p>
+<p><span class="verTag">v1.21.1</span><b>市场收益领取机制</b>：卖出所得改为服务端待领账本（market_payouts），上线时+每60秒自动领取——修复"卖家在线时收益被自动云存档覆盖丢失"的问题。</p>
+<p><span class="verTag">v1.21</span><b>玩家交易市场一期</b>：挂单制交易（挂售/买入/撤单/实时订阅）；服务端RPC事务撮合；修复点金动作语法错误。</p>
+<p><span class="verTag">v1.20</span><b>修行系统+生存改版</b>：内丹+翅膀；材料合成/分解；宝石Lv30；减伤比值制。</p>
+<p><span class="verTag">v1.19~v1.0</span>：自动锻造、品质/档位扩展、管理员系统、无尽模式、装备体系等迭代。</p></div>`;
   }
   return h;
 }
@@ -2730,6 +2733,8 @@ function renderPanel() {
         h += `<div class="cell ${selSlot===k?"sel":""} ${e.lock?"locked":""}" onclick="selSlot='${k}';renderPanel()" oncontextmenu="openEqMenu('${k}',event)" title="${e.n} +${e.plus}【${RARE_NAMES[e.rare]}】${e.lock?"（已锁定）":""}" style="border-color:${rc}77"><span class="idx">${c+1}</span><span class="ic">${EQIC[e.slot]||"⚔️"}</span><span class="cnt" style="color:${rc}">${e.lock?"🔒":""}${e.auto&&e.auto.on?"🎯":""}+${e.plus}${gemCount(e)?"💎"+gemCount(e):""}</span></div>`;
       } else {
         const it = IT[v];
+        /* ★ v1.21.2 兜底：未知物品渲染为异常格，不崩页面 */
+        if (!it) { h += `<div class="cell" onclick="delete S.slotMap['${k}'];renderPanel()" title="异常数据（点击清除）"><span class="idx">${c+1}</span><span class="ic">⚠️</span><span class="cnt" style="color:#f66">点我清</span></div>`; continue; }
         h += `<div class="cell ${selSlot===k?"sel":""}" onclick="selSlot='${k}';renderPanel()" title="${it.n}×${bagN(v)}"><span class="idx">${c+1}</span><span class="ic">${it.ic}</span><span class="cnt">${bagN(v)}</span></div>`;
       }
     }
@@ -2901,7 +2906,6 @@ function renderPanel() {
         +`<td>${bagN(id)||0}</td></tr>`;
     }
     h += `</table>`;
-    /* ★ v1.21.1：玩家交易市场（含收益领取说明） */
     h += pmUI();
   }
   else if (tab === 6) {
@@ -2959,7 +2963,8 @@ function renderPanel() {
   else if (tab === 8) {
     h += `<div class="row"><span class="name">🎖️ 任务徽章 +${S.badge}/9</span> <button class="act sm" onclick="upBadge();renderPanel()">升级</button> <button class="act sm" onclick="refreshTasks(false);renderPanel()">刷新任务板</button></div>`;
     S.tasks.forEach((t,i)=>{
-      h += `<div class="row"><span class="name">${IT[t.id].ic} 上交 ${IT[t.id].n}×${t.qty}</span><span class="info">奖 ${t.gold}💰 +${t.token}🪙${t.box?" +🎁":""}｜库存${bagN(t.id)}/${t.qty}</span><button class="act sm" onclick="doTask(${i});renderPanel()">完成</button></div>`;
+      const it = IT[t.id]; if (!it) return;
+      h += `<div class="row"><span class="name">${it.ic} 上交 ${it.n}×${t.qty}</span><span class="info">奖 ${t.gold}💰 +${t.token}🪙${t.box?" +🎁":""}｜库存${bagN(t.id)}/${t.qty}</span><button class="act sm" onclick="doTask(${i});renderPanel()">完成</button></div>`;
     });
     if (!S.tasks.length) refreshTasks(true);
   }
@@ -3003,6 +3008,7 @@ function renderPanel() {
     h += `<div class="hint">当前账号：<b style="color:#ffd479">${CUR==="guest"?"游客":CUR}</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}｜云端：<b class="${CLOUD_ON()?"cloudOk":"cloudNo"}">${CLOUD_ON()?"已连接":"未连接"}</b>｜<b style="color:#8af">单点登录：同账号他处登录时本机自动下线</b>｜🤝玩家市场需注册账号</div>`
       +`<div class="row"><span class="name">☁️ 立即同步云端</span><button class="act sm" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="cloudSave()">上传</button></div>`
       +`<div class="row"><span class="name">🤝 立即领取市场收益</span><button class="act sm" style="background:#5cf" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="claimMarket()">领取</button></div>`
+      +`<div class="row"><span class="name">🔧 手动净化存档</span><button class="act sm" style="background:#a6f" onclick="sanitizeSave();migrateBag();saveGame();renderPanel()">立即执行</button></div>`
       +`<div class="row"><span class="name">🚪 退出并切换账号</span><button class="act sm" onclick="logout()">退出登录</button></div>`
       +`<div class="row"><span class="name">💾 导出存档</span><button class="act sm" onclick="exportSave()">导出</button></div>`
       +`<div class="row"><span class="name">📂 导入存档</span><button class="act sm" style="background:#a6f" onclick="document.getElementById('saveFile').click()">导入</button></div>`;
@@ -3216,7 +3222,7 @@ function salvageEq(eqUid) {
     delete S.slotMap[k];
     if (selSlot === k) selSlot = null;
     let full = false;
-    for (const mk in mats) { if (!addIt(mats[mk], mats[mk])) { full = true; log(`🎒 ${IT[mk].n} 部分未能入包`); } }
+    for (const mk in mats) { if (!addIt(mk, mats[mk])) { full = true; log(`🎒 ${IT[mk].n} 部分未能入包`); } }
     log(`⚒️ 分解 ${RARE_NAMES[e.rare]} ${e.n} → ${matsSummary(mats)}${full?"（背包部分已满）":""}`);
     renderPanel(); return;
   }
