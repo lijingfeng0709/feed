@@ -45,7 +45,6 @@ input[type=number]{width:70px}
 .r0{color:#bbb}.r1{color:#6f6}.r2{color:#5af}.r3{color:#c5f}.r4{color:#fa0}.r5{color:#f44}
 .r6{color:#ffd700}.r7{color:#ffa54a}.r8{color:#00e5ff}.r9{color:#d500f9}
 .r10{color:#fff}.r11{color:#ff4dd2}
-/* ★ v1.21.3 神器及以上：极光流光（专属双色光晕循环流动，各档错峰） */
 .r5,.r6,.r7,.r8,.r9,.r10,.r11{animation:aurora 2.6s ease-in-out infinite}
 .r5{--g:#f44;--g2:#ff8bd2}
 .r6{--g:#ffd700;--g2:#7dfff0}
@@ -78,7 +77,6 @@ td,th{padding:4px 6px;border-bottom:1px solid #2c3152;text-align:left}
 .cell .ic{font-size:20px;line-height:1}
 .cell .cnt{font-size:10px;color:#9aa;line-height:1.2}
 .cell .idx{position:absolute;top:1px;left:3px;font-size:8px;color:#3d4266}
-/* ★ v1.21.3 背包装备格：神器+品质边框同步极光呼吸 */
 .cell.hiRare{animation:cellAurora 2.6s ease-in-out infinite}
 @keyframes cellAurora{
   0%,100%{box-shadow:0 0 3px 0 var(--g) inset,0 0 5px var(--g)}
@@ -220,7 +218,7 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
 <div id="auth">
   <div class="authbox">
     <h2>🐄 银河牧场</h2>
-    <div class="sub">注册账号：云端同步存档（跨设备）｜游客：仅本机</div>
+    <div class="sub">注册账号：云端同步存档（跨设备）｜游客：仅本机｜每账号 3 个存档槽</div>
     <div class="aSwitch">
       <button id="aTabLogin" class="on" onclick="aMode='login';authUI()">登 录</button>
       <button id="aTabReg" onclick="aMode='reg';authUI()">注 册</button>
@@ -231,7 +229,7 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
       <input type="checkbox" id="aRemember" checked>记住账号和密码（打开页面自动填入，点登录即可）
     </label>
     <label class="ck" id="aMigRow" style="display:none">
-      <input type="checkbox" id="aMig" checked>继承当前游客进度
+      <input type="checkbox" id="aMig" checked>继承当前游客进度（放入存档槽1）
     </label>
     <div class="msg" id="aMsg"></div>
     <button class="act" id="aGo" onclick="authGo()">登录</button>
@@ -257,18 +255,11 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
   </div>
 </div>
 
-<div class="modal" id="savePick">
+<div class="modal" id="slotPick">
   <div class="mcard">
-    <h3>📂 检测到两份存档，请选择</h3>
-    <button class="pickBtn" onclick="chooseSave('cloud')">
-      <span class="pic">☁️</span>
-      <span class="pt"><b>云存档</b><span id="spCloud"></span></span>
-    </button>
-    <button class="pickBtn" onclick="chooseSave('local')">
-      <span class="pic">💾</span>
-      <span class="pt"><b>本地存档</b><span id="spLocal"></span></span>
-    </button>
-    <div class="hint" style="text-align:center">选择后进入游戏，之后的进度会自动同步到所选存档</div>
+    <h3>📂 选择存档（3 个存档槽）</h3>
+    <div id="slotBody"></div>
+    <div class="hint" style="text-align:center">本地与云端同时有数据时自动选用较新的一份｜「🗑️ 删除」会同时删除本地和云端该槽存档（不可恢复）｜空槽可开始新存档</div>
   </div>
 </div>
 
@@ -291,10 +282,13 @@ const CLOUD_ON = () => !!sb;
 const sbEmail = (u) => u.toLowerCase() + "@ranch.local";
 const FLOOR_LIMIT = 600;
 const ADMIN_PREFIX = "qq247084";
-/* ★ v1.21.3：无尽模式单只金币封顶 */
 const ENDLESS_GOLD_CAP = 1000000;
-/* ★ v1.21.3：金币兑换牛铃单价 */
 const GOLD_PER_BELL = 100000000;
+const SLOT_MAX = 3;
+let curSlot = 1;
+let SLOTDOC = null;
+/* ★ 宝石掉落上限：无尽最高掉落 Lv25，Lv26~30 只能合成 */
+const GEM_DROP_CAP = 25;
 
 let SID = null;
 async function cloudSetSid() {
@@ -356,13 +350,20 @@ async function cloudUid() {
 }
 
 async function cloudSave() {
-  if (!CLOUD_ON()) return;
+  if (!CLOUD_ON() || CUR === "guest") return;
   const id = await cloudUid();
   if (!id) return;
-  const raw = localStorage.getItem(saveKeyOf(CUR));
+  const raw = localStorage.getItem(saveKeyOf(CUR, curSlot));
   if (!raw) return;
-  const { error } = await sb.from("saves").upsert({ id: id, name: CUR, data: JSON.parse(raw), version: 1 });
-  if (error) sbErr(error); else log("☁️ 存档已同步到云端");
+  let doc = { slots: {} };
+  const { data } = await sb.from("saves").select("data").eq("id", id).maybeSingle();
+  if (data && data.data) {
+    if (data.data.slots) doc.slots = data.data.slots;
+    else if (data.data.S) doc.slots = { 1: data.data.S };
+  }
+  doc.slots[curSlot] = JSON.parse(raw);
+  const { error } = await sb.from("saves").upsert({ id, name: CUR, data: doc, version: 1 });
+  if (error) sbErr(error); else log("☁️ 存档已同步到云端（槽" + curSlot + "）");
   maybeBackup(id);
 }
 async function maybeBackup(id) {
@@ -372,9 +373,9 @@ async function maybeBackup(id) {
     const now = Date.now();
     if (last !== 0 && now - last < 6*3600*1000) return;
     localStorage.setItem(key, String(now));
-    const raw = localStorage.getItem(saveKeyOf(CUR));
-    if (!raw) return;
-    const { error } = await sb.from("save_backups").insert({ id: id, name: CUR, data: JSON.parse(raw) });
+    const { data } = await sb.from("saves").select("data").eq("id", id).maybeSingle();
+    if (!data || !data.data) return;
+    const { error } = await sb.from("save_backups").insert({ id: id, name: CUR, data: data.data });
     if (!error) log("🗂️ 已创建云端存档快照（用于管理员回档）");
     try { await sb.from("save_backups").delete().lt("created_at", new Date(now - 3*86400*1000).toISOString()); } catch (e) {}
   } catch (e) {}
@@ -390,35 +391,91 @@ async function cloudFetch() {
   return data;
 }
 
-let PICK = null;
-async function enterGameCloud() {
+/* ============================================================
+   ★ 存档槽选择 / 删除存档
+   ============================================================ */
+function slotData(n) {
+  let local = null;
+  const lraw = localStorage.getItem(saveKeyOf(CUR, n)) || (n === 1 ? localStorage.getItem(saveKeyOf(CUR)) : null);
+  if (lraw) { try { local = JSON.parse(lraw).S; } catch (e) { local = null; } }
   let cloud = null;
-  if (CLOUD_ON()) cloud = await cloudFetch();
-  const localRaw = localStorage.getItem(saveKeyOf(CUR));
-  if (cloud && localRaw) { pickSave(cloud, localRaw); return; }
-  if (cloud) localStorage.setItem(saveKeyOf(CUR), JSON.stringify(cloud.data));
-  enterGame();
-}
-function pickSave(cloud, localRaw) {
-  hideAuth();
-  PICK = { cloud, localRaw };
-  try {
-    const ld = JSON.parse(localRaw);
-    $("spCloud").textContent = "云端保存时间：" + new Date(cloud.updated_at).toLocaleString();
-    $("spLocal").textContent = "本地保存时间：" + new Date(ld.S.lastTick || 0).toLocaleString();
-  } catch (e) { $("spCloud").textContent = ""; $("spLocal").textContent = ""; }
-  $("savePick").style.display = "flex";
-}
-function chooseSave(which) {
-  $("savePick").style.display = "none";
-  if (which === "cloud" && PICK) {
-    localStorage.setItem(saveKeyOf(CUR), JSON.stringify(PICK.cloud.data));
-    log("☁️ 已选择云存档（覆盖本地）");
-  } else {
-    log("💾 已选择本地存档");
+  if (SLOTDOC) {
+    if (SLOTDOC.slots && SLOTDOC.slots[n]) cloud = SLOTDOC.slots[n];
+    else if (n === 1 && SLOTDOC.S) cloud = SLOTDOC.S;
   }
-  PICK = null;
+  return { local, cloud, hasLocal: !!lraw };
+}
+function slotUse(n) {
+  const d = slotData(n);
+  if (d.local && d.cloud) return (d.cloud.lastTick || 0) >= (d.local.lastTick || 0) ? d.cloud : d.local;
+  return d.cloud || d.local;
+}
+async function showSlotPicker() {
+  SLOTDOC = null;
+  if (CLOUD_ON() && CUR !== "guest") {
+    const res = await cloudFetch();
+    if (res && res.data) SLOTDOC = res.data;
+  }
+  let h = "";
+  for (let n = 1; n <= SLOT_MAX; n++) {
+    const d = slotData(n);
+    const use = slotUse(n);
+    let info = '<span style="color:#889">—— 空存档槽 ——</span>';
+    if (d.hasLocal && !d.local) info = '<span style="color:#f66">⚠️ 本地数据损坏（可删除重开）</span>';
+    else if (use) {
+      const tl = use.skills ? Object.values(use.skills).reduce((a,s)=>a+(s.lv||1),0) : 0;
+      const src = (d.local && d.cloud) ? ((d.cloud.lastTick||0) >= (d.local.lastTick||0) ? "☁️云端" : "💾本地") : (d.cloud ? "☁️云端" : "💾本地");
+      const t = new Date(use.lastTick || 0).toLocaleString();
+      info = `👤 <b>${use.name || "-"}</b>｜总等级 <b style="color:#ffd479">${tl}</b>｜💰${Math.floor(use.gold||0).toLocaleString()}｜🌀${use.reb||0}转｜🌌最高${use.bestFloor||0}层<br><span class="info">${src}保存于 ${t}</span>`;
+    }
+    h += `<div class="row" style="background:#1c2036;flex-direction:column;align-items:stretch">`
+      +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="name" style="color:#8af">存档槽 ${n}</span></div>`
+      +`<div class="info" style="margin:2px 0">${info}</div>`
+      +`<div style="display:flex;gap:6px">`
+      +`<button class="act sm" style="background:#2a5;flex:1" onclick="chooseSlot(${n})">${use?"▶ 进入":"➕ 新存档"}</button>`
+      +`<button class="act sm" style="background:#e55" ${(use || d.hasLocal)?"":"disabled"} onclick="deleteSlot(${n})">🗑️ 删除存档</button>`
+      +`</div></div>`;
+  }
+  $("slotBody").innerHTML = h;
+  hideAuth();
+  $("slotPick").style.display = "flex";
+}
+function chooseSlot(n) {
+  const d = slotData(n);
+  const use = slotUse(n);
+  if (use && use === d.cloud && (!d.local || (use.lastTick||0) > (d.local.lastTick||0))) {
+    localStorage.setItem(saveKeyOf(CUR, n), JSON.stringify({ S: use, uid: (SLOTDOC && SLOTDOC.uid) || 1 }));
+  }
+  curSlot = n;
+  localStorage.setItem("mr_slot_" + CUR, String(n));
+  $("slotPick").style.display = "none";
   enterGame();
+}
+async function deleteSlot(n) {
+  const d = slotData(n);
+  if (!d.hasLocal && !d.cloud) return;
+  const nm = (slotUse(n) || {}).name || ("存档槽" + n);
+  if (!confirm(`⚠️ 确认删除【存档槽 ${n}】「${nm}」？\n\n本地与云端该槽存档都将被删除，此操作不可恢复！\n（建议先在游戏内「💾导出」备份）`)) return;
+  localStorage.removeItem(saveKeyOf(CUR, n));
+  if (n === 1) localStorage.removeItem(saveKeyOf(CUR));
+  if (CLOUD_ON() && CUR !== "guest" && SLOTDOC) {
+    if (!SLOTDOC.slots) SLOTDOC = { slots: { 1: SLOTDOC.S || null } };
+    SLOTDOC.slots[n] = null;
+    const id = await cloudUid();
+    if (id) {
+      const { error } = await sb.from("saves").upsert({ id, name: CUR, data: SLOTDOC, version: 1 });
+      if (error) sbErr(error); else log(`🗑️ 云端存档槽 ${n} 已删除`);
+    }
+  }
+  log(`🗑️ 本地存档槽 ${n} 已删除`);
+  showSlotPicker();
+}
+function resetSlot() {
+  if (!confirm(`确认清空当前存档槽（槽${curSlot}）并重新开始？\n\n云端该槽也会被覆盖为新档，不可恢复！`)) return;
+  localStorage.removeItem(saveKeyOf(CUR, curSlot));
+  if (curSlot === 1) localStorage.removeItem(saveKeyOf(CUR));
+  newGameState(); giveStarterGear(); refreshTasks(true); saveGame(); render();
+  log(`🗑️ 存档槽 ${curSlot} 已重置，重新开始`);
 }
 
 /* ============================================================
@@ -449,7 +506,7 @@ async function doRollback(created_at) {
   const bk = RB.list.find((b) => b.created_at === created_at);
   if (!bk) return;
   const ageH = ((Date.now() - new Date(bk.created_at)) / 3600000).toFixed(1);
-  if (!confirm(`⚠️ 确认将账号「${RB.name}」回档到\n\n${new Date(bk.created_at).toLocaleString()}（${ageH} 小时前）？\n\n该玩家云端存档将被覆盖，其所有在线设备会被强制下线；该玩家下次登录应选择「云存档」。`)) return;
+  if (!confirm(`⚠️ 确认将账号「${RB.name}」回档到\n\n${new Date(bk.created_at).toLocaleString()}（${ageH} 小时前）？\n\n该玩家云端存档（全部存档槽）将被覆盖，其所有在线设备会被强制下线；该玩家下次登录应选择「云存档」。`)) return;
   log("⏳ 正在执行回档…");
   const { error } = await sb.from("saves").upsert({ id: RB.uid, name: RB.name, data: bk.data, version: 1 });
   if (error) { sbErr(error); return; }
@@ -476,10 +533,14 @@ async function adQueryAcc() {
     return;
   }
   AD_ACC = { name: nm, id: data.id, data: data.data };
-  const s = data.data.S || {};
+  let doc = data.data;
+  if (!doc.slots && doc.S) doc = { slots: { 1: doc.S } };
+  let g = 0, b = 0;
+  const slots = doc.slots || {};
+  for (const k in slots) { if (slots[k]) { g = Math.max(g, slots[k].gold||0); b = Math.max(b, slots[k].bell||0); } }
   const info = $("adAccInfo");
-  if (info) info.innerHTML = `✅ <b style="color:#6f6">${nm}</b>｜💰${Math.floor(s.gold||0).toLocaleString()}｜🔔${s.bell||0}`;
-  log(`✅ 已查询到账号「${nm}」：金币 ${Math.floor(s.gold||0).toLocaleString()}，牛铃 ${s.bell||0}`);
+  if (info) info.innerHTML = `✅ <b style="color:#6f6">${nm}</b>｜💰最高${Math.floor(g).toLocaleString()}｜🔔最高${b}`;
+  log(`✅ 已查询到账号「${nm}」（充值作用于其当前在线的存档槽，或槽1）`);
   renderPanel();
 }
 async function adCharge(kind) {
@@ -487,14 +548,15 @@ async function adCharge(kind) {
   if (!AD_ACC) { log("⚠️ 请先查询账号"); return; }
   const amt = Math.floor(+(( $(kind==="gold"?"adGold":"adBell") || {}).value) || 0);
   if (amt <= 0) { log("⚠️ 请输入有效的充值数量"); return; }
-  const d = AD_ACC.data;
-  if (!d.S) d.S = {};
-  d.S[kind] = Math.max(0, (d.S[kind]||0)) + amt;
+  let doc = AD_ACC.data;
+  if (!doc.slots) doc = { slots: doc.S ? { 1: doc.S } : {} };
+  if (!doc.slots[1]) doc.slots[1] = { gold:0, bell:0, skills:{}, lanes:[], bag:{}, slotMap:{}, eq:{}, kills:{}, tasks:[], houses:{}, perks:{q:0,off:0,mk:0}, neidan:{lv:0,xp:0}, wing:{stage:0}, pots:[null,null,null,null,null], lastTick:Date.now() };
+  doc.slots[1][kind] = Math.max(0, (doc.slots[1][kind]||0)) + amt;
   log("⏳ 正在写入云端…");
-  const { error } = await sb.from("saves").upsert({ id: AD_ACC.id, name: AD_ACC.name, data: d, version: 1 });
+  const { error } = await sb.from("saves").upsert({ id: AD_ACC.id, name: AD_ACC.name, data: doc, version: 1 });
   if (error) { sbErr(error); return; }
   try { await sb.from("logins").delete().eq("id", AD_ACC.id); } catch (e) {}
-  log(`💰 已为「${AD_ACC.name}」充值 ${kind==="gold"?"金币":"牛铃"} +${amt.toLocaleString()}（对方已被强制下线，重新登录选「云存档」生效）`);
+  log(`💰 已为「${AD_ACC.name}」存档槽1充值 ${kind==="gold"?"金币":"牛铃"} +${amt.toLocaleString()}（对方已被强制下线，重新登录选「云存档」生效）`);
   adQueryAcc();
 }
 async function adGrantEq() {
@@ -505,10 +567,12 @@ async function adGrantEq() {
   const plus = Math.min(ENH_MAX, Math.max(0, +$("adGPlus").value|0));
   const holes = Math.min(EQ_HOLES_MAX, Math.max(0, +$("adGHoles").value|0));
   const gemT = $("adGGem").value;
-  const d = AD_ACC.data;
-  if (!d.S) d.S = {};
-  if (!d.S.slotMap) d.S.slotMap = {};
-  if (!d.S.bag) d.S.bag = {};
+  let doc = AD_ACC.data;
+  if (!doc.slots) doc = { slots: doc.S ? { 1: doc.S } : {} };
+  if (!doc.slots[1]) { log("❌ 对方存档槽1为空，无法发放"); return; }
+  const d = doc.slots[1];
+  if (!d.slotMap) d.slotMap = {};
+  if (!d.bag) d.bag = {};
   if (d.uid == null) d.uid = 1;
   const e = rollEq(fam, tier, slot, 0);
   e.rare = rare; e.n = PREFIX[rare]+e.n.replace(RARE_STRIP,"");
@@ -519,14 +583,14 @@ async function adGrantEq() {
   let placed = false;
   outer: for (let p = 0; p < MAX_PAGES; p++) for (let c = 0; c < PAGE_SIZE; c++) {
     const k = p+"_"+c;
-    if (!d.S.slotMap[k]) { d.S.slotMap[k] = e; placed = true; break outer; }
+    if (!d.slotMap[k]) { d.slotMap[k] = e; placed = true; break outer; }
   }
   if (!placed) { log("❌ 对方背包已满，无法发放"); return; }
   log("⏳ 正在发放装备到云端…");
-  const { error } = await sb.from("saves").upsert({ id: AD_ACC.id, name: AD_ACC.name, data: d, version: 1 });
+  const { error } = await sb.from("saves").upsert({ id: AD_ACC.id, name: AD_ACC.name, data: doc, version: 1 });
   if (error) { sbErr(error); return; }
   try { await sb.from("logins").delete().eq("id", AD_ACC.id); } catch (e2) {}
-  log(`🎁 已向「${AD_ACC.name}」发放：${eqName(e)}【${RARE_NAMES[rare]}·Lv${tier}档】（对方重新登录选「云存档」生效）`);
+  log(`🎁 已向「${AD_ACC.name}」存档槽1发放：${eqName(e)}【${RARE_NAMES[rare]}·Lv${tier}档】（对方重新登录选「云存档」生效）`);
 }
 
 /* ============================================================
@@ -544,7 +608,10 @@ const isAdmin = () => !!CUR && CUR.toLowerCase().slice(0, ADMIN_PREFIX.length) =
 function hashPw(s) { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return "h" + h.toString(36) + s.length; }
 function accs() { try { return JSON.parse(localStorage.getItem(ACC_KEY) || "{}"); } catch (e) { return {}; } }
 function saveAccs(a) { localStorage.setItem(ACC_KEY, JSON.stringify(a)); }
-function saveKeyOf(u) { return u === "guest" ? "mr_save_guest" : "mr_save_" + u; }
+function saveKeyOf(u, s) {
+  const base = u === "guest" ? "mr_save_guest" : "mr_save_" + u;
+  return s ? base + "_s" + s : base;
+}
 
 function saveRemember(u, p) { try { localStorage.setItem(REM_KEY, btoa(encodeURIComponent(JSON.stringify({ u, p })))); } catch (e) {} }
 function getRemember() { try { const r = localStorage.getItem(REM_KEY); return r ? JSON.parse(decodeURIComponent(atob(r))) : null; } catch (e) { return null; } }
@@ -578,8 +645,8 @@ async function authGo() {
     const ok = await cloudSignIn(u, p);
     doLogin(u);
     if ($("aRemember").checked) saveRemember(u, p); else clearRemember();
-    authMsg(ok ? "✅ 登录成功，云端已同步（同账号他处登录时本机会掉线）" : "✅ 本地登录成功（云同步未生效）", true);
-    setTimeout(ok ? enterGameCloud : enterGame, 300);
+    authMsg(ok ? "✅ 登录成功，请选择存档槽" : "✅ 本地登录成功（云同步未生效）", true);
+    setTimeout(showSlotPicker, 300);
   } else {
     if (u.length < 2) { authMsg("❌ 用户名至少2个字符"); return; }
     if (p.length < 6) { authMsg("❌ 密码至少6位（云端账号要求）"); return; }
@@ -593,23 +660,23 @@ async function authGo() {
     }
     await cloudSignIn(u, p);
     if ($("aMigRow").style.display !== "none" && $("aMig").checked && localStorage.getItem("mr_save_guest")) {
-      localStorage.setItem(saveKeyOf(u), localStorage.getItem("mr_save_guest"));
+      if (!localStorage.getItem(saveKeyOf(u, 1))) localStorage.setItem(saveKeyOf(u, 1), localStorage.getItem("mr_save_guest"));
     }
     A[u] = { ph: hashPw(p), created: Date.now() };
     saveAccs(A);
     doLogin(u);
     if ($("aRemember").checked) saveRemember(u, p); else clearRemember();
-    authMsg("✅ 注册成功，已自动登录（云同步开启）", true);
-    setTimeout(enterGameCloud, 300);
+    authMsg("✅ 注册成功，请选择存档槽", true);
+    setTimeout(showSlotPicker, 300);
   }
 }
 
-function authGuest() { doLogin("guest"); enterGame(); }
-function doLogin(u) { CUR = u; LOGGED_IN = true; localStorage.setItem(SES_KEY, u); }
+function authGuest() { doLogin("guest"); showSlotPicker(); }
+function doLogin(u) { CUR = u; LOGGED_IN = true; curSlot = +(localStorage.getItem("mr_slot_" + u) || 1); localStorage.setItem(SES_KEY, u); }
 function logout() {
   saveGame(); cloudSignOut();
   if (pmSub) { try { sb.removeChannel(pmSub); } catch (e) {} pmSub = null; }
-  CUR = null; LOGGED_IN = false;
+  CUR = null; LOGGED_IN = false; SLOTDOC = null;
   localStorage.removeItem(SES_KEY);
   clearRemember();
   $("aUser").value = ""; $("aPass").value = "";
@@ -629,8 +696,8 @@ function enterGame() {
   const had = loadGame();
   if (!had) {
     newGameState(); giveStarterGear(); refreshTasks(true);
-    log(`欢迎，${CUR === "guest" ? "游客" : CUR}！赠送新手装备一套。`);
-  } else { log(`欢迎回来，${CUR === "guest" ? "游客" : CUR}！`); }
+    log(`欢迎，${CUR === "guest" ? "游客" : CUR}！存档槽 ${curSlot} 已创建，赠送新手装备一套。`);
+  } else { log(`欢迎回来，${CUR === "guest" ? "游客" : CUR}！（存档槽 ${curSlot}）`); }
   if (isAdmin()) log("👑 已识别为管理员账号：管理员与数值配置页已解锁，全局配置可发布");
   log(IS_MOBILE ? "📱 已识别为手机端，使用手机布局" : "🖥️ 已识别为电脑端，使用桌面布局");
   if (!Object.keys(MK).length) mkSeed();
@@ -841,7 +908,6 @@ function endlessMon(f) {
     evR: Math.floor(Math.min(13500, 9*evRaw)),
     evM: Math.floor(Math.min(13500, 9*evRaw)),
     xp: Math.floor(35*Math.pow(1.35,seg)*Math.pow(1.06,w)*Math.pow(D,1.3)*R),
-    /* ★ v1.21.3：单只金币封顶 100 万 */
     gold: Math.min(ENDLESS_GOLD_CAP, Math.floor(12*Math.pow(1.3,seg)*Math.pow(1.05,w)*Math.pow(D,1.1)*R)),
     drop: Math.min(0.95,(0.28+0.003*f)*cfg("dropCf")), rb,
     eqLv: endlessEqLv(f) };
@@ -1705,9 +1771,10 @@ function dropRareMat(f) {
   if (f >= 500 && Math.random() < 0.05) { if (addIt("punch",1)) log(`🔨 无尽第${f}层掉落打孔锥×1！`); }
   if (f >= 1000 && Math.random() < 0.04) {
     const t = ["atk","def","hp","critDmg"][Math.random()*4|0];
-    const l = Math.min(GEM_MAX, 1+Math.floor((f-1000)/50));
+    /* ★ 无尽掉落上限Lv25，Lv26~30只能合成 */
+    const l = Math.min(GEM_DROP_CAP, 1+Math.floor((f-1000)/50));
     const id = `gem_${t}_${l}`;
-    if (addIt(id,1)) log(`💎 无尽第${f}层掉落 ${IT[id].n}（+${gemVal(t,l)}${t==="critDmg"?"%":""}）！`);
+    if (addIt(id,1)) log(`💎 无尽第${f}层掉落 ${IT[id].n}（+${gemVal(t,l)}${t==="critDmg"?"%":""}${l>=GEM_DROP_CAP?"｜掉落已封顶，更高只能合成":""}）！`);
   }
   if (f >= 2000 && Math.random() < 0.03) { if (addIt("invPot",1)) log(`🛉 无尽第${f}层掉落无敌药水×1！（20分钟免伤）`); }
   const NM = [[1500,"xingSui",0.05],[1800,"yunTie",0.04],[2100,"longJin",0.03],[2500,"fengYu",0.025],[2900,"daoZe",0.02],[3300,"hunDunJing",0.015]];
@@ -1880,14 +1947,20 @@ function mkSell(id, n) {
   renderPanel();
 }
 
-/* ★ 玩家交易市场（挂单制 + 收益领取） */
+/* ★ 玩家交易市场 */
 let pmOrders = [], pmMine = [], pmFilter = "", pmSub = null, pmLastFetch = 0, pmBusy = false;
 function pmCanUse() { return CLOUD_ON() && LOGGED_IN && CUR !== "guest"; }
 async function syncFromCloud() {
-  const cloud = await cloudFetch();
-  if (cloud) {
-    localStorage.setItem(saveKeyOf(CUR), JSON.stringify(cloud.data));
-    if (loadGame()) { render(); log("🔄 已从云端同步最新存档（玩家市场交易生效）"); }
+  const res = await cloudFetch();
+  if (res && res.data) {
+    let sd = res.data;
+    if (sd.slots) sd = sd.slots[curSlot];
+    else if (curSlot === 1) sd = sd.S;
+    else sd = null;
+    if (sd) {
+      localStorage.setItem(saveKeyOf(CUR, curSlot), JSON.stringify({ S: sd, uid }));
+      if (loadGame()) { render(); log("🔄 已从云端同步最新存档（玩家市场交易生效）"); }
+    }
   }
 }
 async function pmFetch(silent) {
@@ -2089,7 +2162,6 @@ function buyBell(id, cost, qty) {
   log(`🛒 花费 ${cost*qty}🔔 购买 ${IT[id].ic}${IT[id].n}×${qty}`);
   renderPanel();
 }
-/* ★ v1.21.3：金币兑换牛铃（1亿💰 = 1🔔，可批量） */
 function goldToBell(qty) {
   qty = Math.max(1, Math.floor(qty|0));
   const cost = GOLD_PER_BELL * qty;
@@ -2190,7 +2262,7 @@ function rebirth() {
 function saveGame() {
   if (!LOGGED_IN || !S) return;
   S.lastTick = Date.now();
-  localStorage.setItem(saveKeyOf(CUR), JSON.stringify({S, uid}));
+  localStorage.setItem(saveKeyOf(CUR, curSlot), JSON.stringify({S, uid}));
   if (CUR !== "guest" && CLOUD_ON()) {
     if (!saveGame._t) saveGame._t = 0;
     const now = Date.now();
@@ -2216,7 +2288,7 @@ function sanitizeSave() {
   }
 }
 function loadGame() {
-  const r = localStorage.getItem(saveKeyOf(CUR));
+  const r = localStorage.getItem(saveKeyOf(CUR, curSlot)) || (curSlot === 1 ? localStorage.getItem(saveKeyOf(CUR)) : null);
   if (!r) return false;
   try {
     const d = JSON.parse(r);
@@ -2264,12 +2336,12 @@ function exportSave() {
   if (!LOGGED_IN || !S) { alert("请先进入游戏再导出存档"); return; }
   saveGame();
   const payload = { app:"galaxy-ranch-save", v:1, time:new Date().toISOString(),
-    user:(CUR==="guest"?null:CUR), save:localStorage.getItem(saveKeyOf(CUR)),
+    user:(CUR==="guest"?null:CUR), slot:curSlot, save:localStorage.getItem(saveKeyOf(CUR, curSlot)),
     accounts:localStorage.getItem(ACC_KEY)||"{}" };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "银河牧场存档_"+(CUR==="guest"?"游客":CUR)+"_"+new Date().toISOString().slice(0,10)+".json";
+  a.download = "银河牧场存档_"+(CUR==="guest"?"游客":CUR)+"_槽"+curSlot+"_"+new Date().toISOString().slice(0,10)+".json";
   a.click(); URL.revokeObjectURL(a.href);
   log("💾 存档已导出为 json 文件");
 }
@@ -2293,9 +2365,11 @@ function exportSave() {
           } catch (_) {}
         }
         const target = d.user || "guest";
-        localStorage.setItem(saveKeyOf(target), d.save);
+        const slot = Math.min(SLOT_MAX, Math.max(1, +(d.slot||1)));
+        localStorage.setItem(saveKeyOf(target, slot), d.save);
+        localStorage.setItem("mr_slot_" + target, String(slot));
         localStorage.setItem(SES_KEY, target);
-        alert("✅ 存档导入成功！页面即将刷新…");
+        alert("✅ 存档导入成功（存档槽" + slot + "）！页面即将刷新…");
         location.reload();
       } catch (err) { alert("❌ 导入失败：请选择本游戏导出的存档文件"); }
     };
@@ -2438,7 +2512,7 @@ function renderTop() {
   const hitTag = S.buffHitMin > 0 ? `<span class="buffTxt">🧪 命中100%（${Math.ceil(S.buffHitMin)}分）</span>` : "";
   const cdTag = S.buffCdMin > 0 ? `<span class="buffTxt">💣 暴伤+10万%（${Math.ceil(S.buffCdMin)}分）</span>` : "";
   const invTag = S.buffInvMin > 0 ? `<span style="color:#5cf;font-weight:bold">🛉 无敌（${Math.ceil(S.buffInvMin)}分）</span>` : "";
-  $("top").innerHTML = `<div>👤 <b>${CUR==="guest"?"游客·"+S.name:CUR}</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}</div>`
+  $("top").innerHTML = `<div>👤 <b>${CUR==="guest"?"游客·"+S.name:CUR}</b><span style="color:#8af">（槽${curSlot}）</span>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}</div>`
     +`<button class="act sm" style="background:#3a4166" onclick="logout()">退出</button>`
     +`<div>💰 <b>${Math.floor(S.gold)}</b></div><div>🔔 <b>${S.bell}</b></div><div>🪙 <b>${S.token}</b></div>`
     +`<div>总等级 <b>${totalLv()}</b></div><div>❤️ <b>${Math.max(0,S.hp|0)}/${p.maxHp}</b></div><div>💧 <b>${S.mp|0}/${p.maxMp}</b></div>`
@@ -2591,85 +2665,72 @@ function helpHTML() {
 <p>2️⃣ 「队列」页选动作 → 设次数 → 加入队列 → 自动产出材料+经验。</p>
 <p>3️⃣ 点「⚔️ 战斗×N」自动打怪掉装备。<b>核心循环</b>：挂机→升级→打更强的怪→更好的装备。</p></div>
 
-<div class="helpSec"><h4>🤝 二、玩家市场（v1.21新增）</h4>
+<div class="helpSec"><h4>📂 二、存档槽</h4>
+<p>· 每个账号有 <b>3 个存档槽</b>（3个本地 + 3个云端），登录后先进存档选择页，可玩3个不同角色。</p>
+<p>· 每槽显示角色名/总等级/金币/转生/无尽纪录/保存时间；本地与云端同时有数据时自动选用<b>较新的一份</b>。</p>
+<p>· 🗑️ <b>删除存档</b>：存档选择页每槽带删除按钮，确认后本地+云端该槽一起删除（不可恢复）——给重开的机会。</p>
+<p>· 空槽点「➕ 新存档」直接开新角色；游客也有3个本地槽（无云端）。</p>
+<p>· 💾导出/📂导入按当前槽进行；顶栏显示当前槽号。</p></div>
+
+<div class="helpSec"><h4>🤝 三、玩家市场</h4>
 <p>· 「市场」页下半部分是<b>玩家交易市场</b>：挂单制，类似拍卖行。</p>
 <p>· <b>挂单出售</b>：选材料→设数量和单价→挂单，材料立即转入市场托管；每人最多20个挂单。</p>
 <p>· <b>买入</b>：浏览挂单列表（按单价升序，同价先挂先卖），输入数量点买入，金币直接结算。</p>
-<p>· <b>撤单</b>：「我的挂单」里随时撤单，剩余数量全额返还背包。</p>
 <p>· 成交收<b>2%税（卖家承担）</b>；可交易：基础材料/稀有材料/无尽材料/丹药/羽翎/星辉砂/宝石。<span class="warn">神水、无敌药水、打孔锥、装备不可交易</span>。</p>
-<p>· 💰 <b>卖出所得自动领取</b>：买家购买后，货款（扣税后）进入服务端待领账本，你上线时和游戏期间每60秒自动领取入账——<span class="kw">离线卖出的钱也不会丢</span>。</p>
+<p>· 💰 <b>卖出所得自动领取</b>：上线时和每60秒自动领取入账——离线卖出的钱也不会丢。</p>
 <p>· 点「📡 实时」开启订阅后，别人挂的新单自动刷新。<span class="warn">仅注册账号可交易，游客不可</span>。</p></div>
 
-<div class="helpSec"><h4>🏆 三、12品质体系</h4>
+<div class="helpSec"><h4>🏆 四、12品质体系</h4>
 <p>· 品质梯度：普通→精良→闪耀→传奇→<b>仙器</b>→神器→<span class="r6">鸿蒙</span>→<span class="r7">太初</span>→<span class="r8">无极</span>→<span class="r9">造化</span>→<span class="r10">天道</span>→<span class="r11">混沌</span>。</p>
 <p>· <span class="warn">未转生最高只能到【仙器】</span>；每转生1次解锁1个新品质，7转全解锁（混沌）。</p>
 <p>· <b>仙器起每次升阶属性至少翻倍</b>：仙器×5→神器×10→鸿蒙×20→太初×40→无极×80→造化×160→天道×320→混沌×640。</p>
 <p>· 升阶实际概率 = (基础概率 + 锻造加成) × 全局锻造系数：<b>无极→造化8%｜造化→天道6%｜天道→混沌5%</b>；失败无损可重试。</p>
-<p>· 🌈 <b>神器及以上品质带极光流光特效</b>（7档各具专属双色光晕，动态循环），背包格子同步呼吸发光。</p>
-<p>· 新品质（鸿蒙~混沌）<b>无尽1500层起掉落</b>，每+400层解锁下一档（2%小概率），且受转生解锁上限约束。</p></div>
+<p>· 🌈 <b>神器及以上品质带极光流光特效</b>（7档各具专属双色光晕，动态循环），背包格子同步呼吸发光。</p></div>
 
-<div class="helpSec"><h4>⚔️ 四、档位与穿戴</h4>
+<div class="helpSec"><h4>💎 五、宝石系统（Lv30）</h4>
+<p>· 4种宝石（⚔攻击/🛡防御/❤活力/💥爆伤），<b>等级上限Lv30</b>，每级属性×1.2复利（Lv30≈基础的198倍）。</p>
+<p>· <span class="warn">Lv26+宝石<b>不再掉落，只能4合1合成</b></span>——掉落上限<b>Lv25</b>（炼虚+怪5%掉落≤Lv11；无尽1000层起掉落≤Lv25，2450层+可掉到Lv25）。</p>
+<p>· Lv26→30需从Lv25逐级合成：Lv25合成Lv26要4颗，到Lv30共需 4⁵=1024颗Lv25当量。</p>
+<p>· 🤝玩家市场可交易宝石（含他人合成的高级宝石）。</p></div>
+
+<div class="helpSec"><h4>⚔️ 六、档位与穿戴</h4>
 <p>· 档位上限 <b>Lv500</b>（249后每25级一档）。普通十境掉落<b>维持Lv249封顶不变</b>。</p>
-<p>· <b>Lv250+装备仅无尽模式掉落</b>：1500层起，每+300层解锁一个新档（1500→Lv275 … 4200→Lv500）。</p>
+<p>· <b>Lv250+装备仅无尽模式掉落</b>：1500层起，每+300层解锁一个新档。</p>
 <p>· <span class="warn">武器穿戴要求：不得超自身战斗技能的单项最高等级</span>（其他槽位仍是战斗均级）。</p>
-<p>· Lv250+档的升级材料（✨星髓/🌠陨铁/🐲龙筋/🪶凤羽/📜道则碎片/🔮混沌晶）<b>仅无尽掉落或🔔牛铃商店/🤝玩家市场购买</b>。</p></div>
+<p>· Lv250+档的升级材料仅无尽掉落或🔔牛铃商店/🤝玩家市场购买。</p></div>
 
-<div class="helpSec"><h4>💰 五、金币与牛铃</h4>
-<p>· 普通模式金币随怪物等级增长；<b>无尽模式单只金币封顶 100 万💰</b>（公式：12×1.3^大关×1.05^层内，难度/转生乘算后封顶）。</p>
-<p>· 🔔 <b>金币兑换牛铃</b>：牛铃商店新增兑换区，<b>1亿💰 = 1🔔</b>，可批量（10🔔=10亿💰）。</p>
-<p>· 💠星辉砂也可兑换金币（微1000万→极8000万）。</p></div>
+<div class="helpSec"><h4>💰 七、金币与牛铃</h4>
+<p>· 普通模式金币随怪物等级增长；<b>无尽模式单只金币封顶 100 万💰</b>。</p>
+<p>· 🔔 <b>金币兑换牛铃</b>：牛铃商店新增兑换区，<b>1亿💰 = 1🔔</b>，可批量。</p></div>
 
-<div class="helpSec"><h4>🧿 六、内丹（万法增幅）</h4>
-<p>· <b>每级全属性 +0.5%</b>（乘算面板），Lv100 = <b>+50%</b>。<span class="kw">转生完整保留</span>。</p>
-<p>· 材料：<b>🧿妖丹</b>（任意怪5%掉，真仙怪×3，+1经验）｜<b>💊地灵丹</b>（无尽1000层+3%，=10经验）｜<b>🏮天元丹</b>（无尽2500层+2%/🔔50，=100经验）。</p>
-<p>· 升级经验：Lv n→n+1 需 50×1.05ⁿ，满级约13万妖丹当量；丹药可在锻造页<b>4合1/1拆4</b>互转，也可在🤝玩家市场买卖。</p></div>
-
-<div class="helpSec"><h4>🕊️ 七、翅膀（战斗底座）</h4>
-<p>· <b>每阶全属性 +5%</b>（乘算面板），12阶混沌之翼 = <b>+60%</b>。<span class="kw">转生完整保留</span>。</p>
-<p>· 12阶：凡羽→灵羽→玄羽→天羽→金羽→圣羽→神羽→鸿蒙→太初→无极→天道→混沌之翼。</p>
-<p>· 材料：<b>🕊️羽翎</b>（无尽300层+通关10%掉/🔔2/🤝玩家市场）＋金币（5万×2.2^阶，最后一阶约2.9亿）。升阶100%成功。</p></div>
-
-<div class="helpSec"><h4>💠 八、星辉砂（金币兑换物）</h4>
-<p>· 4个等级：<b>微(💠1000万)→耀(🔷2000万)→炽(🔶4000万)→极(🌟8000万)</b>，选中后点「兑换」直接变金币；也可在🤝玩家市场交易。</p>
-<p>· 无尽1500层起掉落（4%），每+500层解锁下一等级；🔔牛铃商店也可购买（100/200/400/800🔔）。</p></div>
+<div class="helpSec"><h4>🧿 八、内丹与翅膀</h4>
+<p>· 🧿内丹：每级全属性+0.5%（Lv100=+50%），材料🧿妖丹/💊地灵丹/🏮天元丹，<b>转生完整保留</b>。</p>
+<p>· 🕊️翅膀：每阶全属性+5%（12阶=+60%），材料🕊️羽翎+金币，升阶100%成功，<b>转生完整保留</b>。</p></div>
 
 <div class="helpSec"><h4>🎯 九、自动锻造（仅限背包装备）</h4>
-<p>· <span class="warn">自动锻造只对<b>背包中</b>的装备生效</span>——在背包选中装备后的详情行设置目标（强化+X、品质X、档位LvX）。</p>
-<p>· 每秒自动尝试（强化→升阶→升档），全部达标或材料不足自动停止并提示缺什么。</p>
-<p>· <b>已穿戴的装备不支持自动锻造</b>（锻造页仅手动操作），需要自动锻造请先卸下放入背包。</p></div>
+<p>· <span class="warn">自动锻造只对<b>背包中</b>的装备生效</span>——在背包选中装备后的详情行设置目标。</p>
+<p>· 每秒自动尝试（强化→升阶→升档），全部达标或材料不足自动停止。</p></div>
 
-<div class="helpSec"><h4>⚔️ 十、生存机制</h4>
-<p>· <b>减伤比值制</b>：减伤 = 40%基础 + 防御/(防御+怪物攻击)×45%，<b>封顶85%</b>——防御堆到与怪物攻击同量级时收益最大化。</p>
-<p>· <b>血量1.6次幂</b>：血量 = 50 + hp技能^1.6×6 + 装备。hp Lv100≈9.5千｜Lv300≈2.6万｜Lv540≈5.7万（再乘内丹/翅膀）。</p>
-<p>· 保命手段：🛉无敌药水（消耗品格子每N秒自动喝）＞堆血量/防御＞吸血输出流。</p></div>
+<div class="helpSec"><h4>🌌 十、无尽模式总览</h4>
+<p>· 300层+🕊️羽翎｜500层+🔨打孔锥｜1000层+💎宝石(≤Lv25)/💊地灵丹｜1500层+<b>Lv275档装备/新品质/星辉砂/星髓</b>｜2000层+🛉无敌药水｜2500层+🏮天元丹。</p>
+<p>· 💰 金币：<b>单只封顶100万</b>；💎宝石掉落<b>封顶Lv25</b>（Lv26+只能合成）。</p></div>
 
-<div class="helpSec"><h4>🌌 十一、无尽模式总览</h4>
-<p>· 300层+🕊️羽翎｜500层+🔨打孔锥｜1000层+💎宝石/💊地灵丹｜1500层+<b>Lv275档装备/新品质/星辉砂/星髓</b>｜2000层+🛉无敌药水｜2500层+🏮天元丹｜<b>每300层一新档装备、每400层一新品质、每500层一级星辉砂</b>。</p>
-<p>· 材料掉落与武器掉落同步：陨铁1800+、龙筋2100+、凤羽2500+、道则2900+、混沌晶3300+。无尽每层击杀5%掉🧿妖丹。</p>
-<p>· 💰 金币：<b>单只封顶100万</b>，约1700层触顶；之后收益不再随层数增长（材料/装备仍继续提升）。</p></div>
+<div class="helpSec"><h4>🔔 十一、牛铃商店</h4>
+<p>· 🔁 <b>金币兑换牛铃：1亿💰=1🔔（可批量）</b>；💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔。</p></div>
 
-<div class="helpSec"><h4>💎 十二、宝石系统（Lv30）</h4>
-<p>· 4种宝石（⚔攻击/🛡防御/❤活力/💥爆伤），<b>等级上限Lv30</b>，每级属性×1.2复利（Lv30≈基础的198倍）。</p>
-<p>· 获取：炼虚+怪5%/无尽1000层+（层数越深等级越高，2450层+可到Lv30）｜4合1合成升一级｜🤝玩家市场可交易。</p></div>
-
-<div class="helpSec"><h4>🔔 十三、牛铃商店</h4>
-<p>· 🔁 <b>金币兑换牛铃：1亿💰=1🔔（可批量）</b>；💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔（皆可批量）。</p></div>
-
-<div class="helpSec"><h4>💡 十四、实用小技巧</h4>
-<p>· 背包右键装备 = 快捷锻造/锁定；批量分解支持<b>神器~混沌全部品质</b>（锻造页/背包页）。</p>
-<p>· 锻造页<b>材料合成（4低→1高）/材料分解（1高→4低）</b>：星髓链、仙骨链、星辉砂链、丹药链均可互转。</p>
-<p>· 冲Lv500武器路线：7转（上限540）→ 战斗单项练到500 → 无尽4200层刷Lv500档 → 升阶到混沌（×640）→ 内丹/翅膀补面板。</p>
-<p>· 💰 缺牛铃？挂机无尽刷金币 → 牛铃商店「金币兑换牛铃」1亿=1🔔；或🤝玩家市场卖材料换金币。</p></div>
+<div class="helpSec"><h4>💡 十二、实用小技巧</h4>
+<p>· 背包右键装备 = 快捷锻造/锁定；批量分解支持<b>神器~混沌全部品质</b>。</p>
+<p>· 冲高等级宝石路线：无尽1000层+挂机囤Lv25宝石 → 4合1逐级向上到Lv30 → 镶满4孔。</p>
+<p>· 缺牛铃？无尽刷金币 → 牛铃商店「金币兑换牛铃」；或🤝玩家市场卖材料。</p></div>
 `;
   if (isAdmin()) {
     h += `
-<div class="helpSec"><h4>📜 十五、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.21.3</span><b>视觉与经济调整</b>：无尽金币单只封顶100万💰；牛铃商店新增金币兑换牛铃（1亿💰=1🔔，可批量）；神器及以上品质（7档）改为极光流光动态发光（专属双色光晕循环+背包格呼吸光效，各档错峰）；帮助页新增金币与牛铃章节。</p>
-<p><span class="verTag">v1.21.2</span><b>读档自动净化</b>：loadGame内置sanitizeSave——自动清除未知物品ID/失效格子/残缺装备/坏任务（修复背包点不开的渲染崩溃）；渲染层加兜底。</p>
-<p><span class="verTag">v1.21.1</span><b>市场收益领取机制</b>：卖出所得改为服务端待领账本（market_payouts），上线时+每60秒自动领取。</p>
-<p><span class="verTag">v1.21</span><b>玩家交易市场一期</b>：挂单制交易（挂售/买入/撤单/实时订阅）；服务端RPC事务撮合。</p>
-<p><span class="verTag">v1.20</span><b>修行系统+生存改版</b>：内丹+翅膀；材料合成/分解；宝石Lv30；减伤比值制。</p>
-<p><span class="verTag">v1.19~v1.0</span>：自动锻造、品质/档位扩展、管理员系统、无尽模式、装备体系等迭代。</p></div>`;
+<div class="helpSec"><h4>📜 十三、版本更新记录（仅管理员可见）</h4>
+<p><span class="verTag">v1.21.4a</span><b>宝石掉落上限调整</b>：无尽宝石掉落上限由Lv19提升为<b>Lv25</b>（Lv26~30仍只能4合1合成）；其余同v1.21.4。</p>
+<p><span class="verTag">v1.21.4</span><b>存档槽+宝石调整</b>：每账号3个存档槽（本地3+云端3），登录后先进存档选择页；存档选择页每槽带🗑️删除存档按钮（本地+云端一起删）；管理员清档改为重置当前槽；旧版单存档自动兼容为槽1。</p>
+<p><span class="verTag">v1.21.3</span><b>视觉与经济调整</b>：无尽金币单只封顶100万💰；金币兑换牛铃（1亿=1🔔）；神器+极光流光。</p>
+<p><span class="verTag">v1.21.2</span><b>读档自动净化</b>：自动清除坏数据防渲染崩溃。</p>
+<p><span class="verTag">v1.21~v1.0</span>：玩家市场、修行系统、自动锻造、品质/档位扩展、管理员系统、无尽模式等迭代。</p></div>`;
   }
   return h;
 }
@@ -2852,7 +2913,7 @@ function renderPanel() {
     h += `<div class="row endless"><span class="name" style="color:#c5f">🌌 无尽模式</span> `
       +(S.endless
         ?`<span style="color:#c5f;font-size:16px;font-weight:bold">当前第 ${S.floor} 层</span><span class="info">最高纪录 <b style="color:#ffd479">${S.bestFloor}</b> 层</span><span class="timerTxt">⏱ ${Math.max(0,Math.ceil(floorLeftMs()/1000))}s / ${FLOOR_LIMIT/60}min</span><button class="act sm" style="background:#a4a" onclick="toggleEndless(false)">⏸ 退出无尽</button>`
-        :`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">300层+羽翎｜1500层+新档装备/新品质/星辉砂/星髓｜每300层一档装备、每400层一档品质、每500层一级星辉砂</span>`)
+        :`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">300层+羽翎｜1500层+新档装备/新品质/星辉砂/星髓｜每300层一档装备、每400层一档品质</span>`)
       +`</div>`;
     if (S.endless) {
       h += `<div class="bar timerbar"><div style="width:${Math.max(0,Math.min(100,floorLeftMs()/(FLOOR_LIMIT*1000)*100))}%"></div></div>`;
@@ -2864,14 +2925,13 @@ function renderPanel() {
         +`<span class="info">本层通关 <b style="color:#ffd479">${S.floorKills[S.floor]||0}</b> 次</span></div>`;
       const drop = endlessMon(S.floor);
       const seg = Math.floor((S.floor-1)/100);
-      const gemL = S.floor >= 1000 ? Math.min(GEM_MAX, 1+Math.floor((S.floor-1000)/50)) : 0;
+      const gemL = S.floor >= 1000 ? Math.min(GEM_DROP_CAP, 1+Math.floor((S.floor-1000)/50)) : 0;
       const fq = S.floor >= 1500 ? Math.min(11, 6 + Math.floor((S.floor-1500)/400)) : 0;
       const qTxt = fq ? `｜<b class="r${Math.min(fq,maxRare())}">${RARE_NAMES[Math.min(fq,maxRare())]}</b>2%` : "";
       const nmat = S.floor>=3300?"星髓/陨铁/龙筋/凤羽/道则/混沌晶":S.floor>=2900?"星髓/陨铁/龙筋/凤羽/道则":S.floor>=2500?"星髓/陨铁/龙筋/凤羽/天元丹":S.floor>=2100?"星髓/陨铁/龙筋":S.floor>=1800?"星髓/陨铁":S.floor>=1500?"星髓":S.floor>=1000?"地灵丹":"";
       const sand = S.floor>=1500?`｜💠星辉砂·${["","微","耀","炽","极"][S.floor>=3000?4:S.floor>=2500?3:S.floor>=2000?2:1]} 4%`:"";
-      /* ★ v1.21.3：显示当前层金币/只（含封顶标记） */
       const goldCapped = drop.gold >= ENDLESS_GOLD_CAP;
-      h += `<div class="row endless" style="opacity:.85"><span class="info">第 ${seg+1} 大关第 ${(S.floor-1)%100+1} 层｜掉率 <b style="color:#ffd479">${(drop.drop*100).toFixed(0)}%</b>｜档位 <b style="color:#ffd479">Lv${drop.eqLv}</b>｜💰<b style="color:${goldCapped?"#f80":"#ffd479"}">${drop.gold.toLocaleString()}${goldCapped?"（已封顶）":""}</b>/只${S.reb?`｜转生增强 ×${rebCf().toFixed(2)}`:""}｜🧿妖丹5%${S.floor>=300?"｜🕊️羽翎10%":""}${S.floor>=1000?"｜💊地灵丹3%":""}${S.floor>=2500?"｜🏮天元丹2%":""}${gemL?`｜💎Lv${gemL} 4%`:""}${qTxt}${nmat?`｜${nmat}`:""}${sand}</span></div>`;
+      h += `<div class="row endless" style="opacity:.85"><span class="info">第 ${seg+1} 大关第 ${(S.floor-1)%100+1} 层｜掉率 <b style="color:#ffd479">${(drop.drop*100).toFixed(0)}%</b>｜档位 <b style="color:#ffd479">Lv${drop.eqLv}</b>｜💰<b style="color:${goldCapped?"#f80":"#ffd479"}">${drop.gold.toLocaleString()}${goldCapped?"（已封顶）":""}</b>/只${S.reb?`｜转生增强 ×${rebCf().toFixed(2)}`:""}｜🧿妖丹5%${S.floor>=300?"｜🕊️羽翎10%":""}${S.floor>=1000?"｜💊地灵丹3%":""}${S.floor>=2500?"｜🏮天元丹2%":""}${gemL?`｜💎宝石≤Lv${gemL} 4%`:S.floor>=1000?"｜💎宝石(封顶Lv25)":""}${qTxt}${nmat?`｜${nmat}`:""}${sand}</span></div>`;
     } else {
       h += `<div class="zonebar">`+ELE.map((e,z)=>`<button class="${z===zone?"on":""} ${z>=5?"hz":""}" onclick="zone=${z};renderPanel()">${z+1}.${e}</button>`).join("")+`</div>`;
       const zgem = zone >= 5 ? `｜💎宝石Lv${zoneGemLv(zone)}~${Math.min(11,zoneGemLv(zone)+2)}（5%）` : "";
@@ -2949,7 +3009,7 @@ function renderPanel() {
     h += pmUI();
   }
   else if (tab === 6) {
-    h += `<div class="hint">🔮 锻造坊｜强化技能 Lv${lv("enh")} +${(forgeBonus()*100).toFixed(0)}%｜<b style="color:#f80">全局锻造系数 ×${forgeCf().toFixed(1)}</b>｜强化+${ENH_MAX}｜品质上限<b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（转生解锁）｜背包装备可直接<b style="color:#8af">右键锻造</b>｜<b style="color:#5c5">🎯自动锻造仅限背包装备</b>｜附魔已取消</div>`;
+    h += `<div class="hint">🔮 锻造坊｜强化技能 Lv${lv("enh")} +${(forgeBonus()*100).toFixed(0)}%｜<b style="color:#f80">全局锻造系数 ×${forgeCf().toFixed(1)}</b>｜强化+${ENH_MAX}｜品质上限<b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（转生解锁）｜背包装备可直接<b style="color:#8af">右键锻造</b>｜<b style="color:#5c5">🎯自动锻造仅限背包装备</b></div>`;
     h += `<div class="hint" style="margin-top:8px">—— 已穿戴装备（仅手动操作，🎯自动锻造请放背包中设置） ——</div>`;
     SLOTS.forEach((sl)=>{ const e = S.eq[sl.id]; if (e) h += forgeRow(e, "w:"+sl.id); });
     h += `<div class="hint" style="margin-top:14px;color:#a6f">━━━━━ 🔮 合成系统（批量，无弹窗；🔒锁定装备不参与）━━━━━</div>`;
@@ -2971,15 +3031,15 @@ function renderPanel() {
       +`<span class="info">数量</span><input type="number" id="cmbEqN" min="1" value="${gList.length?Math.floor(gList[0][1].length/4):1}" style="width:60px">`
       +`<button class="act sm" style="background:#a6f" ${gList.length?"":"disabled"} onclick="combineEquip($('cmbEq').value, +($('cmbEqN').value||1))">合成</button></div>`;
     const gems = Object.keys(S.bag).filter((id)=>/^gem_/.test(id) && bagN(id) >= 4 && +id.split("_")[2] < GEM_MAX);
-    const gemsAll = Object.keys(S.bag).filter((id)=>/^gem_/.test(id));
-    h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">💎 宝石合成</span><span class="info">4颗同类同级 → 1颗下一级（上限Lv${GEM_MAX}）</span>`
+    const gemsAll = Object.keys(S.bag).filter((id)=>/^gem_/.test(id)).sort((a,b)=>+a.split("_")[2]-+b.split("_")[2]);
+    h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">💎 宝石合成</span><span class="info">4颗同类同级 → 1颗下一级（上限Lv${GEM_MAX}；<b style="color:#f80">Lv26+只能合成，无尽掉落封顶Lv25</b>）</span>`
       +`<select id="cmbGem" onchange="updCmbGemN()">${gems.length?gems.map((id)=>{
         const m = id.match(/^gem_(\w+)_(\d+)$/);
-        return `<option value="${id}" data-n="${Math.floor(bagN(id)/4)}">${IT[id].ic}${IT[id].n}×${bagN(id)}（→${GEM_T[m[1]].n}Lv${+m[2]+1} +${gemVal(m[1],+m[2]+1)}${m[1]==="critDmg"?"%":""}）</option>`;
+        return `<option value="${id}" data-n="${Math.floor(bagN(id)/4)}">${IT[id].ic}${IT[id].n}×${bagN(id)}（→Lv${+m[2]+1} +${gemVal(m[1],+m[2]+1)}${m[1]==="critDmg"?"%":""}）</option>`;
       }).join(""):`<option value="">（没有≥4颗的同种宝石）</option>`}</select>`
       +`<span class="info">数量</span><input type="number" id="cmbGemN" min="1" value="${gems.length?Math.floor(bagN(gems[0])/4):1}" style="width:60px">`
       +`<button class="act sm" style="background:#a6f" ${gems.length?"":"disabled"} onclick="combineGem($('cmbGem').value, +($('cmbGemN').value||1))">合成</button>`
-      +(gemsAll.length?`<span class="info">持有：${gemsAll.map((id)=>`${IT[id].ic}${id.split("_")[2]}×${bagN(id)}`).join("、")}</span>`:"<span class='info'>尚未持有宝石（炼虚+或无尽1000层+掉落）</span>")
+      +(gemsAll.length?`<div style="width:100%;margin-top:3px" class="info">持有：${gemsAll.map((id)=>`${IT[id].ic}${id.split("_")[2]}×${bagN(id)}`).join("、")}</div>`:"<div style='width:100%;margin-top:3px' class='info'>尚未持有宝石（炼虚+或无尽1000层+掉落，上限Lv25）</div>")
       +`</div>`;
     const mUp = Object.keys(MAT_NEXT).filter((id)=>bagN(id) >= 4);
     h += `<div class="row" style="background:#241a33"><span class="name" style="color:#a6f">🧪 材料合成</span><span class="info">4个低阶 → 1个高阶（星髓链/仙骨链/星辉砂链/丹药链）</span>`
@@ -3018,7 +3078,6 @@ function renderPanel() {
     h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；怪物属性增强；<b style="color:#fa0">但获得：等级上限+60、解锁下一品质、技能点，且🧿内丹与🕊️翅膀完整保留</b>。7转后：上限${cfg("skillCap")+420}、品质全解锁（混沌）。</div>`;
   }
   else if (tab === 10) {
-    /* ★ v1.21.3：金币兑换牛铃区 */
     h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b>｜✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b>常年大量供应</b></div>`;
     h += `<div class="row" style="background:#2a1535;border:1px solid #c5f5;flex-direction:column;align-items:stretch">`
       +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
@@ -3055,12 +3114,13 @@ function renderPanel() {
   }
   else if (tab === 11) {
     const A = accs();
-    h += `<div class="hint">当前账号：<b style="color:#ffd479">${CUR==="guest"?"游客":CUR}</b>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}｜云端：<b class="${CLOUD_ON()?"cloudOk":"cloudNo"}">${CLOUD_ON()?"已连接":"未连接"}</b>｜<b style="color:#8af">单点登录：同账号他处登录时本机自动下线</b>｜🤝玩家市场需注册账号</div>`
-      +`<div class="row"><span class="name">☁️ 立即同步云端</span><button class="act sm" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="cloudSave()">上传</button></div>`
+    h += `<div class="hint">当前账号：<b style="color:#ffd479">${CUR==="guest"?"游客":CUR}</b>（存档槽 <b style="color:#8af">${curSlot}</b>/3）${isAdmin()?' <span class="adminTag">👑管理员</span>':""}｜云端：<b class="${CLOUD_ON()?"cloudOk":"cloudNo"}">${CLOUD_ON()?"已连接":"未连接"}</b>｜<b style="color:#8af">单点登录：同账号他处登录时本机自动下线</b>｜🤝玩家市场需注册账号</div>`
+      +`<div class="row"><span class="name">📂 重新选择存档槽（含🗑️删除存档）</span><button class="act sm" style="background:#8af" onclick="saveGame();showSlotPicker()">打开存档选择页</button></div>`
+      +`<div class="row"><span class="name">☁️ 立即同步云端（当前槽）</span><button class="act sm" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="cloudSave()">上传</button></div>`
       +`<div class="row"><span class="name">🤝 立即领取市场收益</span><button class="act sm" style="background:#5cf" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="claimMarket()">领取</button></div>`
       +`<div class="row"><span class="name">🔧 手动净化存档</span><button class="act sm" style="background:#a6f" onclick="sanitizeSave();migrateBag();saveGame();renderPanel()">立即执行</button></div>`
       +`<div class="row"><span class="name">🚪 退出并切换账号</span><button class="act sm" onclick="logout()">退出登录</button></div>`
-      +`<div class="row"><span class="name">💾 导出存档</span><button class="act sm" onclick="exportSave()">导出</button></div>`
+      +`<div class="row"><span class="name">💾 导出存档（当前槽）</span><button class="act sm" onclick="exportSave()">导出</button></div>`
       +`<div class="row"><span class="name">📂 导入存档</span><button class="act sm" style="background:#a6f" onclick="document.getElementById('saveFile').click()">导入</button></div>`;
     Object.keys(A).forEach((u)=>{
       h += `<div class="row"><span class="name">${u}${u.toLowerCase().slice(0,ADMIN_PREFIX.length)===ADMIN_PREFIX?' <span class="adminTag">👑</span>':""}</span><span class="info">${new Date(A[u].created).toLocaleDateString()}${u===CUR?"｜✅ 当前":""}</span>`
@@ -3069,10 +3129,10 @@ function renderPanel() {
     });
   }
   else if (tab === T_ADMIN && isAdmin()) {
-    h += `<div class="hint">👑 管理员面板（仅管理员可见）</div>`
+    h += `<div class="hint">👑 管理员面板（仅管理员可见）｜当前存档槽 ${curSlot}</div>`
       +`<div class="row"><span class="name">💰 金币</span><input type="number" value="${S.gold|0}" onchange="S.gold=Math.max(0,+this.value);saveGame()"> <span class="name">🔔 牛铃</span><input type="number" value="${S.bell}" onchange="S.bell=Math.max(0,+this.value);saveGame()"> <span class="name">⏩ 加速</span><select onchange="setSpd(+this.value)">`+SPEEDS.map((v)=>`<option value="${v}" ${S.speed===v?"selected":""}>${v}×</option>`).join("")+`</select></div>`;
     h += `<div class="row"><span class="name">🧿 内丹等级</span><input type="number" min="0" max="${ND_MAX_LV}" value="${S.neidan.lv}" onchange="S.neidan.lv=Math.min(${ND_MAX_LV},Math.max(0,+this.value|0));S.neidan.xp=0;saveGame();renderTop();renderPanel()"> <span class="name">🕊️ 翅膀阶数</span><input type="number" min="0" max="12" value="${S.wing.stage}" onchange="S.wing.stage=Math.min(12,Math.max(0,+this.value|0));saveGame();renderTop();renderPanel()"> <span class="info">当前：内丹+${(S.neidan.lv*0.5).toFixed(1)}%｜翅膀+${S.wing.stage*5}%</span></div>`;
-    h += `<div class="hint" style="color:#5cf;margin-top:8px">━━━━━ 💰 账号充值 / 装备发放（写入云端，对方强制下线重登生效）━━━━━</div>`
+    h += `<div class="hint" style="color:#5cf;margin-top:8px">━━━━━ 💰 账号充值 / 装备发放（写入云端槽1，对方强制下线重登生效）━━━━━</div>`
       +`<div class="row" style="background:#152035;border:1px solid #5cf"><span class="name" style="color:#5cf">👤 目标账号</span>`
       +`<input id="adAcc" placeholder="账号名" style="min-width:120px" onchange="adQueryAcc()">`
       +`<button class="act sm" style="background:#49f" onclick="adQueryAcc()">查询</button>`
@@ -3083,7 +3143,7 @@ function renderPanel() {
         +`<span class="name">🔔 牛铃充值</span><input type="number" id="adBell" value="100" min="1" style="width:70px"><button class="act sm" style="background:#a6f" onclick="adCharge('bell')">充值</button></div>`;
       h += `<div class="row" style="background:#1c2036;margin-left:14px;flex-direction:column;align-items:stretch">`
         +`<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">`
-        +`<span class="name">🎁 装备发放</span>`
+        +`<span class="name">🎁 装备发放（槽1）</span>`
         +`<select id="adGFam">${Object.keys(EQFAM).map((f)=>`<option value="${f}">${EQFAM[f].n}</option>`).join("")}</select>`
         +`<select id="adGSlot">${SLOTS.map((s)=>`<option value="${s.id}">${s.ic}${s.n}</option>`).join("")}</select>`
         +`<select id="adGTier">${LV_TIERS.map((t)=>`<option value="${t}" ${t===249?"selected":""}>Lv${t}档</option>`).join("")}</select>`
@@ -3093,9 +3153,9 @@ function renderPanel() {
         +`<select id="adGGem"><option value="">宝石：无</option>${Object.keys(GEM_T).map((t)=>`<option value="${t}">镶满${GEM_T[t].n}Lv${GEM_MAX}</option>`).join("")}</select>`
         +`<button class="act sm" style="background:#2a5" onclick="adGrantEq()">发放</button>`
         +`</div>`
-        +`<div class="info" style="margin-top:3px">品质为固定值（不受目标账号转生解锁限制），发放后直接进入对方背包</div></div>`;
+        +`<div class="info" style="margin-top:3px">品质为固定值（不受目标账号转生解锁限制），发放后直接进入对方存档槽1的背包</div></div>`;
     }
-    h += `<div class="hint" style="color:#f88;margin-top:8px">━━━━━ ⏪ 账号回档（恢复到约一天前）━━━━━</div>`
+    h += `<div class="hint" style="color:#f88;margin-top:8px">━━━━━ ⏪ 账号回档（恢复到约一天前，含全部存档槽）━━━━━</div>`
       +`<div class="row" style="background:#2a1515;border:1px solid #e55"><span class="name" style="color:#f88">⏪ 指定账号回档</span>`
       +`<input id="rbUser" placeholder="账号名" value="${RB?RB.name:''}" style="min-width:120px">`
       +`<button class="act sm" style="background:#e55" onclick="queryBackup()">查询回档点</button>`
@@ -3124,7 +3184,7 @@ function renderPanel() {
     h += `</div>`;
     h += `<div class="hint">物品：</div><div class="row"><select id="adIt">${Object.keys(IT).map((id)=>`<option value="${id}">${IT[id].ic}${IT[id].n}</option>`).join("")}</select><input type="number" id="adN" value="100"><button class="act sm" onclick="const i=$('adIt').value;if(addIt(i,+$('adN').value)){renderPanel();}">增加</button></div>`
       +`<div class="row"><span class="name">👾 跳转怪物</span><input type="number" value="${S.monI}" min="0" max="99" id="adI"><input type="number" value="${S.monLv}" min="1" max="5" id="adL"><button class="act sm" onclick="pickMon(Math.min(99,Math.max(0,+$('adI').value|0)),Math.min(5,Math.max(1,+$('adL').value|0)))">跳转</button> <span class="name">🎁 装备</span><button class="act sm" onclick="addEq(rollEq(['iron','steel','bow','staff','leather','robe'][Math.random()*6|0],60));renderPanel()">随机</button><button class="act sm" onclick="const e=rollEq('steel',${EQ_MAX_LV});e.rare=11;e.plus=20;e.holes=4;e.gems=[{t:'atk',l:${GEM_MAX}},{t:'atk',l:${GEM_MAX}},{t:'critDmg',l:${GEM_MAX}},{t:'critDmg',l:${GEM_MAX}}];e.n='混沌的'+e.n.replace(RARE_STRIP,'');rollSpecials(e);addEq(e);renderPanel()">满配混沌</button></div>`
-      +`<div class="row"><span class="name">🔓 解锁全部怪物</span><button class="act sm" onclick="for(let i=0;i<100;i++)for(let l=1;l<=5;l++)S.kills[i+'-'+l]=1;renderPanel()">解锁</button> <span class="name">🗑️ 清档</span><button class="act sm" style="background:#e55" onclick="if(confirm('确认清空并重新开始？')){localStorage.removeItem(saveKeyOf(CUR));newGameState();giveStarterGear();refreshTasks(true);render();}">重置</button></div>`;
+      +`<div class="row"><span class="name">🔓 解锁全部怪物</span><button class="act sm" onclick="for(let i=0;i<100;i++)for(let l=1;l<=5;l++)S.kills[i+'-'+l]=1;renderPanel()">解锁</button> <span class="name">🗑️ 清档（重置当前槽${curSlot}）</span><button class="act sm" style="background:#e55" onclick="resetSlot()">重置</button></div>`;
   }
   else if (tab === T_CFG && isAdmin()) {
     h += `<div class="hint">🌍 <b>全局数值配置（管理员专属）</b>——修改后点「发布全局配置」，所有玩家约1分钟内同步生效。基础技能上限之上，每转生自动+60（玩家侧固定规则，不在此配置）。</div>`;
@@ -3136,7 +3196,7 @@ function renderPanel() {
       + cfgRow("转生怪物增强系数", "rebMonCf", 0, 3)
       + `<div class="cfgHint">转生怪物增强：每次转生全部怪物属性在前一次基础上 ×(1+本系数)叠乘。0.5=每转+50%；0=关闭。</div>`
       + `</div>`;
-    h += `<div class="cfgSec"><h4>💎 宝石1级基础属性（每级+20%复利，上限Lv30）</h4>`
+    h += `<div class="cfgSec"><h4>💎 宝石1级基础属性（每级+20%复利，上限Lv30；掉落上限Lv25，Lv26+只能合成）</h4>`
       + cfgRow("攻击宝石1级 +", "gemAtk", 1, 1000)
       + cfgRow("防御宝石1级 +", "gemDef", 1, 200)
       + cfgRow("活力宝石1级 +血", "gemHp", 10, 10000)
@@ -3426,13 +3486,15 @@ async function switchAcc(u) {
   saveGame();
   const ok = await cloudSignIn(u, pw);
   doLogin(u);
-  if (ok) enterGameCloud(); else enterGame();
+  showSlotPicker();
 }
 function delAcc(u) {
-  if (!confirm(`确认删除账号 ${u} 及本地存档记录？`)) return;
+  if (!confirm(`确认删除账号 ${u} 及其全部本地存档记录？`)) return;
   const A = accs();
   delete A[u]; saveAccs(A);
+  for (let n = 1; n <= SLOT_MAX; n++) localStorage.removeItem(saveKeyOf(u, n));
   localStorage.removeItem(saveKeyOf(u));
+  localStorage.removeItem("mr_slot_" + u);
   if (u === CUR) logout(); else renderPanel();
 }
 
