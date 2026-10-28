@@ -289,6 +289,13 @@ let curSlot = 1;
 let SLOTDOC = null;
 const GEM_DROP_CAP = 25;
 
+/* ★ 槽位数据解包——兼容 {S} / {S,uid} / 双层封装 / 裸S 各种历史格式 */
+function unwrapSlot(v) {
+  let x = v, depth = 0;
+  while (x && typeof x === "object" && x.S && typeof x.S === "object" && depth < 4) { x = x.S; depth++; }
+  return (x && typeof x === "object") ? x : null;
+}
+
 let SID = null;
 async function cloudSetSid() {
   if (!CLOUD_ON()) return;
@@ -299,17 +306,19 @@ async function cloudSetSid() {
 }
 async function cloudCheckSid() {
   if (!CLOUD_ON() || !SID || !LOGGED_IN || CUR === "guest") return;
-  const id = await cloudUid();
-  if (!id) return;
-  const { data, error } = await sb.from("logins").select("sid").eq("id", id).maybeSingle();
-  if (error || !data) return;
-  if (data.sid !== SID) {
-    SID = null;
-    alert("⚠️ 您的账号已在其他设备登录，本设备已强制下线！");
-    logout();
-  } else {
-    try { await sb.from("logins").update({ updated_at: new Date().toISOString() }).eq("id", id); } catch (e) {}
-  }
+  try {
+    const id = await cloudUid();
+    if (!id) return;
+    const { data, error } = await sb.from("logins").select("sid").eq("id", id).maybeSingle();
+    if (error || !data) return;
+    if (data.sid !== SID) {
+      SID = null;
+      alert("⚠️ 您的账号已在其他设备登录，本设备已强制下线！");
+      logout();
+    } else {
+      try { await sb.from("logins").update({ updated_at: new Date().toISOString() }).eq("id", id); } catch (e) {}
+    }
+  } catch (e) {}
 }
 setInterval(cloudCheckSid, 30000);
 
@@ -336,7 +345,7 @@ async function cloudSignIn(u, p) {
   if (!CLOUD_ON()) return false;
   const { error } = await sb.auth.signInWithPassword({ email: sbEmail(u), password: p });
   if (error) { sbErr(error); return false; }
-  await cloudSetSid();
+  try { await cloudSetSid(); } catch (e) {}
   return true;
 }
 
@@ -354,13 +363,19 @@ async function cloudSave() {
   if (!id) return;
   const raw = localStorage.getItem(saveKeyOf(CUR, curSlot));
   if (!raw) return;
+  let parsed = null;
+  try { parsed = JSON.parse(raw); } catch (e) { return; }
+  const bareS = unwrapSlot(parsed && parsed.S ? parsed.S : parsed);
+  if (!bareS || !bareS.skills) return;
   let doc = { slots: {} };
-  const { data } = await sb.from("saves").select("data").eq("id", id).maybeSingle();
-  if (data && data.data) {
-    if (data.data.slots) doc.slots = data.data.slots;
-    else if (data.data.S) doc.slots = { 1: data.data.S };
-  }
-  doc.slots[curSlot] = JSON.parse(raw);
+  try {
+    const { data } = await sb.from("saves").select("data").eq("id", id).maybeSingle();
+    if (data && data.data) {
+      if (data.data.slots) doc.slots = data.data.slots;
+      else if (data.data.S) doc.slots = { 1: unwrapSlot(data.data.S) };
+    }
+  } catch (e) {}
+  doc.slots[curSlot] = bareS;
   const { error } = await sb.from("saves").upsert({ id, name: CUR, data: doc, version: 1 });
   if (error) sbErr(error); else log("☁️ 存档已同步到云端（槽" + curSlot + "）");
   maybeBackup(id);
@@ -392,12 +407,21 @@ async function cloudFetch() {
 
 function slotData(n) {
   let local = null;
-  const lraw = localStorage.getItem(saveKeyOf(CUR, n)) || (n === 1 ? localStorage.getItem(saveKeyOf(CUR)) : null);
-  if (lraw) { try { local = JSON.parse(lraw).S; } catch (e) { local = null; } }
+  let lraw = localStorage.getItem(saveKeyOf(CUR, n));
+  if (!lraw && n === 1) lraw = localStorage.getItem(saveKeyOf(CUR));
+  if (lraw) {
+    try {
+      const d = JSON.parse(lraw);
+      local = unwrapSlot(d.S != null ? d.S : d);
+      if (local && !local.skills) local = null;
+    } catch (e) { local = null; }
+  }
   let cloud = null;
   if (SLOTDOC) {
-    if (SLOTDOC.slots && SLOTDOC.slots[n]) cloud = SLOTDOC.slots[n];
-    else if (n === 1 && SLOTDOC.S) cloud = SLOTDOC.S;
+    let cv = null;
+    if (SLOTDOC.slots) cv = SLOTDOC.slots[n];
+    else if (n === 1 && SLOTDOC.S) cv = SLOTDOC.S;
+    if (cv) { cloud = unwrapSlot(cv); if (cloud && !cloud.skills) cloud = null; }
   }
   return { local, cloud, hasLocal: !!lraw };
 }
@@ -406,35 +430,45 @@ function slotUse(n) {
   if (d.local && d.cloud) return (d.cloud.lastTick || 0) >= (d.local.lastTick || 0) ? d.cloud : d.local;
   return d.cloud || d.local;
 }
+/* ★ v1.21.5：全程容错——任何异常都兜底进入槽1，保证登录永远不卡死 */
 async function showSlotPicker() {
-  SLOTDOC = null;
-  if (CLOUD_ON() && CUR !== "guest") {
-    const res = await cloudFetch();
-    if (res && res.data) SLOTDOC = res.data;
-  }
-  let h = "";
-  for (let n = 1; n <= SLOT_MAX; n++) {
-    const d = slotData(n);
-    const use = slotUse(n);
-    let info = '<span style="color:#889">—— 空存档槽 ——</span>';
-    if (d.hasLocal && !d.local) info = '<span style="color:#f66">⚠️ 本地数据损坏（可删除重开）</span>';
-    else if (use) {
-      const tl = use.skills ? Object.values(use.skills).reduce((a,s)=>a+(s.lv||1),0) : 0;
-      const src = (d.local && d.cloud) ? ((d.cloud.lastTick||0) >= (d.local.lastTick||0) ? "☁️云端" : "💾本地") : (d.cloud ? "☁️云端" : "💾本地");
-      const t = new Date(use.lastTick || 0).toLocaleString();
-      info = `👤 <b>${use.name || "-"}</b>｜总等级 <b style="color:#ffd479">${tl}</b>｜💰${Math.floor(use.gold||0).toLocaleString()}｜🌀${use.reb||0}转｜🌌最高${use.bestFloor||0}层<br><span class="info">${src}保存于 ${t}</span>`;
+  try {
+    SLOTDOC = null;
+    if (CLOUD_ON() && CUR !== "guest") {
+      const res = await cloudFetch();
+      if (res && res.data) SLOTDOC = res.data;
     }
-    h += `<div class="row" style="background:#1c2036;flex-direction:column;align-items:stretch">`
-      +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="name" style="color:#8af">存档槽 ${n}</span></div>`
-      +`<div class="info" style="margin:2px 0">${info}</div>`
-      +`<div style="display:flex;gap:6px">`
-      +`<button class="act sm" style="background:#2a5;flex:1" onclick="chooseSlot(${n})">${use?"▶ 进入":"➕ 新存档"}</button>`
-      +`<button class="act sm" style="background:#e55" ${(use || d.hasLocal)?"":"disabled"} onclick="deleteSlot(${n})">🗑️ 删除存档</button>`
-      +`</div></div>`;
+    let h = "";
+    for (let n = 1; n <= SLOT_MAX; n++) {
+      const d = slotData(n);
+      const use = slotUse(n);
+      let info = '<span style="color:#889">—— 空存档槽 ——</span>';
+      if (d.hasLocal && !d.local) info = '<span style="color:#f66">⚠️ 本地数据损坏（可删除重开）</span>';
+      else if (use) {
+        const tl = use.skills ? Object.values(use.skills).reduce((a,s)=>a+(s.lv||1),0) : 0;
+        const src = (d.local && d.cloud) ? ((d.cloud.lastTick||0) >= (d.local.lastTick||0) ? "☁️云端" : "💾本地") : (d.cloud ? "☁️云端" : "💾本地");
+        const t = new Date(use.lastTick || 0).toLocaleString();
+        info = `👤 <b>${use.name || "-"}</b>｜总等级 <b style="color:#ffd479">${tl}</b>｜💰${Math.floor(use.gold||0).toLocaleString()}｜🌀${use.reb||0}转｜🌌最高${use.bestFloor||0}层<br><span class="info">${src}保存于 ${t}</span>`;
+      }
+      h += `<div class="row" style="background:#1c2036;flex-direction:column;align-items:stretch">`
+        +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="name" style="color:#8af">存档槽 ${n}</span></div>`
+        +`<div class="info" style="margin:2px 0">${info}</div>`
+        +`<div style="display:flex;gap:6px">`
+        +`<button class="act sm" style="background:#2a5;flex:1" onclick="chooseSlot(${n})">${use?"▶ 进入":"➕ 新存档"}</button>`
+        +`<button class="act sm" style="background:#e55" ${(use || d.hasLocal)?"":"disabled"} onclick="deleteSlot(${n})">🗑️ 删除存档</button>`
+        +`</div></div>`;
+    }
+    $("slotBody").innerHTML = h;
+    hideAuth();
+    $("slotPick").style.display = "flex";
+  } catch (e) {
+    console.error("存档选择页异常", e);
+    try { log("⚠️ 存档选择页异常，已自动进入存档槽1：" + (e.message || e)); } catch (e2) {}
+    try { $("slotPick").style.display = "none"; } catch (e2) {}
+    curSlot = 1;
+    if (CUR) localStorage.setItem("mr_slot_" + CUR, "1");
+    enterGame();
   }
-  $("slotBody").innerHTML = h;
-  hideAuth();
-  $("slotPick").style.display = "flex";
 }
 function chooseSlot(n) {
   const d = slotData(n);
@@ -455,7 +489,7 @@ async function deleteSlot(n) {
   localStorage.removeItem(saveKeyOf(CUR, n));
   if (n === 1) localStorage.removeItem(saveKeyOf(CUR));
   if (CLOUD_ON() && CUR !== "guest" && SLOTDOC) {
-    if (!SLOTDOC.slots) SLOTDOC = { slots: { 1: SLOTDOC.S || null } };
+    if (!SLOTDOC.slots) SLOTDOC = { slots: { 1: SLOTDOC.S ? unwrapSlot(SLOTDOC.S) : null } };
     SLOTDOC.slots[n] = null;
     const id = await cloudUid();
     if (id) {
@@ -530,10 +564,10 @@ async function adQueryAcc() {
   }
   AD_ACC = { name: nm, id: data.id, data: data.data };
   let doc = data.data;
-  if (!doc.slots && doc.S) doc = { slots: { 1: doc.S } };
+  if (!doc.slots && doc.S) doc = { slots: { 1: unwrapSlot(doc.S) } };
   let g = 0, b = 0;
   const slots = doc.slots || {};
-  for (const k in slots) { if (slots[k]) { g = Math.max(g, slots[k].gold||0); b = Math.max(b, slots[k].bell||0); } }
+  for (const k in slots) { const s2 = slots[k] ? unwrapSlot(slots[k]) : null; if (s2) { g = Math.max(g, s2.gold||0); b = Math.max(b, s2.bell||0); } }
   const info = $("adAccInfo");
   if (info) info.innerHTML = `✅ <b style="color:#6f6">${nm}</b>｜💰最高${Math.floor(g).toLocaleString()}｜🔔最高${b}`;
   log(`✅ 已查询到账号「${nm}」（充值作用于其当前在线的存档槽，或槽1）`);
@@ -545,9 +579,11 @@ async function adCharge(kind) {
   const amt = Math.floor(+(( $(kind==="gold"?"adGold":"adBell") || {}).value) || 0);
   if (amt <= 0) { log("⚠️ 请输入有效的充值数量"); return; }
   let doc = AD_ACC.data;
-  if (!doc.slots) doc = { slots: doc.S ? { 1: doc.S } : {} };
+  if (!doc.slots) doc = { slots: doc.S ? { 1: unwrapSlot(doc.S) } : {} };
   if (!doc.slots[1]) doc.slots[1] = { gold:0, bell:0, skills:{}, lanes:[], bag:{}, slotMap:{}, eq:{}, kills:{}, tasks:[], houses:{}, perks:{q:0,off:0,mk:0}, neidan:{lv:0,xp:0}, wing:{stage:0}, pots:[null,null,null,null,null], lastTick:Date.now() };
-  doc.slots[1][kind] = Math.max(0, (doc.slots[1][kind]||0)) + amt;
+  const s1 = unwrapSlot(doc.slots[1]) || doc.slots[1];
+  s1[kind] = Math.max(0, (s1[kind]||0)) + amt;
+  doc.slots[1] = s1;
   log("⏳ 正在写入云端…");
   const { error } = await sb.from("saves").upsert({ id: AD_ACC.id, name: AD_ACC.name, data: doc, version: 1 });
   if (error) { sbErr(error); return; }
@@ -564,9 +600,10 @@ async function adGrantEq() {
   const holes = Math.min(EQ_HOLES_MAX, Math.max(0, +$("adGHoles").value|0));
   const gemT = $("adGGem").value;
   let doc = AD_ACC.data;
-  if (!doc.slots) doc = { slots: doc.S ? { 1: doc.S } : {} };
+  if (!doc.slots) doc = { slots: doc.S ? { 1: unwrapSlot(doc.S) } : {} };
   if (!doc.slots[1]) { log("❌ 对方存档槽1为空，无法发放"); return; }
-  const d = doc.slots[1];
+  const d = unwrapSlot(doc.slots[1]) || doc.slots[1];
+  doc.slots[1] = d;
   if (!d.slotMap) d.slotMap = {};
   if (!d.bag) d.bag = {};
   if (d.uid == null) d.uid = 1;
@@ -628,40 +665,64 @@ function authUI() {
 }
 function authMsg(t, ok) { const e = $("aMsg"); e.textContent = t; e.className = "msg " + (ok ? "ok" : "err"); }
 
+/* ★ v1.21.5：登录全面加固——①云端验证优先（本地密码记录仅作离线兜底，不再前置拦截）；②全程try/catch，任何异常都有明确提示，绝不卡死 */
 async function authGo() {
   const u = $("aUser").value.trim();
   const p = $("aPass").value;
   const A = accs();
   if (aMode === "login") {
-    const localAcc = A[u];
-    if (localAcc && localAcc.ph !== undefined && localAcc.ph !== hashPw(p)) {
-      authMsg("❌ 密码错误"); return;
-    }
+    if (!u) { authMsg("❌ 请输入用户名"); return; }
     authMsg("⏳ 正在登录并同步云端存档…", true);
-    const ok = await cloudSignIn(u, p);
+    let ok = false, errMsg = "";
+    try {
+      ok = await cloudSignIn(u, p);
+    } catch (e) {
+      console.error("登录异常", e);
+      errMsg = (e && e.message) || String(e);
+      log("⚠️ 登录过程出现异常：" + errMsg);
+    }
+    if (!ok) {
+      const localAcc = A[u];
+      if (localAcc && localAcc.ph !== undefined && localAcc.ph === hashPw(p)) {
+        ok = true;
+        log("ℹ️ 云端登录未成功，已用本地账号记录进入（离线模式，云同步暂不可用）");
+      } else if (localAcc && localAcc.ph !== undefined) {
+        authMsg("❌ 密码错误" + (errMsg ? "（云端提示：" + errMsg + "）" : ""), false);
+        return;
+      } else {
+        authMsg("❌ 登录失败" + (errMsg ? "：" + errMsg : "：账号不存在或云端不可用"), false);
+        return;
+      }
+    }
     doLogin(u);
     if ($("aRemember").checked) saveRemember(u, p); else clearRemember();
-    authMsg(ok ? "✅ 登录成功，请选择存档槽" : "✅ 本地登录成功（云同步未生效）", true);
+    authMsg("✅ 登录成功，请选择存档槽", true);
     setTimeout(showSlotPicker, 300);
   } else {
     if (u.length < 2) { authMsg("❌ 用户名至少2个字符"); return; }
     if (p.length < 6) { authMsg("❌ 密码至少6位（云端账号要求）"); return; }
     if (A[u]) { authMsg("❌ 该用户名已被注册"); return; }
     authMsg("⏳ 正在注册云端账号…", true);
-    const ok = await cloudSignUp(u, p);
+    let ok = false;
+    try {
+      ok = await cloudSignUp(u, p);
+    } catch (e) {
+      console.error("注册异常", e);
+      authMsg("❌ 注册过程出现异常：" + ((e && e.message) || e), false);
+      return;
+    }
     if (!ok) {
       const cur = $("aMsg").textContent || "";
       if (!cur || cur.indexOf("⏳") === 0) authMsg("❌ 云端注册失败，请检查网络后重试", false);
       return;
     }
-    await cloudSignIn(u, p);
+    try { await cloudSignIn(u, p); } catch (e) {}
     if ($("aMigRow").style.display !== "none" && $("aMig").checked && localStorage.getItem("mr_save_guest")) {
       if (!localStorage.getItem(saveKeyOf(u, 1))) localStorage.setItem(saveKeyOf(u, 1), localStorage.getItem("mr_save_guest"));
     }
     A[u] = { ph: hashPw(p), created: Date.now() };
     saveAccs(A);
     doLogin(u);
-    if ($("aRemember").gedCheck) $("aRemember").checked = true;
     if ($("aRemember").checked) saveRemember(u, p); else clearRemember();
     authMsg("✅ 注册成功，请选择存档槽", true);
     setTimeout(showSlotPicker, 300);
@@ -1263,7 +1324,6 @@ function canWear(e) {
   if (e.slot === "weapon") return maxCombatLv() >= e.reqLv;
   return combatLvAvg() >= Math.min(effCap(), e.reqLv);
 }
-/* ★ v1.21.4b：指定档位下的穿戴预判（升级拦截用） */
 function canWearAt(e, reqLv) {
   if (e.slot === "weapon") return maxCombatLv() >= reqLv;
   return combatLvAvg() >= Math.min(effCap(), reqLv);
@@ -1362,7 +1422,6 @@ function upTier(ref) {
   const e = getEq(ref); if (!e) return;
   const c = upgCfg(e);
   if (!c) { log(`已达最高档次 Lv${EQ_MAX_LV}，无法再升级`); return; }
-  /* ★ v1.21.4b：下一档超过穿戴要求则禁止升级（武器=单项战斗最高；其他=战斗平均），材料不消耗 */
   if (!canWearAt(e, c.to)) {
     log(`❌ 无法升级：下一档 Lv${c.to} 超过穿戴要求（需 ${e.slot==="weapon"?"单项战斗":"战斗均"}Lv≥${c.to}，当前 ${tierWearLv(e)}）——先把战斗技能练上去`);
     return;
@@ -1541,7 +1600,6 @@ function autoForgeTick() {
     if (e.reqLv < t.tier) {
       const c = upgCfg(e);
       if (!c) return stop(`已达最高档次 Lv${EQ_MAX_LV}`);
-      /* ★ v1.21.4b：自动锻造升档同样受穿戴预判约束 */
       if (!canWearAt(e, c.to)) return stop(`下一档 Lv${c.to} 超过穿戴要求（需 ${e.slot==="weapon"?"单项战斗":"战斗均"}Lv≥${c.to}，当前 ${tierWearLv(e)}）`);
       if (c.to > t.tier) {
         /* 下一档超过目标档：视为完成 */
@@ -1959,17 +2017,27 @@ function mkSell(id, n) {
 /* ★ 玩家交易市场 */
 let pmOrders = [], pmMine = [], pmFilter = "", pmSub = null, pmLastFetch = 0, pmBusy = false;
 function pmCanUse() { return CLOUD_ON() && LOGGED_IN && CUR !== "guest"; }
+/* v1.21.5：服务端函数缺失时的提示 */
+function pmSqlHint(e) {
+  const m = String((e && (e.message || e)) || "");
+  if (/could not find the function|market_place_order|market_buy_order|market_cancel_order|market_claim_payouts|schema cache/i.test(m)) {
+    log("🛠️ 检测到服务端市场函数缺失或为旧版：请管理员在 Supabase → SQL Editor 执行 v1.21.5 配套SQL（多存档槽适配）");
+  }
+}
 async function syncFromCloud() {
-  const res = await cloudFetch();
-  if (res && res.data) {
-    let sd = res.data;
-    if (sd.slots) sd = sd.slots[curSlot];
-    else if (curSlot === 1) sd = sd.S;
-    else sd = null;
-    if (sd) {
-      localStorage.setItem(saveKeyOf(CUR, curSlot), JSON.stringify({ S: sd, uid }));
-      if (loadGame()) { render(); log("🔄 已从云端同步最新存档（玩家市场交易生效）"); }
+  try {
+    const res = await cloudFetch();
+    if (res && res.data) {
+      let sd = null;
+      if (res.data.slots) sd = unwrapSlot(res.data.slots[curSlot]);
+      else if (curSlot === 1) sd = unwrapSlot(res.data.S);
+      if (sd && sd.skills) {
+        localStorage.setItem(saveKeyOf(CUR, curSlot), JSON.stringify({ S: sd, uid }));
+        if (loadGame()) { render(); log("🔄 已从云端同步最新存档（玩家市场交易生效）"); }
+      }
     }
+  } catch (e) {
+    log("⚠️ 交易后云同步暂未完成（不影响本次交易，稍后自动重试）：" + (e.message || e));
   }
 }
 async function pmFetch(silent) {
@@ -2008,7 +2076,7 @@ function pmUI() {
     +`<span class="info">数量</span><input type="number" id="pmQty" min="1" value="10" style="width:55px">`
     +`<span class="info">单价</span><input type="number" id="pmPrice" min="1" value="100" style="width:75px">💰/个`
     +`<button class="act sm" style="background:#5cf" ${sellables.length?"":"disabled"} onclick="pmPlace()">📤 挂单</button>`
-    +`<span class="info">挂牌后材料立即从背包转入市场托管，撤单/成交后返还</span></div>`;
+    +`<span class="info">挂牌后材料立即从背包转入市场托管，撤单/成交后返还（按当前存档槽${curSlot}结算）</span></div>`;
   h += `<div class="hint" style="color:#5c5;margin-top:8px">—— 📥 我的挂单（${pmMine.length}/20）——</div>`;
   if (!pmMine.length) h += `<div class="hint">暂无挂单</div>`;
   else {
@@ -2047,6 +2115,7 @@ function pmUI() {
 }
 let PM_UID = null;
 async function pmInitUid() { if (pmCanUse() && !PM_UID) PM_UID = await cloudUid(); }
+/* ★ v1.21.5：RPC带槽位参数 p_slot；先判错再报成功 */
 async function pmPlace() {
   if (pmBusy) return;
   const itemId = $("pmItem").value, qty = +$("pmQty").value, price = +$("pmPrice").value;
@@ -2057,12 +2126,17 @@ async function pmPlace() {
   if (!confirm(`确认挂单出售？\n\n${IT[itemId].ic}${IT[itemId].n}×${qty} @ ${price.toLocaleString()}💰/个\n总价 ${(price*qty).toLocaleString()}💰（成交后收2%税）\n\n材料将立即从背包转入市场托管。`)) return;
   pmBusy = true;
   try {
-    await sb.rpc("market_place_order", { p_item_id: itemId, p_qty: qty, p_unit_price: price });
+    const { error } = await sb.rpc("market_place_order", { p_item_id: itemId, p_qty: qty, p_unit_price: price, p_slot: curSlot });
+    if (error) throw error;
     log(`📤 挂单成功：${IT[itemId].n}×${qty} @${price.toLocaleString()}💰/个`);
-    await syncFromCloud();
-    await pmFetch(true); await pmFetchMine(true);
-    render();
-  } catch (e) { log("❌ 挂单失败：" + (e.message || e)); }
+  } catch (e) {
+    log("❌ 挂单失败：" + (e.message || e));
+    pmSqlHint(e);
+    pmBusy = false; renderPanel(); return;
+  }
+  await syncFromCloud();
+  await pmFetch(true); await pmFetchMine(true);
+  render();
   pmBusy = false;
 }
 async function pmBuy(orderId) {
@@ -2074,13 +2148,17 @@ async function pmBuy(orderId) {
   if (!confirm(`确认买入？\n\n${IT[o.item_id]?IT[o.item_id].n:o.item_id}×${Math.min(qty,o.qty)} @ ${o.unit_price.toLocaleString()}💰/个\n共 ${(o.unit_price*Math.min(qty,o.qty)).toLocaleString()}💰（含2%税，由卖家承担）`)) return;
   pmBusy = true;
   try {
-    const { data, error } = await sb.rpc("market_buy_order", { p_order_id: orderId, p_buy_qty: qty });
+    const { data, error } = await sb.rpc("market_buy_order", { p_order_id: orderId, p_buy_qty: qty, p_slot: curSlot });
     if (error) throw error;
     log(`🤝 买入成功：×${data.bought}，花费 ${(+data.cost).toLocaleString()}💰`);
-    await syncFromCloud();
-    await pmFetch(true); await pmFetchMine(true);
-    render();
-  } catch (e) { log("❌ 买入失败：" + (e.message || e)); }
+  } catch (e) {
+    log("❌ 买入失败：" + (e.message || e));
+    pmSqlHint(e);
+    pmBusy = false; renderPanel(); return;
+  }
+  await syncFromCloud();
+  await pmFetch(true); await pmFetchMine(true);
+  render();
   pmBusy = false;
 }
 async function pmCancel(orderId) {
@@ -2088,19 +2166,24 @@ async function pmCancel(orderId) {
   if (!confirm(`确认撤单？挂单剩余数量将全部返还背包。`)) return;
   pmBusy = true;
   try {
-    await sb.rpc("market_cancel_order", { p_order_id: orderId });
+    const { error } = await sb.rpc("market_cancel_order", { p_order_id: orderId });
+    if (error) throw error;
     log(`📥 撤单成功，材料已返还`);
-    await syncFromCloud();
-    await pmFetch(true); await pmFetchMine(true);
-    render();
-  } catch (e) { log("❌ 撤单失败：" + (e.message || e)); }
+  } catch (e) {
+    log("❌ 撤单失败：" + (e.message || e));
+    pmSqlHint(e);
+    pmBusy = false; renderPanel(); return;
+  }
+  await syncFromCloud();
+  await pmFetch(true); await pmFetchMine(true);
+  render();
   pmBusy = false;
 }
 async function claimMarket() {
   if (!pmCanUse() || !S) return;
   try {
     const { data, error } = await sb.rpc("market_claim_payouts");
-    if (error) return;
+    if (error) { pmSqlHint(error); return; }
     const amt = +data || 0;
     if (amt > 0) {
       S.gold += amt;
@@ -2297,11 +2380,18 @@ function sanitizeSave() {
   }
 }
 function loadGame() {
-  const r = localStorage.getItem(saveKeyOf(CUR, curSlot)) || (curSlot === 1 ? localStorage.getItem(saveKeyOf(CUR)) : null);
+  let r = localStorage.getItem(saveKeyOf(CUR, curSlot));
+  if (!r && curSlot === 1) r = localStorage.getItem(saveKeyOf(CUR));
   if (!r) return false;
   try {
     const d = JSON.parse(r);
-    S = d.S; uid = d.uid || 1;
+    let sd = unwrapSlot(d.S != null ? d.S : d);
+    if (!sd || typeof sd !== "object" || !sd.skills || typeof sd.skills !== "object" || !sd.bag) {
+      console.warn("存档结构校验失败（疑似封装异常或损坏），按无档处理");
+      return false;
+    }
+    S = sd;
+    uid = d.uid || 1;
     if (!S.kills) S.kills = {};
     if (!S.perks) S.perks = {q:0,off:0,mk:0};
     if (!S.speed) S.speed = 1;
@@ -2326,13 +2416,34 @@ function loadGame() {
     if (!S.floor) S.floor = 1;
     if (!S.bestFloor) S.bestFloor = 0;
     if (!S.floorStart || isNaN(S.floorStart)) S.floorStart = Date.now();
-    if (!S.lanes) { S.lanes = defLanes(); S.lanes[0].items = Array.isArray(S.queue)?S.queue:[]; }
+    if (!S.lanes || !Array.isArray(S.lanes)) { S.lanes = defLanes(); S.lanes[0].items = Array.isArray(S.queue)?S.queue:[]; }
     delete S.queue;
     if (!S.eq) S.eq = {};
     if (!("boots" in S.eq)) S.eq.boots = null;
     if (!("gloves" in S.eq)) S.eq.gloves = null;
     if (!S.bag) S.bag = {};
     if (!S.slotMap) S.slotMap = {};
+    if (!S.name) S.name = "访客";
+    if (!S.style) S.style = "melee";
+    if (S.gold == null) S.gold = 0;
+    if (S.bell == null) S.bell = 0;
+    if (S.token == null) S.token = 0;
+    if (S.reb == null) S.reb = 0;
+    if (S.sp == null) S.sp = 0;
+    if (S.badge == null) S.badge = 0;
+    if (!S.houses) S.houses = {};
+    if (!S.tasks || !Array.isArray(S.tasks)) S.tasks = [];
+    if (S.autoHp == null) S.autoHp = 30;
+    if (S.autoMp == null) S.autoMp = 20;
+    for (const sk in S.skills) { if (!S.skills[sk] || S.skills[sk].lv == null) S.skills[sk] = { lv:1, xp:0 }; }
+    SK.forEach((s)=>{ if (!S.skills[s.id]) S.skills[s.id] = { lv:1, xp:0 }; });
+    if (S.monI == null) S.monI = 0;
+    if (S.monLv == null) S.monLv = 1;
+    S.monI = Math.min(99, Math.max(0, S.monI|0));
+    S.monLv = Math.min(5, Math.max(1, S.monLv|0));
+    if (S.hp == null) S.hp = 60;
+    if (S.mp == null) S.mp = 25;
+    if (S.monHp == null || S.monHp <= 0) S.monHp = curMon().hp;
     sanitizeSave();
     migrateBag();
     if (Array.isArray(S.equips)) { S.equips.forEach((e)=>{ if (e && typeof e === "object") addEq(e, true); }); delete S.equips; }
@@ -2547,9 +2658,8 @@ function forgeRow(e, ref) {
     +`<span class="info">🏆 升阶：${qMaxed?(e.rare>=11?"混沌已是最高":`已达转生解锁上限【${RARE_NAMES[maxRare()]}】`):`${matStr(qc.mats)}＋${qc.gold}💰｜${(qualRate(e.rare)*100).toFixed(0)}%`}</span>`
     +`<button class="act sm" style="background:#a6f" ${qMaxed||!canAfford(qc.mats,qc.gold)?"disabled":""} onclick="upQuality(${ra})">升阶</button>`
     +`</div>`;
-  /* ★ v1.21.4b：升级按钮在下一档超出穿戴要求时禁用并显示原因 */
   h += `<div class="row" style="background:#1c2036;margin-left:14px">`
-    +`<span class="info">⬆️ 装备升级：${uc?(upBlock?`❌ 下一档 Lv${uc.to} 需 ${e.slot==="weapon"?"单项战斗":"战斗均"}Lv≥${uc.to}（当前 ${tierWearLv(e)}），先练战斗技能`:`Lv${e.reqLv}→Lv${uc.to}档｜<b style="color:#f80">${(ur*100).toFixed(0)}%</b>｜${matStr(uc.mats)}＋${uc.gold}💰`:`已达 Lv${EQ_MAX_LV} 满档`}</span>`
+    +`<span class="info">⬆️ 装备升级：${uc?(upBlock?`❌ 下一档 Lv${uc.to} 需 ${e.slot==="weapon"?"单项战斗":"战斗均"}Lv≥${uc.to}（当前 ${tierWearLv(e)}），先练战斗技能`:`Lv${e.reqLv}→Lv${uc.to}档｜<b style="color:#f80">${(ur*100).toFixed(0)}%</b>｜${matStr(uc.mats)}＋${uc.gold}💰`):`已达 Lv${EQ_MAX_LV} 满档`}</span>`
     +`<button class="act sm" style="background:#2a5" ${!uc||upBlock||!canAfford(uc.mats,uc.gold)?"disabled":""} onclick="upTier(${ra})">升级</button>`
     +`</div>`;
   const holes = e.holes||0;
@@ -2685,10 +2795,10 @@ function helpHTML() {
 
 <div class="helpSec"><h4>🤝 三、玩家市场</h4>
 <p>· 「市场」页下半部分是<b>玩家交易市场</b>：挂单制，类似拍卖行。</p>
-<p>· <b>挂单出售</b>：选材料→设数量和单价→挂单，材料立即转入市场托管；每人最多20个挂单。</p>
+<p>· <b>挂单出售</b>：选材料→设数量和单价→挂单，材料立即转入市场托管；每人最多20个挂单；交易按<b>当前存档槽</b>结算（挂单/买入都会传槽位给服务端）。</p>
 <p>· <b>买入</b>：浏览挂单列表（按单价升序，同价先挂先卖），输入数量点买入，金币直接结算。</p>
 <p>· 成交收<b>2%税（卖家承担）</b>；可交易：基础材料/稀有材料/无尽材料/丹药/羽翎/星辉砂/宝石。<span class="warn">神水、无敌药水、打孔锥、装备不可交易</span>。</p>
-<p>· 💰 <b>卖出所得自动领取</b>：上线时和每60秒自动领取入账——离线卖出的钱也不会丢。</p>
+<p>· 💰 <b>卖出所得自动领取</b>：上线时和每60秒自动领取入账——离线期间卖出的钱也不会丢。</p>
 <p>· 点「📡 实时」开启订阅后，别人挂的新单自动刷新。<span class="warn">仅注册账号可交易，游客不可</span>。</p></div>
 
 <div class="helpSec"><h4>🏆 四、12品质体系</h4>
@@ -2739,12 +2849,12 @@ function helpHTML() {
   if (isAdmin()) {
     h += `
 <div class="helpSec"><h4>📜 十三、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.21.4b</span><b>装备升级穿戴预判</b>：升级（升档）前校验下一档是否满足穿戴要求（武器=单项战斗最高｜其他槽位=战斗平均值）——不满足则禁止升级、材料不消耗；手动升级/右键菜单/自动锻造三处统一拦截；锻造页与右键按钮同步置灰并显示缺口；修复"升级后穿不上自己刚升的装备"的问题。</p>
-<p><span class="verTag">v1.21.4a</span><b>宝石掉落上限调整</b>：无尽宝石掉落上限Lv25（Lv26~30只能4合1合成）。</p>
-<p><span class="verTag">v1.21.4</span><b>存档槽+宝石调整</b>：每账号3个存档槽（本地3+云端3），登录后先进存档选择页；存档选择页每槽带🗑️删除存档按钮；管理员清档改为重置当前槽；旧版单存档自动兼容为槽1。</p>
-<p><span class="verTag">v1.21.3</span><b>视觉与经济调整</b>：无尽金币单只封顶100万💰；金币兑换牛铃（1亿=1🔔）；神器+极光流光。</p>
-<p><span class="verTag">v1.21.2</span><b>读档自动净化</b>：自动清除坏数据防渲染崩溃。</p>
-<p><span class="verTag">v1.21~v1.0</span>：玩家市场、修行系统、自动锻造、品质/档位扩展、管理员系统、无尽模式等迭代。</p></div>`;
+<p><span class="verTag">v1.21.5</span><b>登录加固+市场SQL适配多存档</b>：登录/注册全程try/catch（网络异常不再卡死在"正在登录"）；云端密码验证优先，本地记录仅作离线兜底（修复老账号被误报"密码错误"）；存档选择页异常时自动兜底进入槽1；挂单/买入RPC新增 p_slot 槽位参数——<span class="warn">必须配合执行 Supabase SQL 更新（多存档槽市场适配，见部署说明），未执行时交易会报"函数不存在"</span>；服务端函数缺失时日志给出明确提示。</p>
+<p><span class="verTag">v1.21.4c</span><b>市场同步崩溃修复</b>：unwrapSlot统一解包云端槽位（兼容单层/双层封装）；loadGame结构校验+缺省补齐；交易后同步失败只警告不误报。</p>
+<p><span class="verTag">v1.21.4b</span><b>装备升级穿戴预判</b>：升级前校验下一档穿戴要求，不满足禁止升级。</p>
+<p><span class="verTag">v1.21.4a</span><b>宝石掉落上限</b>：无尽掉落封顶Lv25（Lv26+只能合成）。</p>
+<p><span class="verTag">v1.21.4</span><b>存档槽系统</b>：每账号3个存档槽，存档选择页带删除存档。</p>
+<p><span class="verTag">v1.21.3~v1.0</span>：金币封顶/牛铃兑换/极光流光、读档净化、玩家市场、修行系统、自动锻造、品质/档位扩展、管理员系统、无尽模式等迭代。</p></div>`;
   }
   return h;
 }
