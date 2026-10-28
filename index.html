@@ -287,7 +287,6 @@ const GOLD_PER_BELL = 100000000;
 const SLOT_MAX = 3;
 let curSlot = 1;
 let SLOTDOC = null;
-/* ★ 宝石掉落上限：无尽最高掉落 Lv25，Lv26~30 只能合成 */
 const GEM_DROP_CAP = 25;
 
 let SID = null;
@@ -391,9 +390,6 @@ async function cloudFetch() {
   return data;
 }
 
-/* ============================================================
-   ★ 存档槽选择 / 删除存档
-   ============================================================ */
 function slotData(n) {
   let local = null;
   const lraw = localStorage.getItem(saveKeyOf(CUR, n)) || (n === 1 ? localStorage.getItem(saveKeyOf(CUR)) : null);
@@ -665,6 +661,7 @@ async function authGo() {
     A[u] = { ph: hashPw(p), created: Date.now() };
     saveAccs(A);
     doLogin(u);
+    if ($("aRemember").gedCheck) $("aRemember").checked = true;
     if ($("aRemember").checked) saveRemember(u, p); else clearRemember();
     authMsg("✅ 注册成功，请选择存档槽", true);
     setTimeout(showSlotPicker, 300);
@@ -1266,6 +1263,12 @@ function canWear(e) {
   if (e.slot === "weapon") return maxCombatLv() >= e.reqLv;
   return combatLvAvg() >= Math.min(effCap(), e.reqLv);
 }
+/* ★ v1.21.4b：指定档位下的穿戴预判（升级拦截用） */
+function canWearAt(e, reqLv) {
+  if (e.slot === "weapon") return maxCombatLv() >= reqLv;
+  return combatLvAvg() >= Math.min(effCap(), reqLv);
+}
+function tierWearLv(e) { return e.slot === "weapon" ? maxCombatLv() : Math.min(effCap(), combatLvAvg()); }
 function wearNeedTxt(e) {
   return e.slot === "weapon" ? `需单项战斗Lv${e.reqLv}` : `需战斗均Lv${Math.min(effCap(), e.reqLv)}`;
 }
@@ -1359,6 +1362,11 @@ function upTier(ref) {
   const e = getEq(ref); if (!e) return;
   const c = upgCfg(e);
   if (!c) { log(`已达最高档次 Lv${EQ_MAX_LV}，无法再升级`); return; }
+  /* ★ v1.21.4b：下一档超过穿戴要求则禁止升级（武器=单项战斗最高；其他=战斗平均），材料不消耗 */
+  if (!canWearAt(e, c.to)) {
+    log(`❌ 无法升级：下一档 Lv${c.to} 超过穿戴要求（需 ${e.slot==="weapon"?"单项战斗":"战斗均"}Lv≥${c.to}，当前 ${tierWearLv(e)}）——先把战斗技能练上去`);
+    return;
+  }
   const lack = lackOf(c.mats, c.gold);
   if (lack) { alert(`❌ 装备升级失败——材料不足！\n\n缺少：${lack}\n\n（Lv250+档的升级材料仅无尽模式掉落或🔔牛铃商店购买）`); return; }
   payCost(c.mats, c.gold);
@@ -1533,6 +1541,8 @@ function autoForgeTick() {
     if (e.reqLv < t.tier) {
       const c = upgCfg(e);
       if (!c) return stop(`已达最高档次 Lv${EQ_MAX_LV}`);
+      /* ★ v1.21.4b：自动锻造升档同样受穿戴预判约束 */
+      if (!canWearAt(e, c.to)) return stop(`下一档 Lv${c.to} 超过穿戴要求（需 ${e.slot==="weapon"?"单项战斗":"战斗均"}Lv≥${c.to}，当前 ${tierWearLv(e)}）`);
       if (c.to > t.tier) {
         /* 下一档超过目标档：视为完成 */
       } else {
@@ -1771,7 +1781,6 @@ function dropRareMat(f) {
   if (f >= 500 && Math.random() < 0.05) { if (addIt("punch",1)) log(`🔨 无尽第${f}层掉落打孔锥×1！`); }
   if (f >= 1000 && Math.random() < 0.04) {
     const t = ["atk","def","hp","critDmg"][Math.random()*4|0];
-    /* ★ 无尽掉落上限Lv25，Lv26~30只能合成 */
     const l = Math.min(GEM_DROP_CAP, 1+Math.floor((f-1000)/50));
     const id = `gem_${t}_${l}`;
     if (addIt(id,1)) log(`💎 无尽第${f}层掉落 ${IT[id].n}（+${gemVal(t,l)}${t==="critDmg"?"%":""}${l>=GEM_DROP_CAP?"｜掉落已封顶，更高只能合成":""}）！`);
@@ -2529,6 +2538,7 @@ function forgeRow(e, ref) {
   const ur = tierRate(e);
   const ra = refAttr(ref);
   const ic = EQIC[e.slot] || "⚔️";
+  const upBlock = uc && !canWearAt(e, uc.to);
   let h = `<div class="row"><span class="name r${e.rare}">${ic} ${eqName(e)}</span>`
     +`<span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}档】${eqValStr(e)}</span></div>`;
   h += `<div class="row" style="background:#1c2036;margin-left:14px">`
@@ -2537,9 +2547,10 @@ function forgeRow(e, ref) {
     +`<span class="info">🏆 升阶：${qMaxed?(e.rare>=11?"混沌已是最高":`已达转生解锁上限【${RARE_NAMES[maxRare()]}】`):`${matStr(qc.mats)}＋${qc.gold}💰｜${(qualRate(e.rare)*100).toFixed(0)}%`}</span>`
     +`<button class="act sm" style="background:#a6f" ${qMaxed||!canAfford(qc.mats,qc.gold)?"disabled":""} onclick="upQuality(${ra})">升阶</button>`
     +`</div>`;
+  /* ★ v1.21.4b：升级按钮在下一档超出穿戴要求时禁用并显示原因 */
   h += `<div class="row" style="background:#1c2036;margin-left:14px">`
-    +`<span class="info">⬆️ 装备升级：${uc?`Lv${e.reqLv}→Lv${uc.to}档｜<b style="color:#f80">${(ur*100).toFixed(0)}%</b>｜${matStr(uc.mats)}＋${uc.gold}💰`:`已达 Lv${EQ_MAX_LV} 满档`}</span>`
-    +`<button class="act sm" style="background:#2a5" ${!uc||!canAfford(uc.mats,uc.gold)?"disabled":""} onclick="upTier(${ra})">升级</button>`
+    +`<span class="info">⬆️ 装备升级：${uc?(upBlock?`❌ 下一档 Lv${uc.to} 需 ${e.slot==="weapon"?"单项战斗":"战斗均"}Lv≥${uc.to}（当前 ${tierWearLv(e)}），先练战斗技能`:`Lv${e.reqLv}→Lv${uc.to}档｜<b style="color:#f80">${(ur*100).toFixed(0)}%</b>｜${matStr(uc.mats)}＋${uc.gold}💰`:`已达 Lv${EQ_MAX_LV} 满档`}</span>`
+    +`<button class="act sm" style="background:#2a5" ${!uc||upBlock||!canAfford(uc.mats,uc.gold)?"disabled":""} onclick="upTier(${ra})">升级</button>`
     +`</div>`;
   const holes = e.holes||0;
   const pc = punchCost(e);
@@ -2632,7 +2643,7 @@ function openEqMenu(key, ev) {
     +`<div style="padding:0 6px 4px;color:#889;font-size:10px">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}档】${eqValStr(e)}</div>`
     +`<button onclick="hideEqMenu();doEnh(${ra});renderPanel()" ${e.plus>=ENH_MAX||!canAfford(ef.mats,ef.gold)?"disabled":""}>🔨 强化（${e.plus>=ENH_MAX?"已满":(enhRate(e)*100).toFixed(0)+"%｜"+ef.gold+"💰"}）</button>`
     +`<button onclick="hideEqMenu();upQuality(${ra})" ${qMaxed||!qc||!canAfford(qc.mats,qc.gold)?"disabled":""}>🏆 升阶（${qMaxed?(e.rare>=11?"最高":"转生解锁上限"):(qualRate(e.rare)*100).toFixed(0)+"%｜"+qc.gold+"💰"}）</button>`
-    +`<button onclick="hideEqMenu();upTier(${ra})" ${!uc||!canAfford(uc.mats,uc.gold)?"disabled":""}>⬆️ 升级档位（${uc?"→Lv"+uc.to+"｜"+(tierRate(e)*100).toFixed(0)+"%":"已满档"}）</button>`
+    +`<button onclick="hideEqMenu();upTier(${ra})" ${!uc||!canWearAt(e,uc.to)||!canAfford(uc.mats,uc.gold)?"disabled":""}>⬆️ 升级档位（${uc?(canWearAt(e,uc.to)?"→Lv"+uc.to+"｜"+(tierRate(e)*100).toFixed(0)+"%":"需"+(e.slot==="weapon"?"单项":"均")+"Lv"+uc.to+"🔒"):"已满档"}）</button>`
     +`<button onclick="hideEqMenu();punchEq(${ra})" ${(e.holes||0)>=EQ_HOLES_MAX||!canAfford(pc.mats,pc.gold)?"disabled":""}>🔨 打孔（${(e.holes||0)>=EQ_HOLES_MAX?"已满4孔":pc.gold.toLocaleString()+"💰"}）</button>`
     +(okWear?`<button onclick="hideEqMenu();equipIt(${ra})">⚔️ 穿戴</button>`:`<button disabled>⚔️ 穿戴（${wearNeedTxt(e)}）</button>`)
     +`<div class="sep"></div>`
@@ -2689,14 +2700,15 @@ function helpHTML() {
 
 <div class="helpSec"><h4>💎 五、宝石系统（Lv30）</h4>
 <p>· 4种宝石（⚔攻击/🛡防御/❤活力/💥爆伤），<b>等级上限Lv30</b>，每级属性×1.2复利（Lv30≈基础的198倍）。</p>
-<p>· <span class="warn">Lv26+宝石<b>不再掉落，只能4合1合成</b></span>——掉落上限<b>Lv25</b>（炼虚+怪5%掉落≤Lv11；无尽1000层起掉落≤Lv25，2450层+可掉到Lv25）。</p>
-<p>· Lv26→30需从Lv25逐级合成：Lv25合成Lv26要4颗，到Lv30共需 4⁵=1024颗Lv25当量。</p>
+<p>· <span class="warn">Lv26+宝石<b>不再掉落，只能4合1合成</b></span>——掉落上限<b>Lv25</b>（炼虚+怪5%掉落≤Lv11；无尽1000层起掉落≤Lv25）。</p>
+<p>· Lv26→30需从Lv25逐级合成：到Lv30共需 4⁵=1024颗Lv25当量。</p>
 <p>· 🤝玩家市场可交易宝石（含他人合成的高级宝石）。</p></div>
 
 <div class="helpSec"><h4>⚔️ 六、档位与穿戴</h4>
 <p>· 档位上限 <b>Lv500</b>（249后每25级一档）。普通十境掉落<b>维持Lv249封顶不变</b>。</p>
 <p>· <b>Lv250+装备仅无尽模式掉落</b>：1500层起，每+300层解锁一个新档。</p>
 <p>· <span class="warn">武器穿戴要求：不得超自身战斗技能的单项最高等级</span>（其他槽位仍是战斗均级）。</p>
+<p>· <b>装备升级（升档）同样受穿戴约束</b>：下一档超过穿戴要求（武器=单项战斗最高｜其他=战斗平均）时无法升级，材料不消耗——先练战斗技能再升。</p>
 <p>· Lv250+档的升级材料仅无尽掉落或🔔牛铃商店/🤝玩家市场购买。</p></div>
 
 <div class="helpSec"><h4>💰 七、金币与牛铃</h4>
@@ -2709,7 +2721,7 @@ function helpHTML() {
 
 <div class="helpSec"><h4>🎯 九、自动锻造（仅限背包装备）</h4>
 <p>· <span class="warn">自动锻造只对<b>背包中</b>的装备生效</span>——在背包选中装备后的详情行设置目标。</p>
-<p>· 每秒自动尝试（强化→升阶→升档），全部达标或材料不足自动停止。</p></div>
+<p>· 每秒自动尝试（强化→升阶→升档），全部达标或材料不足/下一档超出穿戴要求时自动停止。</p></div>
 
 <div class="helpSec"><h4>🌌 十、无尽模式总览</h4>
 <p>· 300层+🕊️羽翎｜500层+🔨打孔锥｜1000层+💎宝石(≤Lv25)/💊地灵丹｜1500层+<b>Lv275档装备/新品质/星辉砂/星髓</b>｜2000层+🛉无敌药水｜2500层+🏮天元丹。</p>
@@ -2721,13 +2733,15 @@ function helpHTML() {
 <div class="helpSec"><h4>💡 十二、实用小技巧</h4>
 <p>· 背包右键装备 = 快捷锻造/锁定；批量分解支持<b>神器~混沌全部品质</b>。</p>
 <p>· 冲高等级宝石路线：无尽1000层+挂机囤Lv25宝石 → 4合1逐级向上到Lv30 → 镶满4孔。</p>
+<p>· 冲高档装备路线：战斗单项练到目标档等级 → 升级装备 → 无尽掉落/合成补档。</p>
 <p>· 缺牛铃？无尽刷金币 → 牛铃商店「金币兑换牛铃」；或🤝玩家市场卖材料。</p></div>
 `;
   if (isAdmin()) {
     h += `
 <div class="helpSec"><h4>📜 十三、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.21.4a</span><b>宝石掉落上限调整</b>：无尽宝石掉落上限由Lv19提升为<b>Lv25</b>（Lv26~30仍只能4合1合成）；其余同v1.21.4。</p>
-<p><span class="verTag">v1.21.4</span><b>存档槽+宝石调整</b>：每账号3个存档槽（本地3+云端3），登录后先进存档选择页；存档选择页每槽带🗑️删除存档按钮（本地+云端一起删）；管理员清档改为重置当前槽；旧版单存档自动兼容为槽1。</p>
+<p><span class="verTag">v1.21.4b</span><b>装备升级穿戴预判</b>：升级（升档）前校验下一档是否满足穿戴要求（武器=单项战斗最高｜其他槽位=战斗平均值）——不满足则禁止升级、材料不消耗；手动升级/右键菜单/自动锻造三处统一拦截；锻造页与右键按钮同步置灰并显示缺口；修复"升级后穿不上自己刚升的装备"的问题。</p>
+<p><span class="verTag">v1.21.4a</span><b>宝石掉落上限调整</b>：无尽宝石掉落上限Lv25（Lv26~30只能4合1合成）。</p>
+<p><span class="verTag">v1.21.4</span><b>存档槽+宝石调整</b>：每账号3个存档槽（本地3+云端3），登录后先进存档选择页；存档选择页每槽带🗑️删除存档按钮；管理员清档改为重置当前槽；旧版单存档自动兼容为槽1。</p>
 <p><span class="verTag">v1.21.3</span><b>视觉与经济调整</b>：无尽金币单只封顶100万💰；金币兑换牛铃（1亿=1🔔）；神器+极光流光。</p>
 <p><span class="verTag">v1.21.2</span><b>读档自动净化</b>：自动清除坏数据防渲染崩溃。</p>
 <p><span class="verTag">v1.21~v1.0</span>：玩家市场、修行系统、自动锻造、品质/档位扩展、管理员系统、无尽模式等迭代。</p></div>`;
