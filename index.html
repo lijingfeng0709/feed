@@ -128,12 +128,6 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
 .offIt .ct{font-size:10px;color:#ccd;margin-top:2px}
 .mClose{width:100%;padding:9px;margin-top:14px;background:#4a9eff;border:0;color:#fff;border-radius:6px;font-size:14px;cursor:pointer}
 .mClose:hover{background:#6ab0ff}
-.pickBtn{display:flex;align-items:center;gap:10px;width:100%;padding:12px;margin-bottom:10px;background:#232842;border:1px solid #3a4166;border-radius:8px;cursor:pointer;color:#e8e8f0;font-size:13px;text-align:left}
-.pickBtn:hover{border-color:#ffd479;background:#2a3050}
-.pickBtn .pic{font-size:26px}
-.pickBtn .pt{flex:1}
-.pickBtn .pt b{color:#ffd479;display:block;margin-bottom:2px}
-.pickBtn .pt span{color:#889;font-size:11px}
 .critTxt{color:#f80;font-weight:bold}
 .timerTxt{color:#4af;font-weight:bold}
 .buffTxt{color:#fa0;font-weight:bold}
@@ -163,6 +157,9 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
 .pmRow{background:#152035;border-left:3px solid #5cf}
 .pmMine{background:#1a2a20;border-left:3px solid #5c5}
 .pmTag{color:#5cf;font-weight:bold}
+.lbRow{background:#152035;border-left:3px solid #ffd479}
+.lbMine{background:#2a2413;border-left:3px solid #ffd479;font-weight:bold}
+.pnRow{background:#2a2413;border:1px solid #ffd47955}
 
 @media (max-width:768px){
   body{font-size:13px}
@@ -202,7 +199,6 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
   .zonebar button{padding:6px 10px;font-size:11px}
   .lvbtn{padding:5px 9px;font-size:11px}
   .pagenav{gap:4px}
-  .pickBtn{padding:14px}
   .mClose{padding:12px;font-size:15px}
   .cfgRow .cName{min-width:110px;font-size:12px}
   .cfgRow .cIn{width:72px}
@@ -223,7 +219,8 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
       <button id="aTabLogin" class="on" onclick="aMode='login';authUI()">登 录</button>
       <button id="aTabReg" onclick="aMode='reg';authUI()">注 册</button>
     </div>
-    <input id="aUser" placeholder="用户名（2~16字符）" maxlength="16">
+    <input id="aUser" placeholder="用户名（2~16字符，登录用）" maxlength="16">
+    <input id="aPname" placeholder="玩家名字（2~10字符，全服唯一，排行榜显示）" maxlength="10" style="display:none">
     <input id="aPass" type="password" placeholder="密码（至少6位，云端要求）">
     <label class="ck" style="display:flex">
       <input type="checkbox" id="aRemember" checked>记住账号和密码（打开页面自动填入，点登录即可）
@@ -288,6 +285,9 @@ const SLOT_MAX = 3;
 let curSlot = 1;
 let SLOTDOC = null;
 const GEM_DROP_CAP = 25;
+/* ★ v1.21.7：玩家名字（各槽独立）缓存 */
+let MY_PN = { 1:null, 2:null, 3:null };
+const PN_RE = /^[\u4e00-\u9fa5A-Za-z0-9_]{2,10}$/;
 
 /* ★ 槽位数据解包——兼容 {S} / {S,uid} / 双层封装 / 裸S 各种历史格式 */
 function unwrapSlot(v) {
@@ -357,6 +357,42 @@ async function cloudUid() {
   return (data && data.session && data.session.user) ? data.session.user.id : null;
 }
 
+/* ★ v1.21.7：拉取本账号各槽玩家名字，并同步当前槽的存档名 */
+async function fetchMyPnames() {
+  if (!pmCanUse()) return;
+  try {
+    const id = await cloudUid();
+    if (!id) return;
+    const { data, error } = await sb.from("pname_registry").select("pname,slot").eq("user_id", id);
+    if (error) { pmSqlHint(error); return; }
+    MY_PN = { 1:null, 2:null, 3:null };
+    (data || []).forEach((r) => { const sl = Math.min(SLOT_MAX, Math.max(1, r.slot|0)); MY_PN[sl] = r.pname; });
+    if (S && MY_PN[curSlot] && S.name !== MY_PN[curSlot]) {
+      S.name = MY_PN[curSlot];
+      saveGame(); renderTop();
+    }
+  } catch (e) {}
+}
+/* ★ v1.21.7：修改当前槽玩家名字（服务端每日限1次校验） */
+async function doRename() {
+  if (!pmCanUse()) { log("⚠️ 游客无法设置玩家名字（需注册账号）"); return; }
+  const el = $("pnNew"); if (!el) return;
+  const pn = el.value.trim();
+  if (!PN_RE.test(pn)) { log("⚠️ 名字需2~10位中文/字母/数字/下划线"); return; }
+  log("⏳ 正在修改存档槽" + curSlot + "的玩家名字…");
+  try {
+    const { data, error } = await sb.rpc("claim_pname", { p_pname: pn, p_slot: curSlot, p_is_rename: true });
+    if (error) throw error;
+    MY_PN[curSlot] = pn;
+    S.name = pn;
+    saveGame(); renderTop(); renderPanel();
+    log(`🪪 名字修改成功：存档槽${curSlot} →「${pn}」（排行榜与玩家市场将显示新名字）`);
+  } catch (e) {
+    log("❌ 修改失败：" + (e.message || e));
+    pmSqlHint(e);
+  }
+}
+
 async function cloudSave() {
   if (!CLOUD_ON() || CUR === "guest") return;
   const id = await cloudUid();
@@ -377,7 +413,11 @@ async function cloudSave() {
   } catch (e) {}
   doc.slots[curSlot] = bareS;
   const { error } = await sb.from("saves").upsert({ id, name: CUR, data: doc, version: 1 });
-  if (error) sbErr(error); else log("☁️ 存档已同步到云端（槽" + curSlot + "）");
+  if (error) sbErr(error);
+  else {
+    log("☁️ 存档已同步到云端（槽" + curSlot + "）");
+    try { await sb.rpc("refresh_leaderboard", { p_slot: curSlot }); } catch (e) {}
+  }
   maybeBackup(id);
 }
 async function maybeBackup(id) {
@@ -430,7 +470,6 @@ function slotUse(n) {
   if (d.local && d.cloud) return (d.cloud.lastTick || 0) >= (d.local.lastTick || 0) ? d.cloud : d.local;
   return d.cloud || d.local;
 }
-/* ★ v1.21.5：全程容错——任何异常都兜底进入槽1，保证登录永远不卡死 */
 async function showSlotPicker() {
   try {
     SLOTDOC = null;
@@ -480,6 +519,7 @@ function chooseSlot(n) {
   localStorage.setItem("mr_slot_" + CUR, String(n));
   $("slotPick").style.display = "none";
   enterGame();
+  fetchMyPnames();
 }
 async function deleteSlot(n) {
   const d = slotData(n);
@@ -501,7 +541,7 @@ async function deleteSlot(n) {
   showSlotPicker();
 }
 function resetSlot() {
-  if (!confirm(`确认清空当前存档槽（槽${curSlot}）并重新开始？\n\n云端该槽也会被覆盖为新档，不可恢复！`)) return;
+  if (!confirm(`确认清空当前存档槽（槽${curSlot}）并重新开始？\n\n云端该槽也会被覆盖为新档，不可恢复！\n⚠️ 注意：排行榜的累计成绩保留在云端榜单中，不会随清档消失。`)) return;
   localStorage.removeItem(saveKeyOf(CUR, curSlot));
   if (curSlot === 1) localStorage.removeItem(saveKeyOf(CUR));
   newGameState(); giveStarterGear(); refreshTasks(true); saveGame(); render();
@@ -660,12 +700,12 @@ function authUI() {
   $("aTabLogin").className = aMode === "login" ? "on" : "";
   $("aTabReg").className = aMode === "reg" ? "on" : "";
   $("aGo").textContent = aMode === "login" ? "登录" : "注册并进入";
+  $("aPname").style.display = aMode === "reg" ? "block" : "none";
   $("aMigRow").style.display = (aMode === "reg" && localStorage.getItem("mr_save_guest")) ? "flex" : "none";
   $("aMsg").textContent = ""; $("aMsg").className = "msg";
 }
 function authMsg(t, ok) { const e = $("aMsg"); e.textContent = t; e.className = "msg " + (ok ? "ok" : "err"); }
 
-/* ★ v1.21.5：登录全面加固——①云端验证优先（本地密码记录仅作离线兜底，不再前置拦截）；②全程try/catch，任何异常都有明确提示，绝不卡死 */
 async function authGo() {
   const u = $("aUser").value.trim();
   const p = $("aPass").value;
@@ -699,9 +739,20 @@ async function authGo() {
     authMsg("✅ 登录成功，请选择存档槽", true);
     setTimeout(showSlotPicker, 300);
   } else {
+    /* ★ v1.21.7：注册需填玩家名字（全服唯一） */
+    const pn = $("aPname").value.trim();
     if (u.length < 2) { authMsg("❌ 用户名至少2个字符"); return; }
+    if (!PN_RE.test(pn)) { authMsg("❌ 玩家名字需2~10位中文/字母/数字/下划线（排行榜显示，全服唯一）"); return; }
     if (p.length < 6) { authMsg("❌ 密码至少6位（云端账号要求）"); return; }
     if (A[u]) { authMsg("❌ 该用户名已被注册"); return; }
+    authMsg("⏳ 正在检查名字可用性…", true);
+    try {
+      const { data: free, error: fe } = await sb.rpc("check_pname_free", { p_pname: pn });
+      if (fe) throw fe;
+      if (free === false) { authMsg("❌ 玩家名字「" + pn + "」已被占用，请换一个"); return; }
+    } catch (e) {
+      authMsg("⚠️ 名字检查未完成（继续注册，占用时稍后可在账号页改名）：" + ((e && e.message) || e), false);
+    }
     authMsg("⏳ 正在注册云端账号…", true);
     let ok = false;
     try {
@@ -717,6 +768,15 @@ async function authGo() {
       return;
     }
     try { await cloudSignIn(u, p); } catch (e) {}
+    /* 占用玩家名字（槽1） */
+    try {
+      const { error: pnErr } = await sb.rpc("claim_pname", { p_pname: pn, p_slot: 1, p_is_rename: false });
+      if (pnErr) throw pnErr;
+      MY_PN[1] = pn;
+      log(`🪪 玩家名字「${pn}」注册成功（排行榜与玩家市场显示此名字）`);
+    } catch (e) {
+      log("⚠️ 玩家名字占用失败：" + (e.message || e) + "——账号已创建，可稍后在「账号」页设置名字");
+    }
     if ($("aMigRow").style.display !== "none" && $("aMig").checked && localStorage.getItem("mr_save_guest")) {
       if (!localStorage.getItem(saveKeyOf(u, 1))) localStorage.setItem(saveKeyOf(u, 1), localStorage.getItem("mr_save_guest"));
     }
@@ -735,9 +795,10 @@ function logout() {
   saveGame(); cloudSignOut();
   if (pmSub) { try { sb.removeChannel(pmSub); } catch (e) {} pmSub = null; }
   CUR = null; LOGGED_IN = false; SLOTDOC = null;
+  MY_PN = { 1:null, 2:null, 3:null };
   localStorage.removeItem(SES_KEY);
   clearRemember();
-  $("aUser").value = ""; $("aPass").value = "";
+  $("aUser").value = ""; $("aPass").value = ""; $("aPname").value = "";
   showAuth(); authUI();
 }
 function initAuth() {
@@ -762,6 +823,7 @@ function enterGame() {
   offline(); hideAuth(); renderSpd(); render();
   fetchGlobalCfg().then(() => { if (LOGGED_IN) { S.monHp = curMon().hp; renderSpd(); render(); } });
   claimMarket();
+  fetchMyPnames();
 }
 
 /* ============================================================
@@ -913,7 +975,7 @@ const EQIC = {weapon:"⚔️",helmet:"⛑️",armor:"🛡️",boots:"🥾",glove
 const ELE = ["炼气","筑基","金丹","元婴","化神","炼虚","合体","大乘","渡劫","真仙"];
 const CRE = [
   [["野猪","🐗"],["灰狼","🐺"],["毒蛇","🐍"],["山魈","👹"],["妖狐","🦊"],["黑熊","🐻"],["骷髅","💀"],["僵尸","🧟"],["鬼火","🔥"],["石鬼","🗿"]],
-  [["赤炎炎蜥","🦎"],["铁甲犀","🦏"],["噬魂蝠","🦇"],["千年藤妖","🌿"],["幽泉水鬼","💧"],["沙海毒蝎","🦂"],["风刃鹰","🦅"],["地穴魔蛛","🕷️"],["血目枭","🦉"],["腐骨尸王","🧟"]],
+  [["赤炎炎炎蜥","🦎"],["铁甲犀","🦏"],["噬魂蝠","🦇"],["千年藤妖","🌿"],["幽泉水鬼","💧"],["沙海毒蝎","🦂"],["风刃鹰","🦅"],["地穴魔蛛","🕷️"],["血目枭","🦉"],["腐骨尸王","🧟"]],
   [["雷劫虎","🐯"],["玄冰蟒","🐍"],["烈焰鸦","🔥"],["噬金鼠","🐹"],["迷魂貂","🦦"],["九幽猫","🐈"],["断岳猿","🦍"],["缚魂傀儡","🎎"],["紫电貂","⚡"],["三首蛟","🐉"]],
   [["青冥龙","🦕"],["碧眼尸魔","🧟"],["万蛊母虫","🐛"],["幽冥犬","🐕"],["摄魂使者","👁️"],["血河老祖","🩸"],["白骨将军","☠️"],["阴风鬼将","👻"],["九头蛇君","🐍"],["幻蝶仙子","🦋"]],
   [["焚天麒麟","🔥"],["玄冥龟兽","🐢"],["金翅大鹏","🦅"],["吞天巨蟒","🐍"],["血魔鲨祖","🦈"],["灭世魔猿","🦍"],["幽冥火凤","🔥"],["紫金貔貅","🐅"],["混沌凶兽","🌀"],["天雷古兽","⚡"]],
@@ -1075,12 +1137,13 @@ function checkLanes() {
   }
 }
 function newGameState() {
-  S = { name:"访客"+(1000+Math.random()*9000|0), gold:100, bell:0, token:0,
+  S = { name:(MY_PN[curSlot] || "访客"+(1000+Math.random()*9000|0)), gold:100, bell:0, token:0,
     skills:defSkills(), lanes:defLanes(), eff:0,
     bag:{bread:5,tea:3}, slotMap:{},
     eq:{weapon:null,helmet:null,armor:null,boots:null,gloves:null,ring:null},
     style:"melee", monI:0, monLv:1, monHp:mon(0,1).hp, hp:60, mp:25,
     endless:false, floor:1, bestFloor:0, autoNext:true, floorKills:{}, floorStart:Date.now(),
+    cumFloor:0, cumLv:0,
     autoHp:30, autoMp:20, teaMin:0, xpMin:0, xpMult:0,
     buffHit:0, buffHitMin:0, buffCd:0, buffCdMin:0, buffInv:0, buffInvMin:0,
     pots:[null,null,null,null,null], houses:{}, badge:0, tasks:[],
@@ -1843,7 +1906,6 @@ function dropRareMat(f) {
     const id = `gem_${t}_${l}`;
     if (addIt(id,1)) log(`💎 无尽第${f}层掉落 ${IT[id].n}（+${gemVal(t,l)}${t==="critDmg"?"%":""}${l>=GEM_DROP_CAP?"｜掉落已封顶，更高只能合成":""}）！`);
   }
-  if (f >= 2000 && Math.random() < 0.03) { if (addIt("invPot",1)) log(`🛉 无尽第${f}层掉落无敌药水×1！（20分钟免伤）`); }
   const NM = [[1500,"xingSui",0.05],[1800,"yunTie",0.04],[2100,"longJin",0.03],[2500,"fengYu",0.025],[2900,"daoZe",0.02],[3300,"hunDunJing",0.015]];
   for (const [min,id,ch] of NM) {
     if (f >= min && Math.random() < ch) { if (addIt(id,1)) log(`✨ 无尽第${f}层掉落 ${IT[id].ic}${IT[id].n}×1！（高级锻造材料）`); }
@@ -1927,7 +1989,7 @@ function killMon(m, q, lane) {
 }
 
 /* ============================================================
-   ★ 模块 N：NPC市场 + 玩家交易市场
+   ★ 模块 N：NPC市场 + 玩家交易市场 + 排行榜
    ============================================================ */
 const MK = {};
 const MK_SPREAD = 0.8;
@@ -2017,11 +2079,10 @@ function mkSell(id, n) {
 /* ★ 玩家交易市场 */
 let pmOrders = [], pmMine = [], pmFilter = "", pmSub = null, pmLastFetch = 0, pmBusy = false;
 function pmCanUse() { return CLOUD_ON() && LOGGED_IN && CUR !== "guest"; }
-/* v1.21.5：服务端函数缺失时的提示 */
 function pmSqlHint(e) {
   const m = String((e && (e.message || e)) || "");
-  if (/could not find the function|market_place_order|market_buy_order|market_cancel_order|market_claim_payouts|schema cache/i.test(m)) {
-    log("🛠️ 检测到服务端市场函数缺失或为旧版：请管理员在 Supabase → SQL Editor 执行 v1.21.5 配套SQL（多存档槽适配）");
+  if (/could not find the function|market_place_order|market_buy_order|market_cancel_order|market_claim_payouts|refresh_leaderboard|claim_pname|pname_registry|schema cache/i.test(m)) {
+    log("🛠️ 检测到服务端函数缺失或为旧版：请管理员在 Supabase → SQL Editor 执行 v1.21.7 配套SQL（玩家名字注册表+排行榜名字接入）");
   }
 }
 async function syncFromCloud() {
@@ -2104,7 +2165,7 @@ function pmUI() {
       h += `<tr class="${mine?"pmMine":"pmRow"}"><td>${it?it.ic+it.n:o.item_id}</td><td>${o.qty}</td>`
         +`<td><b style="color:#ffd479">${o.unit_price.toLocaleString()}💰</b></td>`
         +`<td>${(o.unit_price*o.qty).toLocaleString()}💰</td>`
-        +`<td class="info">${mine?"<b style='color:#5c5'>我</b>":o.seller_name.slice(0,10)}</td>`
+        +`<td class="info">${mine?"<b style='color:#5c5'>我</b>":String(o.seller_name||"-").slice(0,12)}</td>`
         +`<td>${mine?"<span class='info'>自己的单</span>":`<input type="number" min="1" max="${o.qty}" value="${Math.min(o.qty,1)}" style="width:45px" id="bq_${o.id}">`
           +`<button class="act sm" style="background:#5cf" onclick="pmBuy(${o.id})">买入</button>`}</td></tr>`;
     });
@@ -2115,7 +2176,6 @@ function pmUI() {
 }
 let PM_UID = null;
 async function pmInitUid() { if (pmCanUse() && !PM_UID) PM_UID = await cloudUid(); }
-/* ★ v1.21.5：RPC带槽位参数 p_slot；先判错再报成功 */
 async function pmPlace() {
   if (pmBusy) return;
   const itemId = $("pmItem").value, qty = +$("pmQty").value, price = +$("pmPrice").value;
@@ -2208,6 +2268,59 @@ function pmRealtimeToggle() {
       if (status === "SUBSCRIBED") log("📡 玩家市场实时订阅已开启（新挂单自动刷新）");
       renderPanel();
     });
+}
+
+/* ★ 排行榜（累计无尽层数 / 累计总等级，转生时累加；名字来自服务端注册表） */
+let lbTab = 0, lbList = [], lbSelf = null, lbLast = 0, lbMyId = null, lbBusy = false;
+async function lbFetch(silent) {
+  if (!pmCanUse() || lbBusy) return;
+  lbBusy = true;
+  try {
+    lbLast = Date.now();
+    const col = lbTab === 0 ? "cum_floor" : "cum_lv";
+    const { data, error } = await sb.from("leaderboard")
+      .select("user_id,name,cum_floor,cum_lv,reb,updated_at")
+      .order(col, { ascending: false }).order("updated_at", { ascending: true }).limit(100);
+    if (error) { sbErr(error); pmSqlHint(error); return; }
+    lbList = data || [];
+    if (!lbMyId) lbMyId = await cloudUid();
+    if (lbMyId) {
+      const r = await sb.from("leaderboard").select("user_id,name,cum_floor,cum_lv,reb,updated_at").eq("user_id", lbMyId).maybeSingle();
+      lbSelf = (r && r.data) || null;
+    }
+    if (!silent) renderPanel();
+  } finally { lbBusy = false; }
+}
+function lbUI() {
+  if (!pmCanUse()) return `<div class="hint" style="color:#ffd479;margin-top:10px">🏆 排行榜：需注册账号并登录云端后可见（游客无云端数据）</div>`;
+  let h = `<div class="hint" style="color:#ffd479;margin-top:10px">🏆 荣誉排行榜｜数据由服务端从云存档自动提取（<b>无法伪造</b>）｜两项均为<b style="color:#f80">转生累计值</b>：每次转生时，当期无尽最高层数与总等级计入终身累计｜显示玩家的注册名字（未设置者显示“访客+数字”）</div>`;
+  h += `<div class="row">`
+    +`<button class="act sm" style="background:${lbTab===0?"#2a5":"#555"}" onclick="lbTab=0;lbFetch()">🌌 累计无尽层数</button>`
+    +`<button class="act sm" style="background:${lbTab===1?"#2a5":"#555"}" onclick="lbTab=1;lbFetch()">⭐ 累计总等级</button>`
+    +`<button class="act sm" onclick="lbFetch()">↻ 刷新</button>`
+    +(lbSelf?`<span class="info">我的：${lbTab===0?`🌌${(lbSelf.cum_floor||0).toLocaleString()}层`:`⭐${(lbSelf.cum_lv||0).toLocaleString()}级`}（${lbSelf.reb||0}转）</span>`:"")
+    +`</div>`;
+  if (!lbList.length) {
+    h += `<div class="hint" style="text-align:center;padding:20px 0">虚位以待——成为第一个上榜的人！<br>（登录后挂机一段时间，存档同步到云端即自动上榜）</div>`;
+  } else {
+    h += `<table><tr><th>名次</th><th>玩家</th><th>${lbTab===0?"累计无尽层数":"累计总等级"}</th><th>转生</th><th>更新时间</th></tr>`;
+    lbList.forEach((o, i) => {
+      const mine = (lbMyId && o.user_id === lbMyId);
+      const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : (i+1)+".";
+      h += `<tr class="${mine?"lbMine":"lbRow"}"><td>${medal}</td>`
+        +`<td><b style="${mine?"color:#ffd479":""}">${o.name || "无名侠"}</b>（${o.reb || 0}转）</td>`
+        +`<td><b style="color:#ffd479">${((lbTab===0?o.cum_floor:o.cum_lv)||0).toLocaleString()}</b></td>`
+        +`<td class="info">${o.reb || 0}/7</td>`
+        +`<td class="info">${new Date(o.updated_at).toLocaleString()}</td></tr>`;
+    });
+    h += `</table>`;
+    const inTop = lbList.some((o)=>lbMyId && o.user_id === lbMyId);
+    if (lbSelf && !inTop) {
+      h += `<div class="row lbMine" style="margin-top:6px"><span>…</span><span>${lbSelf.name || "我"}（${lbSelf.reb||0}转）</span><b style="color:#ffd479">${((lbTab===0?lbSelf.cum_floor:lbSelf.cum_lv)||0).toLocaleString()}</b><span class="info">未进前100，继续加油！</span></div>`;
+    }
+  }
+  h += `<div class="hint">📌 规则说明：榜单按「转生时累加的终身成绩」排序——转生会让当期进度归零，但你在每一世打出的最高层数与总等级都会永久累加入榜；名字后的（N转）为该玩家当前转生次数。玩家名字在「账号」页设置/修改（每槽独立，每天限改1次）。</div>`;
+  return h;
 }
 
 /* ============================================================
@@ -2331,7 +2444,15 @@ function rebirth() {
   const keepAutoNext = S.autoNext;
   const keepPots = JSON.parse(JSON.stringify(S.pots));
   const keepNd = S.neidan, keepWing = S.wing;
+  const keepName = S.name;
+  const addFloor = (S.bestFloor||0);
+  const addLv = totalLv();
+  const prevCumFloor = (S.cumFloor||0);
+  const prevCumLv = (S.cumLv||0);
   S.sp = 20+S.reb*20; S.reb++;
+  S.cumFloor = prevCumFloor + addFloor;
+  S.cumLv = prevCumLv + addLv;
+  S.name = keepName;
   S.skills = defSkills();
   for (const k in S.slotMap) { if (typeof S.slotMap[k] === "object") delete S.slotMap[k]; }
   S.eq = {weapon:null,helmet:null,armor:null,boots:null,gloves:null,ring:null};
@@ -2346,6 +2467,7 @@ function rebirth() {
   giveStarterGear();
   const cf = rebCf();
   log(`🌀 第 ${S.reb} 次转生完成！保留 ${S.sp} 技能点｜怪物属性增强至 ×${cf.toFixed(2)}｜技能等级上限 → ${effCap()}（每转+60）｜品质解锁 → ${RARE_NAMES[maxRare()]}（每转+1档）｜🧿内丹 Lv${S.neidan.lv} 与 🕊️${S.wing.stage?WING_NAMES[S.wing.stage-1]:"未觉醒翅膀"} 完整保留`);
+  log(`🏆 终身累计成绩：无尽层数 ${S.cumFloor}层（+${addFloor}）｜总等级 ${S.cumLv}（+${addLv}）——已计入排行榜`);
 }
 
 /* ============================================================
@@ -2398,6 +2520,8 @@ function loadGame() {
     if (S.autoTrash == null) S.autoTrash = {mode:0,rare:1};
     if (S.autoNext == null) S.autoNext = true;
     if (!S.floorKills) S.floorKills = {};
+    if (S.cumFloor == null) S.cumFloor = 0;
+    if (S.cumLv == null) S.cumLv = 0;
     if (S.xpMin == null) S.xpMin = 0;
     if (S.xpMult == null) S.xpMult = 0;
     if (S.buffHit == null) S.buffHit = 0;
@@ -2607,7 +2731,7 @@ let TABS = [];
 function buildTabs() {
   TABS = ["队列","角色","修行","背包","战斗","市场","锻造","房屋","任务","转生","牛铃商店","账号"];
   if (isAdmin()) TABS.push("管理员","数值配置");
-  TABS.push("帮助");
+  TABS.push("🏆 排行榜","帮助");
 }
 let tab = 0, zone = 0, qSel = "milk1", qNum = 10;
 const RARE_COLOR_ARR = RARE_COLOR;
@@ -2632,13 +2756,15 @@ function renderTop() {
   const hitTag = S.buffHitMin > 0 ? `<span class="buffTxt">🧪 命中100%（${Math.ceil(S.buffHitMin)}分）</span>` : "";
   const cdTag = S.buffCdMin > 0 ? `<span class="buffTxt">💣 暴伤+10万%（${Math.ceil(S.buffCdMin)}分）</span>` : "";
   const invTag = S.buffInvMin > 0 ? `<span style="color:#5cf;font-weight:bold">🛉 无敌（${Math.ceil(S.buffInvMin)}分）</span>` : "";
-  $("top").innerHTML = `<div>👤 <b>${CUR==="guest"?"游客·"+S.name:CUR}</b><span style="color:#8af">（槽${curSlot}）</span>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}</div>`
+  const who = CUR==="guest" ? "游客·"+S.name : (MY_PN[curSlot] || CUR);
+  $("top").innerHTML = `<div>👤 <b>${who}</b><span style="color:#8af">（槽${curSlot}）</span>${isAdmin()?' <span class="adminTag">👑管理员</span>':""}</div>`
     +`<button class="act sm" style="background:#3a4166" onclick="logout()">退出</button>`
     +`<div>💰 <b>${Math.floor(S.gold)}</b></div><div>🔔 <b>${S.bell}</b></div><div>🪙 <b>${S.token}</b></div>`
     +`<div>总等级 <b>${totalLv()}</b></div><div>❤️ <b>${Math.max(0,S.hp|0)}/${p.maxHp}</b></div><div>💧 <b>${S.mp|0}/${p.maxMp}</b></div>`
     +deadTag+endTag+atTag+xpTag+hitTag+cdTag+invTag
     +`<div>🧿 <b>Lv${S.neidan.lv}</b></div><div>🕊️ <b>+${S.wing.stage*5}%</b></div>`
     +`<div>🎒 <b>${usedSlots()}</b>格</div><div>✨ <b>Lv${lv("enh")}</b></div><div>🌀 <b>${S.reb}</b>/7<span style="color:#889">（上限${effCap()}｜品质${RARE_NAMES[maxRare()]}）</span></div>`
+    +`<div>🏆 <b>累计${(S.cumFloor||0).toLocaleString()}层/${(S.cumLv||0).toLocaleString()}级</b></div>`
     +`<div>🗺️ <b>${Object.keys(S.kills).length}/500</b></div><div style="color:#f80">👹 <b>${diff().toFixed(1)}×</b></div>`;
 }
 function forgeRow(e, ref) {
@@ -2786,74 +2912,71 @@ function helpHTML() {
 <p>2️⃣ 「队列」页选动作 → 设次数 → 加入队列 → 自动产出材料+经验。</p>
 <p>3️⃣ 点「⚔️ 战斗×N」自动打怪掉装备。<b>核心循环</b>：挂机→升级→打更强的怪→更好的装备。</p></div>
 
-<div class="helpSec"><h4>📂 二、存档槽</h4>
-<p>· 每个账号有 <b>3 个存档槽</b>（3个本地 + 3个云端），登录后先进存档选择页，可玩3个不同角色。</p>
-<p>· 每槽显示角色名/总等级/金币/转生/无尽纪录/保存时间；本地与云端同时有数据时自动选用<b>较新的一份</b>。</p>
-<p>· 🗑️ <b>删除存档</b>：存档选择页每槽带删除按钮，确认后本地+云端该槽一起删除（不可恢复）——给重开的机会。</p>
-<p>· 空槽点「➕ 新存档」直接开新角色；游客也有3个本地槽（无云端）。</p>
-<p>· 💾导出/📂导入按当前槽进行；顶栏显示当前槽号。</p></div>
+<div class="helpSec"><h4>📂 二、账号与玩家名字</h4>
+<p>· 注册时需填<b>用户名</b>（登录用）＋<b>玩家名字</b>（排行榜/玩家市场显示）＋密码；<b>用户名和玩家名字都是全服唯一</b>，不能重复。</p>
+<p>· 玩家名字按<b>存档槽独立</b>——3个存档槽各有自己的名字，在「账号」页修改；<b>每天每槽限改1次</b>（服务端强制）。</p>
+<p>· 历史老玩家未设置名字时，排行榜显示原来的“访客+数字”；想换成自己的名字，去「账号」页设置即可。</p>
+<p>· 每个账号有 <b>3 个存档槽</b>（本地3+云端3）；💾导出/📂导入按当前槽进行。</p></div>
 
 <div class="helpSec"><h4>🤝 三、玩家市场</h4>
-<p>· 「市场」页下半部分是<b>玩家交易市场</b>：挂单制，类似拍卖行。</p>
-<p>· <b>挂单出售</b>：选材料→设数量和单价→挂单，材料立即转入市场托管；每人最多20个挂单；交易按<b>当前存档槽</b>结算（挂单/买入都会传槽位给服务端）。</p>
-<p>· <b>买入</b>：浏览挂单列表（按单价升序，同价先挂先卖），输入数量点买入，金币直接结算。</p>
+<p>· 「市场」页下半部分是<b>玩家交易市场</b>：挂单制，类似拍卖行；卖家显示<b>玩家名字</b>。</p>
+<p>· <b>挂单出售</b>：选材料→设数量和单价→挂单，材料立即转入市场托管；每人最多20个挂单；交易按<b>当前存档槽</b>结算。</p>
 <p>· 成交收<b>2%税（卖家承担）</b>；可交易：基础材料/稀有材料/无尽材料/丹药/羽翎/星辉砂/宝石。<span class="warn">神水、无敌药水、打孔锥、装备不可交易</span>。</p>
-<p>· 💰 <b>卖出所得自动领取</b>：上线时和每60秒自动领取入账——离线期间卖出的钱也不会丢。</p>
-<p>· 点「📡 实时」开启订阅后，别人挂的新单自动刷新。<span class="warn">仅注册账号可交易，游客不可</span>。</p></div>
+<p>· 💰 卖出所得自动领取：上线时和每60秒自动入账。<span class="warn">仅注册账号可交易，游客不可</span>。</p></div>
 
-<div class="helpSec"><h4>🏆 四、12品质体系</h4>
+<div class="helpSec"><h4>🏆 四、荣誉排行榜（转生累计制）</h4>
+<p>· 「🏆 排行榜」页有<b>两个榜</b>：🌌累计无尽层数榜、⭐累计总等级榜。</p>
+<p>· <b>累计规则</b>：每次转生时，你当世的无尽最高层数与17技能总等级会<b>永久累加</b>进终身成绩——每一世都在为榜单添砖加瓦。</p>
+<p>· 榜单由服务端从云存档自动提取（<b>无法伪造</b>）；显示<b>玩家名字</b>（未设置者显示“访客+数字”），名字后标注当前转生次数。</p>
+<p>· 前三名有🥇🥈🥉；自己的行会高亮；榜取<b>当前在线存档槽</b>的成绩。<span class="warn">仅注册账号参与排行</span>。</p></div>
+
+<div class="helpSec"><h4>🏆 五、12品质体系</h4>
 <p>· 品质梯度：普通→精良→闪耀→传奇→<b>仙器</b>→神器→<span class="r6">鸿蒙</span>→<span class="r7">太初</span>→<span class="r8">无极</span>→<span class="r9">造化</span>→<span class="r10">天道</span>→<span class="r11">混沌</span>。</p>
 <p>· <span class="warn">未转生最高只能到【仙器】</span>；每转生1次解锁1个新品质，7转全解锁（混沌）。</p>
-<p>· <b>仙器起每次升阶属性至少翻倍</b>：仙器×5→神器×10→鸿蒙×20→太初×40→无极×80→造化×160→天道×320→混沌×640。</p>
-<p>· 升阶实际概率 = (基础概率 + 锻造加成) × 全局锻造系数：<b>无极→造化8%｜造化→天道6%｜天道→混沌5%</b>；失败无损可重试。</p>
-<p>· 🌈 <b>神器及以上品质带极光流光特效</b>（7档各具专属双色光晕，动态循环），背包格子同步呼吸发光。</p></div>
+<p>· <b>仙器起每次升阶属性至少翻倍</b>：仙器×5→…→混沌×640；无极→造化8%｜造化→天道6%｜天道→混沌5%，失败无损可重试。</p>
+<p>· 🌈 神器及以上品质带极光流光特效，背包格子同步呼吸发光。</p></div>
 
-<div class="helpSec"><h4>💎 五、宝石系统（Lv30）</h4>
-<p>· 4种宝石（⚔攻击/🛡防御/❤活力/💥爆伤），<b>等级上限Lv30</b>，每级属性×1.2复利（Lv30≈基础的198倍）。</p>
-<p>· <span class="warn">Lv26+宝石<b>不再掉落，只能4合1合成</b></span>——掉落上限<b>Lv25</b>（炼虚+怪5%掉落≤Lv11；无尽1000层起掉落≤Lv25）。</p>
-<p>· Lv26→30需从Lv25逐级合成：到Lv30共需 4⁵=1024颗Lv25当量。</p>
-<p>· 🤝玩家市场可交易宝石（含他人合成的高级宝石）。</p></div>
+<div class="helpSec"><h4>💎 六、宝石系统（Lv30）</h4>
+<p>· 4种宝石（⚔攻击/🛡防御/❤活力/💥爆伤），<b>等级上限Lv30</b>，每级×1.2复利。</p>
+<p>· <span class="warn">Lv26+宝石只能4合1合成</span>——掉落上限<b>Lv25</b>；到Lv30共需1024颗Lv25当量。</p>
+<p>· 🤝玩家市场可交易宝石。终局推荐全镶💥爆伤宝石。</p></div>
 
-<div class="helpSec"><h4>⚔️ 六、档位与穿戴</h4>
-<p>· 档位上限 <b>Lv500</b>（249后每25级一档）。普通十境掉落<b>维持Lv249封顶不变</b>。</p>
-<p>· <b>Lv250+装备仅无尽模式掉落</b>：1500层起，每+300层解锁一个新档。</p>
-<p>· <span class="warn">武器穿戴要求：不得超自身战斗技能的单项最高等级</span>（其他槽位仍是战斗均级）。</p>
-<p>· <b>装备升级（升档）同样受穿戴约束</b>：下一档超过穿戴要求（武器=单项战斗最高｜其他=战斗平均）时无法升级，材料不消耗——先练战斗技能再升。</p>
-<p>· Lv250+档的升级材料仅无尽掉落或🔔牛铃商店/🤝玩家市场购买。</p></div>
+<div class="helpSec"><h4>⚔️ 七、档位与穿戴</h4>
+<p>· 档位上限 <b>Lv500</b>；普通十境掉落封顶Lv249；<b>Lv250+仅无尽掉落</b>（1500层起每+300层一档）。</p>
+<p>· <span class="warn">武器穿戴要求：不得超战斗技能单项最高等级</span>（其他槽位是战斗均级）；装备升级同样受此约束。</p>
+<p>· 出装口诀：<b>武器拿钢，头/甲/鞋拿星光，手套首饰钢即可</b>；强化→升档→升品质按此顺序做（强化最便宜时点满+20）。</p></div>
 
-<div class="helpSec"><h4>💰 七、金币与牛铃</h4>
-<p>· 普通模式金币随怪物等级增长；<b>无尽模式单只金币封顶 100 万💰</b>。</p>
-<p>· 🔔 <b>金币兑换牛铃</b>：牛铃商店新增兑换区，<b>1亿💰 = 1🔔</b>，可批量。</p></div>
+<div class="helpSec"><h4>💰 八、金币与牛铃</h4>
+<p>· 无尽模式单只金币封顶 <b>100万💰</b>；🔔 <b>金币兑换牛铃：1亿💰=1🔔</b>，可批量。</p></div>
 
-<div class="helpSec"><h4>🧿 八、内丹与翅膀</h4>
-<p>· 🧿内丹：每级全属性+0.5%（Lv100=+50%），材料🧿妖丹/💊地灵丹/🏮天元丹，<b>转生完整保留</b>。</p>
-<p>· 🕊️翅膀：每阶全属性+5%（12阶=+60%），材料🕊️羽翎+金币，升阶100%成功，<b>转生完整保留</b>。</p></div>
+<div class="helpSec"><h4>🧿 九、内丹与翅膀</h4>
+<p>· 🧿内丹：每级全属性+0.5%（Lv100=+50%），<b>转生完整保留</b>。</p>
+<p>· 🕊️翅膀：每阶全属性+5%（12阶混沌之翼=+60%），升阶100%成功，<b>转生完整保留</b>。</p></div>
 
-<div class="helpSec"><h4>🎯 九、自动锻造（仅限背包装备）</h4>
-<p>· <span class="warn">自动锻造只对<b>背包中</b>的装备生效</span>——在背包选中装备后的详情行设置目标。</p>
-<p>· 每秒自动尝试（强化→升阶→升档），全部达标或材料不足/下一档超出穿戴要求时自动停止。</p></div>
+<div class="helpSec"><h4>🎯 十、自动锻造（仅限背包装备）</h4>
+<p>· 自动锻造只对<b>背包中</b>的装备生效；每秒尝试（强化→升阶→升档），达标或材料不足自动停止。</p></div>
 
-<div class="helpSec"><h4>🌌 十、无尽模式总览</h4>
-<p>· 300层+🕊️羽翎｜500层+🔨打孔锥｜1000层+💎宝石(≤Lv25)/💊地灵丹｜1500层+<b>Lv275档装备/新品质/星辉砂/星髓</b>｜2000层+🛉无敌药水｜2500层+🏮天元丹。</p>
-<p>· 💰 金币：<b>单只封顶100万</b>；💎宝石掉落<b>封顶Lv25</b>（Lv26+只能合成）。</p></div>
+<div class="helpSec"><h4>🌌 十一、无尽模式总览</h4>
+<p>· 300层+🕊️羽翎｜500层+🔨打孔锥｜1000层+💎宝石(≤Lv25)/💊地灵丹｜1500层+<b>Lv275档装备/新品质/星辉砂/星髓</b>｜2500层+🏮天元丹。</p>
+<p>· 🛉 <span class="warn">无敌药水无尽已不掉落，仅🔔牛铃商店购买（100🔔，唯一途径）</span>。</p></div>
 
-<div class="helpSec"><h4>🔔 十一、牛铃商店</h4>
-<p>· 🔁 <b>金币兑换牛铃：1亿💰=1🔔（可批量）</b>；💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔。</p></div>
+<div class="helpSec"><h4>🔔 十二、牛铃商店</h4>
+<p>· 💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔。</p></div>
 
-<div class="helpSec"><h4>💡 十二、实用小技巧</h4>
-<p>· 背包右键装备 = 快捷锻造/锁定；批量分解支持<b>神器~混沌全部品质</b>。</p>
-<p>· 冲高等级宝石路线：无尽1000层+挂机囤Lv25宝石 → 4合1逐级向上到Lv30 → 镶满4孔。</p>
-<p>· 冲高档装备路线：战斗单项练到目标档等级 → 升级装备 → 无尽掉落/合成补档。</p>
-<p>· 缺牛铃？无尽刷金币 → 牛铃商店「金币兑换牛铃」；或🤝玩家市场卖材料。</p></div>
+<div class="helpSec"><h4>💡 十三、实用小技巧</h4>
+<p>· 背包右键装备 = 快捷锻造/锁定；批量分解支持神器~混沌全部品质。</p>
+<p>· 冲榜思路：多转生——每一世的层数与等级都累进终身成绩；转生前尽量把当世层数/等级推高。</p>
+<p>· 缺牛铃？无尽刷金币 → 兑换牛铃；或玩家市场卖材料。</p></div>
 `;
   if (isAdmin()) {
     h += `
-<div class="helpSec"><h4>📜 十三、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.21.5</span><b>登录加固+市场SQL适配多存档</b>：登录/注册全程try/catch（网络异常不再卡死在"正在登录"）；云端密码验证优先，本地记录仅作离线兜底（修复老账号被误报"密码错误"）；存档选择页异常时自动兜底进入槽1；挂单/买入RPC新增 p_slot 槽位参数——<span class="warn">必须配合执行 Supabase SQL 更新（多存档槽市场适配，见部署说明），未执行时交易会报"函数不存在"</span>；服务端函数缺失时日志给出明确提示。</p>
-<p><span class="verTag">v1.21.4c</span><b>市场同步崩溃修复</b>：unwrapSlot统一解包云端槽位（兼容单层/双层封装）；loadGame结构校验+缺省补齐；交易后同步失败只警告不误报。</p>
-<p><span class="verTag">v1.21.4b</span><b>装备升级穿戴预判</b>：升级前校验下一档穿戴要求，不满足禁止升级。</p>
-<p><span class="verTag">v1.21.4a</span><b>宝石掉落上限</b>：无尽掉落封顶Lv25（Lv26+只能合成）。</p>
-<p><span class="verTag">v1.21.4</span><b>存档槽系统</b>：每账号3个存档槽，存档选择页带删除存档。</p>
+<div class="helpSec"><h4>📜 十四、版本更新记录（仅管理员可见）</h4>
+<p><span class="verTag">v1.21.7</span><b>玩家名字系统</b>：注册新增“玩家名字”字段（与用户名同为全服唯一，注册时服务端查重）；「账号」页新增改名（按存档槽独立命名，每天每槽限改1次，服务端强制校验）；排行榜与玩家市场卖家名改为<b>服务端从名字注册表读取</b>（改存档无法伪造），历史玩家回退显示“访客+数字”——<span class="warn">必须先执行配套SQL（pname_registry表+claim_pname/check_pname_free RPC+refresh_leaderboard/market_place_order名字接入）</span>；顶栏显示当前槽玩家名。</p>
+<p><span class="verTag">v1.21.6</span><b>荣誉排行榜+无敌药水调整</b>：两个累计榜（转生累计制）；无敌药水改牛铃商店专属。</p>
+<p><span class="verTag">v1.21.5</span><b>登录加固+市场SQL适配多存档</b>。</p>
+<p><span class="verTag">v1.21.4c</span><b>市场同步崩溃修复</b>。</p>
+<p><span class="verTag">v1.21.4b</span><b>装备升级穿戴预判</b>。</p>
+<p><span class="verTag">v1.21.4a/1.21.4</span>宝石掉落上限/存档槽系统。</p>
 <p><span class="verTag">v1.21.3~v1.0</span>：金币封顶/牛铃兑换/极光流光、读档净化、玩家市场、修行系统、自动锻造、品质/档位扩展、管理员系统、无尽模式等迭代。</p></div>`;
   }
   return h;
@@ -2864,8 +2987,8 @@ function renderPanel() {
   const scr = IS_MOBILE ? $("panel").scrollTop : 0;
   buildTabs();
   if (tab >= TABS.length) tab = TABS.length-1;
-  const T_ADMIN = TABS.indexOf("管理员"), T_CFG = TABS.indexOf("数值配置"), T_HELP = TABS.indexOf("帮助");
-  $("tabs").innerHTML = TABS.map((t,i)=>`<button class="${i===tab?"active":""}" onclick="tab=${i};renderPanel();pmInitUid();pmFetch();pmFetchMine()">${t}</button>`).join("");
+  const T_ADMIN = TABS.indexOf("管理员"), T_CFG = TABS.indexOf("数值配置"), T_LB = TABS.indexOf("🏆 排行榜"), T_HELP = TABS.indexOf("帮助");
+  $("tabs").innerHTML = TABS.map((t,i)=>`<button class="${i===tab?"active":""}" onclick="tab=${i};renderPanel();pmInitUid();pmFetch();pmFetchMine();lbFetch();fetchMyPnames()">${t}</button>`).join("");
   const el = $("panel");
   let h = "";
   if (tab === 0) {
@@ -3195,11 +3318,12 @@ function renderPanel() {
   else if (tab === 9) {
     const armed = Date.now() - rebirthArm < 5000;
     h += `<div class="row"><span class="name">当前：${S.reb}转｜${S.sp}技能点</span><span class="info">${canRebirth()?"✅ 可转生":"❌ 需任一技能100级"}｜技能上限 <b style="color:#fa0">${effCap()}</b>（每转+60）｜品质解锁 <b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（每转+1档）｜<b style="color:#c5f">怪物属性 ×${rebCf().toFixed(2)}</b>→转后×${Math.pow(1+cfg("rebMonCf"), S.reb+1).toFixed(2)}</span></div>`;
+    h += `<div class="row"><span class="name" style="color:#ffd479">🏆 转生时将累计入榜：本次+${(S.bestFloor||0)}层/+${totalLv()}级 → 终身累计 🌌${(S.cumFloor||0)+(S.bestFloor||0)}层/⭐${(S.cumLv||0)+totalLv()}级</span></div>`;
     h += `<div class="row"><span class="name" style="color:#5c5">🧿 内丹 Lv.${S.neidan.lv}（+${(S.neidan.lv*0.5).toFixed(1)}%）与 🕊️ ${S.wing.stage?WING_NAMES[S.wing.stage-1]:"未觉醒"}（+${S.wing.stage*5}%）将完整保留</span></div>`;
     h += `<div class="row" style="justify-content:center;padding:12px;flex-direction:column;gap:8px">`
       +`<button class="act rebBtn" style="background:${armed?"#e55":"#2a5"}" ${canRebirth()&&S.reb<7?"":"disabled"} onclick="askRebirth()">${armed?"⚠️ 确认转生（5秒内再点一次）":"🌀 转生"}</button>`
       +`<span class="info">${armed?'<b style="color:#f80">再次点击红色按钮执行转生</b>':"点击后需5秒内二次确认，防误触（手机通用）"}</span></div>`;
-    h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；怪物属性增强；<b style="color:#fa0">但获得：等级上限+60、解锁下一品质、技能点，且🧿内丹与🕊️翅膀完整保留</b>。7转后：上限${cfg("skillCap")+420}、品质全解锁（混沌）。</div>`;
+    h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；怪物属性增强；<b style="color:#fa0">但获得：等级上限+60、解锁下一品质、技能点，且🧿内丹与🕊️翅膀完整保留，当期层数/等级永久累计进排行榜</b>。7转后：上限${cfg("skillCap")+420}、品质全解锁（混沌）。</div>`;
   }
   else if (tab === 10) {
     h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b>｜✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b>常年大量供应</b></div>`;
@@ -3214,7 +3338,7 @@ function renderPanel() {
       +`<div class="info" style="margin-top:3px">无尽挂机刷金币 → 兑换牛铃 → 买无尽材料/神水，形成完整循环</div></div>`;
     h += `<div class="row"><span class="name">📦 材料购买数量</span><input type="number" min="1" value="${bellQty}" onchange="bellQty=Math.max(1,+this.value|0)"> <span class="info">对下方全部材料/星辉砂/丹药/羽翎生效</span></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">💣 弑神狂暴水（暴伤+10万% / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#a6f" onclick="buyBell('critPot',100,1)">购买</button></div>`;
-    h += `<div class="row" style="background:#2a2413"><span class="name">🛉 无敌药水（免疫怪物伤害 / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#5cf" onclick="buyBell('invPot',100,1)">购买</button></div>`;
+    h += `<div class="row" style="background:#2a2413"><span class="name">🛉 无敌药水（免疫怪物伤害 / 20分钟｜<b style="color:#f80">唯一获取途径</b>）</span><span class="info">100🔔</span><button class="act sm" style="background:#5cf" onclick="buyBell('invPot',100,1)">购买</button></div>`;
     h += `<div class="hint" style="color:#5cf;margin-top:6px">━━━━━ 🧿 内丹丹药 ━━━━━</div>`;
     h += `<div class="row" style="background:#152035"><span class="name">🧿 妖丹（内丹+1经验/颗）</span><span class="info">2🔔｜持有${bagN("yaoDan")}</span><button class="act sm" style="background:#49f" onclick="buyBell('yaoDan',2,bellQty)">×${bellQty} 购买</button></div>`;
     h += `<div class="row" style="background:#152035"><span class="name">💊 地灵丹（内丹+10经验/颗）</span><span class="info">10🔔｜持有${bagN("diLingDan")}</span><button class="act sm" style="background:#49f" onclick="buyBell('diLingDan',10,bellQty)">×${bellQty} 购买</button></div>`;
@@ -3238,7 +3362,18 @@ function renderPanel() {
   }
   else if (tab === 11) {
     const A = accs();
-    h += `<div class="hint">当前账号：<b style="color:#ffd479">${CUR==="guest"?"游客":CUR}</b>（存档槽 <b style="color:#8af">${curSlot}</b>/3）${isAdmin()?' <span class="adminTag">👑管理员</span>':""}｜云端：<b class="${CLOUD_ON()?"cloudOk":"cloudNo"}">${CLOUD_ON()?"已连接":"未连接"}</b>｜<b style="color:#8af">单点登录：同账号他处登录时本机自动下线</b>｜🤝玩家市场需注册账号</div>`
+    /* ★ v1.21.7：玩家名字管理（各槽独立，每天限改1次） */
+    h += `<div class="row pnRow" style="flex-direction:column;align-items:stretch">`
+      +`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">`
+      +`<span class="name">🪪 玩家名字</span>`
+      +`<span class="info">槽1：<b style="color:#ffd479">${MY_PN[1]||"未设置"}</b>｜槽2：<b style="color:#ffd479">${MY_PN[2]||"未设置"}</b>｜槽3：<b style="color:#ffd479">${MY_PN[3]||"未设置"}</b></span>`
+      +`</div>`
+      +`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px">`
+      +`<span class="info">✏️ 修改<b>当前槽${curSlot}</b>的名字：</span><input id="pnNew" placeholder="新名字（2~10字符，全服唯一）" maxlength="10" style="min-width:150px">`
+      +`<button class="act sm" style="background:#a6f" ${CUR==="guest"?"disabled":""} onclick="doRename()">确认修改</button>`
+      +`</div>`
+      +`<div class="info" style="margin-top:3px">排行榜与玩家市场显示玩家名字｜每个存档槽独立命名（互不相同的名字）｜<b style="color:#f80">每天每槽限改1次</b>（服务端强制）｜游客不可设置${CUR==="guest"?"（当前为游客模式）":""}</div></div>`;
+    h += `<div class="hint">当前账号：<b style="color:#ffd479">${CUR==="guest"?"游客":CUR}</b>（存档槽 <b style="color:#8af">${curSlot}</b>/3）${isAdmin()?' <span class="adminTag">👑管理员</span>':""}｜云端：<b class="${CLOUD_ON()?"cloudOk":"cloudNo"}">${CLOUD_ON()?"已连接":"未连接"}</b>｜<b style="color:#8af">单点登录：同账号他处登录时本机自动下线</b>｜🤝玩家市场/🏆排行榜需注册账号</div>`
       +`<div class="row"><span class="name">📂 重新选择存档槽（含🗑️删除存档）</span><button class="act sm" style="background:#8af" onclick="saveGame();showSlotPicker()">打开存档选择页</button></div>`
       +`<div class="row"><span class="name">☁️ 立即同步云端（当前槽）</span><button class="act sm" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="cloudSave()">上传</button></div>`
       +`<div class="row"><span class="name">🤝 立即领取市场收益</span><button class="act sm" style="background:#5cf" ${CUR==="guest"||!CLOUD_ON()?"disabled":""} onclick="claimMarket()">领取</button></div>`
@@ -3256,6 +3391,7 @@ function renderPanel() {
     h += `<div class="hint">👑 管理员面板（仅管理员可见）｜当前存档槽 ${curSlot}</div>`
       +`<div class="row"><span class="name">💰 金币</span><input type="number" value="${S.gold|0}" onchange="S.gold=Math.max(0,+this.value);saveGame()"> <span class="name">🔔 牛铃</span><input type="number" value="${S.bell}" onchange="S.bell=Math.max(0,+this.value);saveGame()"> <span class="name">⏩ 加速</span><select onchange="setSpd(+this.value)">`+SPEEDS.map((v)=>`<option value="${v}" ${S.speed===v?"selected":""}>${v}×</option>`).join("")+`</select></div>`;
     h += `<div class="row"><span class="name">🧿 内丹等级</span><input type="number" min="0" max="${ND_MAX_LV}" value="${S.neidan.lv}" onchange="S.neidan.lv=Math.min(${ND_MAX_LV},Math.max(0,+this.value|0));S.neidan.xp=0;saveGame();renderTop();renderPanel()"> <span class="name">🕊️ 翅膀阶数</span><input type="number" min="0" max="12" value="${S.wing.stage}" onchange="S.wing.stage=Math.min(12,Math.max(0,+this.value|0));saveGame();renderTop();renderPanel()"> <span class="info">当前：内丹+${(S.neidan.lv*0.5).toFixed(1)}%｜翅膀+${S.wing.stage*5}%</span></div>`;
+    h += `<div class="row"><span class="name">🏆 累计成绩</span><span class="info">🌌累计无尽层数</span><input type="number" min="0" value="${S.cumFloor||0}" onchange="S.cumFloor=Math.max(0,+this.value|0);saveGame();renderTop();renderPanel()"> <span class="info">⭐累计总等级</span><input type="number" min="0" value="${S.cumLv||0}" onchange="S.cumLv=Math.max(0,+this.value|0);saveGame();renderTop();renderPanel()"> <span class="info">排行榜数据（转生时自动累加）</span></div>`;
     h += `<div class="hint" style="color:#5cf;margin-top:8px">━━━━━ 💰 账号充值 / 装备发放（写入云端槽1，对方强制下线重登生效）━━━━━</div>`
       +`<div class="row" style="background:#152035;border:1px solid #5cf"><span class="name" style="color:#5cf">👤 目标账号</span>`
       +`<input id="adAcc" placeholder="账号名" style="min-width:120px" onchange="adQueryAcc()">`
@@ -3352,6 +3488,10 @@ function renderPanel() {
       + `<button class="act" style="background:#a63" onclick="resetCfg()">↺ 恢复默认（待发布）</button>`
       + `<button class="act" style="background:#49f" onclick="fetchGlobalCfg()">↻ 拉取云端当前配置</button>`
       + `<span class="info">${CFG_DIRTY?'<b style="color:#f80">有未发布的修改</b>':"与云端一致"}</span></div>`;
+  }
+  else if (tab === T_LB) {
+    if (Date.now() - lbLast > 60000) lbFetch(true);
+    h += lbUI();
   }
   else if (tab === T_HELP || tab === TABS.length-1) {
     h += helpHTML();
