@@ -154,7 +154,7 @@ label.ck{font-size:12px;color:#9aa;display:flex;gap:6px;align-items:center;margi
 .ctxMenu button:hover{border-color:#ffd479;color:#ffd479}
 .ctxMenu button:disabled{color:#555;cursor:not-allowed}
 .ctxMenu .sep{height:1px;background:#3a4166;margin:4px 0}
-.pmRow{background:#152035;border-left:3px solid #5cf}
+.pmRow{background:#1a2440;border-left:3px solid #5cf}
 .pmMine{background:#1a2a20;border-left:3px solid #5c5}
 .pmTag{color:#5cf;font-weight:bold}
 .lbRow{background:#152035;border-left:3px solid #ffd479}
@@ -284,7 +284,7 @@ const SLOT_MAX = 3;
 let curSlot = 1;
 let SLOTDOC = null;
 const GEM_DROP_CAP = 25;
-/* ★ v1.21.7：玩家名字（各槽独立）缓存 */
+/* ★ v1.21.8：玩家名字（各槽独立）缓存 */
 let MY_PN = { 1:null, 2:null, 3:null };
 const PN_RE = /^[\u4e00-\u9fa5A-Za-z0-9_]{2,10}$/;
 
@@ -356,7 +356,7 @@ async function cloudUid() {
   return (data && data.session && data.session.user) ? data.session.user.id : null;
 }
 
-/* ★ v1.21.7：拉取本账号各槽玩家名字，并同步当前槽的存档名 */
+/* ★ v1.21.8：拉取本账号各槽玩家名字，并同步当前槽的存档名 */
 async function fetchMyPnames() {
   if (!pmCanUse()) return;
   try {
@@ -372,7 +372,7 @@ async function fetchMyPnames() {
     }
   } catch (e) {}
 }
-/* ★ v1.21.7：修改当前槽玩家名字（服务端每日限1次校验） */
+/* ★ v1.21.8：修改当前槽玩家名字（服务端每日限1次校验） */
 async function doRename() {
   if (!pmCanUse()) { log("⚠️ 游客无法设置玩家名字（需注册账号）"); return; }
   const el = $("pnNew"); if (!el) return;
@@ -676,15 +676,13 @@ let CUR = null;
 let LOGGED_IN = false;
 let aMode = "login";
 
-/* ★★★ v1.21.7a 管理员识别（SHA-256 哈希）：全文件唯一需要配置的地方 ★★★
+/* ★★★ 管理员识别（SHA-256 哈希）：全文件唯一需要配置的地方 ★★★
    使用方法：
    1) 打开游戏页面 → 按 F12 → Console 输入：genAdminHash("你的管理账号名") → 回车
    2) 复制输出的64位哈希，替换下面 ADMIN_HASH 引号里的 64 个 0，保存刷新
-   3) 保持全 0 = 没有任何管理员（安全默认态）
-   说明：哈希按 账号名.trim().toLowerCase() 计算（大小写不敏感）；
-        管理账号名建议 12 位以上无规律字符，防止被穷举还原 */
+   3) 保持全 0 = 没有任何管理员（安全默认态） */
 let IS_ADMIN = false;
-const ADMIN_HASH = "1b2eb24107560e49b174f7ed82f939bc67dfdf0818f768b0ae9a312e36dd4070";
+const ADMIN_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
 async function hashStr(s) {
   const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
@@ -758,7 +756,6 @@ async function authGo() {
     authMsg("✅ 登录成功，请选择存档槽", true);
     setTimeout(showSlotPicker, 300);
   } else {
-    /* ★ v1.21.7：注册需填玩家名字（全服唯一） */
     const pn = $("aPname").value.trim();
     if (u.length < 2) { authMsg("❌ 用户名至少2个字符"); return; }
     if (!PN_RE.test(pn)) { authMsg("❌ 玩家名字需2~10位中文/字母/数字/下划线（排行榜显示，全服唯一）"); return; }
@@ -787,7 +784,6 @@ async function authGo() {
       return;
     }
     try { await cloudSignIn(u, p); } catch (e) {}
-    /* 占用玩家名字（槽1） */
     try {
       const { error: pnErr } = await sb.rpc("claim_pname", { p_pname: pn, p_slot: 1, p_is_rename: false });
       if (pnErr) throw pnErr;
@@ -814,7 +810,6 @@ function doLogin(u) {
   IS_ADMIN = false;
   curSlot = +(localStorage.getItem("mr_slot_" + u) || 1);
   localStorage.setItem(SES_KEY, u);
-  /* ★ v1.21.7a：异步哈希比对识别管理员（源码无明文账号） */
   if (typeof crypto !== "undefined" && crypto.subtle) {
     hashStr(String(u).trim().toLowerCase()).then((h) => {
       if (h === ADMIN_HASH) {
@@ -1077,6 +1072,8 @@ function unlocked(i, l) {
    ★ 模块 H：游戏状态 + 全局数值配置
    ============================================================ */
 const PAGE_SIZE = 100, MAX_PAGES = 1000, SPEEDS = [1,3,5,10], DIFF_MIN = 0.3, DIFF_MAX = 5;
+/* ★ v1.21.8：10×加速解锁价（存档槽级，随云存档同步，转生保留） */
+const SPD10_COST = 500;
 let uid = 1;
 
 const CFG_DEFAULT = {
@@ -1180,7 +1177,7 @@ function newGameState() {
     autoHp:30, autoMp:20, teaMin:0, xpMin:0, xpMult:0,
     buffHit:0, buffHitMin:0, buffCd:0, buffCdMin:0, buffInv:0, buffInvMin:0,
     pots:[null,null,null,null,null], houses:{}, badge:0, tasks:[],
-    reb:0, sp:0, kills:{}, perks:{q:0,off:0,mk:0},
+    reb:0, sp:0, kills:{}, perks:{q:0,off:0,mk:0}, spd10:0,
     neidan:{lv:0,xp:0}, wing:{stage:0},
     speed:1, autoTrash:{mode:0,rare:1},
     deadUntil:0, lastTick:Date.now() };
@@ -1939,7 +1936,6 @@ function dropRareMat(f) {
     const id = `gem_${t}_${l}`;
     if (addIt(id,1)) log(`💎 无尽第${f}层掉落 ${IT[id].n}（+${gemVal(t,l)}${t==="critDmg"?"%":""}${l>=GEM_DROP_CAP?"｜掉落已封顶，更高只能合成":""}）！`);
   }
-  /* ★ v1.21.6：删除无敌药水无尽掉落——改为牛铃商店专属（100🔔） */
   const NM = [[1500,"xingSui",0.05],[1800,"yunTie",0.04],[2100,"longJin",0.03],[2500,"fengYu",0.025],[2900,"daoZe",0.02],[3300,"hunDunJing",0.015]];
   for (const [min,id,ch] of NM) {
     if (f >= min && Math.random() < ch) { if (addIt(id,1)) log(`✨ 无尽第${f}层掉落 ${IT[id].ic}${IT[id].n}×1！（高级锻造材料）`); }
@@ -2110,14 +2106,31 @@ function mkSell(id, n) {
   renderPanel();
 }
 
-/* ★ 玩家交易市场 */
+/* ★ 玩家交易市场（v1.21.8：双币种 + 定价新规 + 改价） */
 let pmOrders = [], pmMine = [], pmFilter = "", pmSub = null, pmLastFetch = 0, pmBusy = false;
 function pmCanUse() { return CLOUD_ON() && LOGGED_IN && CUR !== "guest"; }
 function pmSqlHint(e) {
   const m = String((e && (e.message || e)) || "");
-  if (/could not find the function|market_place_order|market_buy_order|market_cancel_order|market_claim_payouts|refresh_leaderboard|claim_pname|pname_registry|schema cache/i.test(m)) {
-    log("🛠️ 检测到服务端函数缺失或为旧版：请管理员在 Supabase → SQL Editor 执行 v1.21.7 配套SQL（玩家名字注册表+排行榜名字接入）");
+  if (/could not find the function|market_place_order|market_buy_order|market_cancel_order|market_claim_payouts|market_update_price|refresh_leaderboard|claim_pname|pname_registry|schema cache/i.test(m)) {
+    log("🛠️ 检测到服务端函数缺失或为旧版：请管理员在 Supabase → SQL Editor 执行 v1.21.8 配套SQL（市场双币种/改价/账本）");
   }
+}
+/* ★ v1.21.8：市场币种与定价区间工具
+   系统基准价：金币=物品基准价；牛铃=牛铃商店价（无商店价的按1亿💰=1🔔折算）
+   默认挂单价=基准价90%；允许区间=基准价±50% */
+const PM_CUR = { gold:{n:"金币",ic:"💰"}, bell:{n:"牛铃",ic:"🔔"} };
+function pmBasePrice(id, cur) {
+  if (cur === "bell") return BELL_MAT[id] || Math.max(1, Math.ceil(IT[id].val / GOLD_PER_BELL));
+  return IT[id].val;
+}
+function pmPriceRange(id, cur) {
+  const b = pmBasePrice(id, cur);
+  return { base:b, lo:Math.max(1, Math.floor(b*0.5)), hi:Math.ceil(b*1.5), def:Math.max(1, Math.floor(b*0.9)) };
+}
+function updPmDefPrice() {
+  const it = $("pmItem"); if (!it || !it.value || !IT[it.value]) return;
+  const cur = $("pmCur") ? $("pmCur").value : "gold";
+  $("pmPrice").value = pmPriceRange(it.value, cur).def;
 }
 async function syncFromCloud() {
   try {
@@ -2138,7 +2151,7 @@ async function syncFromCloud() {
 async function pmFetch(silent) {
   if (!pmCanUse()) return;
   pmLastFetch = Date.now();
-  let q = sb.from("market_orders").select("id,seller_id,seller_name,item_id,qty,unit_price,created_at")
+  let q = sb.from("market_orders").select("id,seller_id,seller_name,item_id,qty,unit_price,currency,created_at")
           .eq("status", "active").order("unit_price", { ascending: true })
           .order("created_at", { ascending: true }).limit(100);
   if (pmFilter) q = q.like("item_id", "%" + pmFilter + "%");
@@ -2152,7 +2165,7 @@ async function pmFetchMine(silent) {
   const id = await cloudUid();
   if (!id) return;
   const { data, error } = await sb.from("market_orders")
-    .select("id,item_id,qty,unit_price,created_at")
+    .select("id,item_id,qty,unit_price,currency,created_at")
     .eq("seller_id", id).eq("status", "active").order("created_at", { ascending: false }).limit(20);
   if (error) { sbErr(error); return; }
   pmMine = data || [];
@@ -2164,24 +2177,30 @@ function pmAutoRefresh() {
 }
 function pmUI() {
   if (!pmCanUse()) return `<div class="hint" style="color:#5cf;margin-top:10px">🤝 玩家市场：需注册账号并登录云端后开放（游客不可交易）</div>`;
-  let h = `<div class="hint" style="color:#5cf;margin-top:14px">━━━━━ 🤝 玩家市场（挂单制｜成交收2%税｜每人最多20个挂单｜按单价升序，同价先挂先卖）━━━━━</div>`;
+  let h = `<div class="hint" style="color:#5cf;margin-top:14px">━━━━━ 🤝 玩家市场（挂单制｜💰金币/🔔牛铃双币种｜成交收2%税｜每人最多20个挂单｜定价=系统基准价±50%）━━━━━</div>`;
   const sellables = Object.keys(S.bag).filter((id)=>PM_TRADEABLE.test(id));
-  h += `<div class="row pmRow"><span class="name pmTag">📤 挂单出售</span>`
-    +`<select id="pmItem" style="max-width:170px">${sellables.length?sellables.map((id)=>`<option value="${id}">${IT[id].ic}${IT[id].n}×${bagN(id)}</option>`).join(""):`<option value="">（背包中没有可交易物品）</option>`}</select>`
+  const defP = sellables.length ? pmPriceRange(sellables[0], "gold").def : 100;
+  h += `<div class="row pmRow" style="flex-direction:column;align-items:stretch">`
+    +`<div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">`
+    +`<span class="name pmTag">📤 挂单出售</span>`
+    +`<select id="pmItem" onchange="updPmDefPrice()" style="max-width:170px">${sellables.length?sellables.map((id)=>`<option value="${id}">${IT[id].ic}${IT[id].n}×${bagN(id)}</option>`).join(""):`<option value="">（背包中没有可交易物品）</option>`}</select>`
     +`<span class="info">数量</span><input type="number" id="pmQty" min="1" value="10" style="width:55px">`
-    +`<span class="info">单价</span><input type="number" id="pmPrice" min="1" value="100" style="width:75px">💰/个`
+    +`<span class="info">币种</span><select id="pmCur" onchange="updPmDefPrice()"><option value="gold">💰金币</option><option value="bell">🔔牛铃</option></select>`
+    +`<span class="info">单价</span><input type="number" id="pmPrice" min="1" value="${defP}" style="width:75px">/个`
     +`<button class="act sm" style="background:#5cf" ${sellables.length?"":"disabled"} onclick="pmPlace()">📤 挂单</button>`
-    +`<span class="info">挂牌后材料立即从背包转入市场托管，撤单/成交后返还（按当前存档槽${curSlot}结算）</span></div>`;
-  h += `<div class="hint" style="color:#5c5;margin-top:8px">—— 📥 我的挂单（${pmMine.length}/20）——</div>`;
+    +`</div>`
+    +`<span class="info" style="margin-top:3px">默认单价=系统基准价的90%（选物品/币种自动填充，可自行调整）｜价格区间：基准价±50%，超出弹窗「价格设置不合理」｜挂牌后材料立即转入托管，撤单/成交后返还（按当前存档槽${curSlot}结算）</span></div>`;
+  h += `<div class="hint" style="color:#5c5;margin-top:8px">—— 📥 我的挂单（${pmMine.length}/20，可✏️改价）——</div>`;
   if (!pmMine.length) h += `<div class="hint">暂无挂单</div>`;
   else {
-    h += `<table><tr><th>物品</th><th>剩余数量</th><th>单价</th><th>挂单时间</th><th></th></tr>`;
+    h += `<table><tr><th>物品</th><th>剩余数量</th><th>单价</th><th>挂单时间</th><th>操作</th></tr>`;
     pmMine.forEach((o) => {
       const it = IT[o.item_id];
+      const cu = (o.currency === "bell") ? "🔔" : "💰";
       h += `<tr class="pmMine"><td>${it?it.ic+it.n:o.item_id}</td><td>${o.qty}</td>`
-        +`<td><b style="color:#ffd479">${o.unit_price.toLocaleString()}💰</b></td>`
+        +`<td><b style="color:#ffd479">${o.unit_price.toLocaleString()}${cu}</b></td>`
         +`<td class="info">${new Date(o.created_at).toLocaleString()}</td>`
-        +`<td><button class="act sm" style="background:#e55" onclick="pmCancel(${o.id})">撤单返还</button></td></tr>`;
+        +`<td><button class="act sm" style="background:#a6f" onclick="pmUpdatePrice(${o.id})">✏️改价</button> <button class="act sm" style="background:#e55" onclick="pmCancel(${o.id})">撤单返还</button></td></tr>`;
     });
     h += `</table>`;
   }
@@ -2196,16 +2215,17 @@ function pmUI() {
     pmOrders.forEach((o) => {
       const it = IT[o.item_id];
       const mine = (o.seller_id === PM_UID);
+      const cu = (o.currency === "bell") ? "🔔" : "💰";
       h += `<tr class="${mine?"pmMine":"pmRow"}"><td>${it?it.ic+it.n:o.item_id}</td><td>${o.qty}</td>`
-        +`<td><b style="color:#ffd479">${o.unit_price.toLocaleString()}💰</b></td>`
-        +`<td>${(o.unit_price*o.qty).toLocaleString()}💰</td>`
+        +`<td><b style="color:${o.currency==="bell"?"#c5f":"#ffd479"}">${o.unit_price.toLocaleString()}${cu}</b></td>`
+        +`<td>${(o.unit_price*o.qty).toLocaleString()}${cu}</td>`
         +`<td class="info">${mine?"<b style='color:#5c5'>我</b>":String(o.seller_name||"-").slice(0,12)}</td>`
         +`<td>${mine?"<span class='info'>自己的单</span>":`<input type="number" min="1" max="${o.qty}" value="${Math.min(o.qty,1)}" style="width:45px" id="bq_${o.id}">`
           +`<button class="act sm" style="background:#5cf" onclick="pmBuy(${o.id})">买入</button>`}</td></tr>`;
     });
     h += `</table>`;
   }
-  h += `<div class="hint">💰 卖出所得自动存入待领取账本：上线时和每60秒自动领取入账（日志会提示）——离线期间卖出的钱也不会丢</div>`;
+  h += `<div class="hint">卖出所得（按币种分账）自动存入待领取账本：上线时和每60秒自动领取入账（日志会提示）——离线期间卖出的钱也不会丢</div>`;
   return h;
 }
 let PM_UID = null;
@@ -2213,16 +2233,23 @@ async function pmInitUid() { if (pmCanUse() && !PM_UID) PM_UID = await cloudUid(
 async function pmPlace() {
   if (pmBusy) return;
   const itemId = $("pmItem").value, qty = +$("pmQty").value, price = +$("pmPrice").value;
+  const cur = $("pmCur") ? $("pmCur").value : "gold";
   if (!itemId) { log("⚠️ 请选择要挂单的物品"); return; }
   if (!qty || qty < 1) { log("⚠️ 数量必须≥1"); return; }
-  if (!price || price < 1) { log("⚠️ 单价必须≥1金币"); return; }
+  if (!price || price < 1) { log("⚠️ 单价必须≥1"); return; }
   if (qty > bagN(itemId)) { log(`⚠️ 持有量不足：${IT[itemId].n}×${bagN(itemId)}`); return; }
-  if (!confirm(`确认挂单出售？\n\n${IT[itemId].ic}${IT[itemId].n}×${qty} @ ${price.toLocaleString()}💰/个\n总价 ${(price*qty).toLocaleString()}💰（成交后收2%税）\n\n材料将立即从背包转入市场托管。`)) return;
+  /* ★ v1.21.8：价格区间校验（系统基准价±50%） */
+  const rg = pmPriceRange(itemId, cur);
+  if (price < rg.lo || price > rg.hi) {
+    alert(`❌ 价格设置不合理！\n\n「${IT[itemId].n}」（${PM_CUR[cur].n}计价）\n系统基准价：${rg.base} ${PM_CUR[cur].ic}\n允许区间：${rg.lo} ~ ${rg.hi}（基准价的±50%）\n你设置的单价：${price}\n\n提示：默认价为系统基准价的90%（${rg.def} ${PM_CUR[cur].ic}）`);
+    return;
+  }
+  if (!confirm(`确认挂单出售？\n\n${IT[itemId].ic}${IT[itemId].n}×${qty} @ ${price.toLocaleString()} ${PM_CUR[cur].ic}/个\n总价 ${(price*qty).toLocaleString()} ${PM_CUR[cur].ic}（成交后收2%税）\n\n材料将立即从背包转入市场托管。`)) return;
   pmBusy = true;
   try {
-    const { error } = await sb.rpc("market_place_order", { p_item_id: itemId, p_qty: qty, p_unit_price: price, p_slot: curSlot });
+    const { error } = await sb.rpc("market_place_order", { p_item_id: itemId, p_qty: qty, p_unit_price: price, p_slot: curSlot, p_currency: cur });
     if (error) throw error;
-    log(`📤 挂单成功：${IT[itemId].n}×${qty} @${price.toLocaleString()}💰/个`);
+    log(`📤 挂单成功：${IT[itemId].n}×${qty} @${price.toLocaleString()}${PM_CUR[cur].ic}/个`);
   } catch (e) {
     log("❌ 挂单失败：" + (e.message || e));
     pmSqlHint(e);
@@ -2239,12 +2266,14 @@ async function pmBuy(orderId) {
   if (!qty || qty < 1) { log("⚠️ 购买数量必须≥1"); return; }
   const o = pmOrders.find((x)=>x.id === orderId);
   if (!o) { log("⚠️ 挂单不存在，请刷新"); return; }
-  if (!confirm(`确认买入？\n\n${IT[o.item_id]?IT[o.item_id].n:o.item_id}×${Math.min(qty,o.qty)} @ ${o.unit_price.toLocaleString()}💰/个\n共 ${(o.unit_price*Math.min(qty,o.qty)).toLocaleString()}💰（含2%税，由卖家承担）`)) return;
+  const cu = (o.currency === "bell") ? "🔔" : "💰";
+  if (!confirm(`确认买入？\n\n${IT[o.item_id]?IT[o.item_id].n:o.item_id}×${Math.min(qty,o.qty)} @ ${o.unit_price.toLocaleString()}${cu}/个\n共 ${(o.unit_price*Math.min(qty,o.qty)).toLocaleString()}${cu}（含2%税，由卖家承担）`)) return;
   pmBusy = true;
   try {
     const { data, error } = await sb.rpc("market_buy_order", { p_order_id: orderId, p_buy_qty: qty, p_slot: curSlot });
     if (error) throw error;
-    log(`🤝 买入成功：×${data.bought}，花费 ${(+data.cost).toLocaleString()}💰`);
+    const rcu = (data && data.currency === "bell") ? "🔔" : "💰";
+    log(`🤝 买入成功：×${data.bought}，花费 ${(+data.cost).toLocaleString()}${rcu}`);
   } catch (e) {
     log("❌ 买入失败：" + (e.message || e));
     pmSqlHint(e);
@@ -2257,10 +2286,10 @@ async function pmBuy(orderId) {
 }
 async function pmCancel(orderId) {
   if (pmBusy) return;
-  if (!confirm(`确认撤单？挂单剩余数量将全部返还背包。`)) return;
+  if (!confirm(`确认撤单？挂单剩余数量将全部返还背包（返还到当前存档槽${curSlot}）。`)) return;
   pmBusy = true;
   try {
-    const { error } = await sb.rpc("market_cancel_order", { p_order_id: orderId });
+    const { error } = await sb.rpc("market_cancel_order", { p_order_id: orderId, p_slot: curSlot });
     if (error) throw error;
     log(`📥 撤单成功，材料已返还`);
   } catch (e) {
@@ -2273,15 +2302,46 @@ async function pmCancel(orderId) {
   render();
   pmBusy = false;
 }
+/* ★ v1.21.8：挂单改价（同受±50%区间限制） */
+async function pmUpdatePrice(orderId) {
+  if (pmBusy) return;
+  const o = pmMine.find((x)=>x.id === orderId);
+  if (!o) { log("⚠️ 找不到该挂单，请刷新"); return; }
+  const cur = o.currency || "gold";
+  const rg = pmPriceRange(o.item_id, cur);
+  const inp = prompt(`✏️ 修改挂单价格\n\n${IT[o.item_id]?IT[o.item_id].n:o.item_id}（${PM_CUR[cur].n}计价）\n系统基准价：${rg.base}｜允许区间：${rg.lo} ~ ${rg.hi}\n当前单价：${o.unit_price.toLocaleString()} ${PM_CUR[cur].ic}\n\n请输入新单价（${rg.lo}~${rg.hi}，超出将弹窗拦截）：`, o.unit_price);
+  if (inp === null) return;
+  const np = Math.floor(+inp);
+  if (!np || np < 1) { log("⚠️ 价格无效"); return; }
+  if (np < rg.lo || np > rg.hi) {
+    alert(`❌ 价格设置不合理！\n\n允许区间：${rg.lo} ~ ${rg.hi}（系统基准价 ${rg.base} 的±50%）\n你输入的：${np}`);
+    return;
+  }
+  pmBusy = true;
+  try {
+    const { error } = await sb.rpc("market_update_price", { p_order_id: orderId, p_new_price: np });
+    if (error) throw error;
+    log(`✏️ 改价成功：${o.unit_price.toLocaleString()} → ${np.toLocaleString()} ${PM_CUR[cur].ic}/个（${IT[o.item_id]?IT[o.item_id].n:o.item_id}）`);
+  } catch (e) {
+    log("❌ 改价失败：" + (e.message || e));
+    pmSqlHint(e);
+    pmBusy = false; renderPanel(); return;
+  }
+  await pmFetch(true); await pmFetchMine(true);
+  render();
+  pmBusy = false;
+}
+/* ★ v1.21.8：领取卖出所得（双币种分账入账） */
 async function claimMarket() {
   if (!pmCanUse() || !S) return;
   try {
-    const { data, error } = await sb.rpc("market_claim_payouts");
+    const { data, error } = await sb.rpc("market_claim_payouts_v2");
     if (error) { pmSqlHint(error); return; }
-    const amt = +data || 0;
-    if (amt > 0) {
-      S.gold += amt;
-      log(`🤝 市场结算：收到卖出所得 ${amt.toLocaleString()}💰（已入账）`);
+    const d = (data && typeof data === "object") ? data : { gold: +data || 0, bell: 0 };
+    const g = +d.gold || 0, b = +d.bell || 0;
+    if (g > 0 || b > 0) {
+      S.gold += g; S.bell += b;
+      log(`🤝 市场结算：收到卖出所得 ${g>0?g.toLocaleString()+"💰":""}${(g>0&&b>0)?" ＋ ":""}${b>0?b+"🔔":""}（已入账）`);
       saveGame(); renderTop();
     }
   } catch (e) {}
@@ -2479,6 +2539,7 @@ function rebirth() {
   const keepPots = JSON.parse(JSON.stringify(S.pots));
   const keepNd = S.neidan, keepWing = S.wing;
   const keepName = S.name;
+  const keepSpd10 = S.spd10 || 0; /* ★ v1.21.8：10×加速解锁转生保留 */
   const addFloor = (S.bestFloor||0);
   const addLv = totalLv();
   const prevCumFloor = (S.cumFloor||0);
@@ -2497,6 +2558,7 @@ function rebirth() {
   S.houses = {}; S.hp = 60; S.deadUntil = 0; S.endless = false; S.floor = 1; S.floorKills = {};
   S.monI = 0; S.monLv = 1;
   S.kills = {};
+  S.spd10 = keepSpd10;
   S.monHp = mon(0,1).hp;
   giveStarterGear();
   const cf = rebCf();
@@ -2551,6 +2613,7 @@ function loadGame() {
     if (!S.kills) S.kills = {};
     if (!S.perks) S.perks = {q:0,off:0,mk:0};
     if (!S.speed) S.speed = 1;
+    if (S.spd10 == null) S.spd10 = 0; /* ★ v1.21.8：旧档迁移 */
     if (S.autoTrash == null) S.autoTrash = {mode:0,rare:1};
     if (S.autoNext == null) S.autoNext = true;
     if (!S.floorKills) S.floorKills = {};
@@ -2771,9 +2834,14 @@ let tab = 0, zone = 0, qSel = "milk1", qNum = 10;
 const RARE_COLOR_ARR = RARE_COLOR;
 const POT_ITEMS = Object.keys(IT).filter((id)=>IT[id].heal||IT[id].mp||XPIT[id]||POTBUFF[id]);
 const BATCH_TIERS = [15,30,60,85,95,120,160,200,249];
+/* ★ v1.21.8：加速条（10×未解锁显示锁与购买按钮） */
 function renderSpd() {
   $("spdwrap").innerHTML = `<span class="lb">⏩ ${IS_MOBILE?"加速":"游戏加速"}</span>`
-    +SPEEDS.map((v)=>`<button class="spd ${S.speed===v?"on":""}" onclick="setSpd(${v})">${v}×</button>`).join("")
+    +SPEEDS.map((v)=>{
+      const lk = (v === 10 && !S.spd10);
+      return `<button class="spd ${S.speed===v?"on":""}"${lk?" style='opacity:.5'":""} onclick="setSpd(${v})">${v}×${lk?"🔒":""}</button>`;
+    }).join("")
+    +(!S.spd10?`<button class="spd" style="background:#a6f;border-color:#a6f;color:#141729" onclick="buySpd10()">🔓10×加速（${SPD10_COST}🔔）</button>`:"")
     +`<span class="info" style="margin-left:8px">当前 <b style="color:#ffd479">${S.speed}×</b>｜难度 <b style="color:#f80">${diff().toFixed(1)}×</b>${S.reb?`｜转生增强 <b style="color:#c5f">×${rebCf().toFixed(2)}</b>`:""}${isAdmin()?' <span class="adminTag">👑管理员</span>':''}｜`
     +(CLOUD_ON()&&CUR!=="guest"?'<span class="cloudOk">☁️ 云同步中</span>':'<span style="color:#889">☁️ 本地模式</span>')
     +`</span><span style="flex:1"></span>`
@@ -2944,7 +3012,8 @@ function helpHTML() {
 <div class="helpSec"><h4>🚀 一、快速上手</h4>
 <p>1️⃣ 登录赠送<b>新手六件套</b>和 <span class="kw">100💰</span>。</p>
 <p>2️⃣ 「队列」页选动作 → 设次数 → 加入队列 → 自动产出材料+经验。</p>
-<p>3️⃣ 点「⚔️ 战斗×N」自动打怪掉装备。<b>核心循环</b>：挂机→升级→打更强的怪→更好的装备。</p></div>
+<p>3️⃣ 点「⚔️ 战斗×N」自动打怪掉装备。<b>核心循环</b>：挂机→升级→打更强的怪→更好的装备。</p>
+<p>4️⃣ ⏩ 加速：1×/3×/5×免费；<b>10×需500🔔解锁</b>（存档槽级购买，转生保留）。</p></div>
 
 <div class="helpSec"><h4>📂 二、账号与玩家名字</h4>
 <p>· 注册时需填<b>用户名</b>（登录用）＋<b>玩家名字</b>（排行榜/玩家市场显示）＋密码；<b>用户名和玩家名字都是全服唯一</b>，不能重复。</p>
@@ -2954,15 +3023,17 @@ function helpHTML() {
 
 <div class="helpSec"><h4>🤝 三、玩家市场</h4>
 <p>· 「市场」页下半部分是<b>玩家交易市场</b>：挂单制，类似拍卖行；卖家显示<b>玩家名字</b>。</p>
-<p>· <b>挂单出售</b>：选材料→设数量和单价→挂单，材料立即转入市场托管；每人最多20个挂单；交易按<b>当前存档槽</b>结算。</p>
+<p>· <b>挂单出售</b>：选材料→选币种（💰金币/🔔牛铃）→设数量和单价→挂单，材料立即转入市场托管；每人最多20个挂单；交易按<b>当前存档槽</b>结算。</p>
+<p>· <b>定价规则</b>：默认单价=系统基准价的<b>90%</b>（选物品/币种自动填充），可自行调整，但不得超过基准价的<b>±50%</b>（超出弹窗「价格设置不合理」）；挂单后可随时<b>✏️改价</b>（同受区间限制）。</p>
+<p>· 牛铃计价的基准价=牛铃商店售价（不在商店的物品按 1亿💰=1🔔 折算）。</p>
 <p>· 成交收<b>2%税（卖家承担）</b>；可交易：基础材料/稀有材料/无尽材料/丹药/羽翎/星辉砂/宝石。<span class="warn">神水、无敌药水、打孔锥、装备不可交易</span>。</p>
-<p>· 💰 卖出所得自动领取：上线时和每60秒自动入账。<span class="warn">仅注册账号可交易，游客不可</span>。</p></div>
+<p>· 卖出所得（按币种分账）自动领取：上线时和每60秒自动入账。<span class="warn">仅注册账号可交易，游客不可</span>。</p></div>
 
 <div class="helpSec"><h4>🏆 四、荣誉排行榜（转生累计制）</h4>
 <p>· 「🏆 排行榜」页有<b>两个榜</b>：🌌累计无尽层数榜、⭐累计总等级榜。</p>
 <p>· <b>累计规则</b>：每次转生时，你当世的无尽最高层数与17技能总等级会<b>永久累加</b>进终身成绩——每一世都在为榜单添砖加瓦。</p>
 <p>· 榜单由服务端从云存档自动提取（<b>无法伪造</b>）；显示<b>玩家名字</b>（未设置者显示“访客+数字”），名字后标注当前转生次数。</p>
-<p>· 前三名有🥇🥈🥉；自己的行会高亮；榜取<b>当前在线存档槽</b>的成绩。<span class="warn">仅注册账号参与排行</span>。</p></div>
+<p>· 前三名有有🥇🥈🥉；自己的行会高亮；榜取<b>当前在线存档槽</b>的成绩。<span class="warn">仅注册账号参与排行</span>。</p></div>
 
 <div class="helpSec"><h4>🏆 五、12品质体系</h4>
 <p>· 品质梯度：普通→精良→闪耀→传奇→<b>仙器</b>→神器→<span class="r6">鸿蒙</span>→<span class="r7">太初</span>→<span class="r8">无极</span>→<span class="r9">造化</span>→<span class="r10">天道</span>→<span class="r11">混沌</span>。</p>
@@ -2981,7 +3052,8 @@ function helpHTML() {
 <p>· 出装口诀：<b>武器拿钢，头/甲/鞋拿星光，手套首饰钢即可</b>；强化→升档→升品质按此顺序做（强化最便宜时点满+20）。</p></div>
 
 <div class="helpSec"><h4>💰 八、金币与牛铃</h4>
-<p>· 无尽模式单只金币封顶 <b>100万💰</b>；🔔 <b>金币兑换牛铃：1亿💰=1🔔</b>，可批量。</p></div>
+<p>· 无尽模式单只金币封顶 <b>100万💰</b>；🔔 <b>金币兑换牛铃：1亿💰=1🔔</b>，可批量。</p>
+<p>· 🚀 <b>10×加速解锁：500🔔</b>（存档槽级，随云存档同步，转生保留）。</p></div>
 
 <div class="helpSec"><h4>🧿 九、内丹与翅膀</h4>
 <p>· 🧿内丹：每级全属性+0.5%（Lv100=+50%），<b>转生完整保留</b>。</p>
@@ -2995,17 +3067,19 @@ function helpHTML() {
 <p>· 🛉 <span class="warn">无敌药水无尽已不掉落，仅🔔牛铃商店购买（100🔔，唯一途径）</span>。</p></div>
 
 <div class="helpSec"><h4>🔔 十二、牛铃商店</h4>
-<p>· 💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔。</p></div>
+<p>· 💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔。</p>
+<p>· ⏩ 10×加速解锁 500🔔。</p></div>
 
 <div class="helpSec"><h4>💡 十三、实用小技巧</h4>
 <p>· 背包右键装备 = 快捷锻造/锁定；批量分解支持神器~混沌全部品质。</p>
 <p>· 冲榜思路：多转生——每一世的层数与等级都累进终身成绩；转生前尽量把当世层数/等级推高。</p>
-<p>· 缺牛铃？无尽刷金币 → 兑换牛铃；或玩家市场卖材料。</p></div>
+<p>· 缺牛铃？无尽刷金币 → 兑换牛铃；或玩家市场卖材料（可选🔔计价直接收牛铃）。</p></div>
 `;
   if (isAdmin()) {
     h += `
 <div class="helpSec"><h4>📜 十四、版本更新记录（仅管理员可见）</h4>
-<p><span class="verTag">v1.21.7a</span><b>管理员入口隐藏</b>：删除源码中的管理员账号明文，改为 SHA-256 哈希比对识别（源码无法反推出管理员账号）；Console 内置 genAdminHash() 哈希生成工具；退出登录/切换账号自动复位管理员状态。</p>
+<p><span class="verTag">v1.21.8</span><b>10×加速解锁＋市场双币种</b>：10×加速需500🔔解锁（5×及以下免费，存档槽级，云同步，转生保留）；玩家市场新增💰金币/🔔牛铃双币种计价；挂单默认价=系统基准价90%；价格区间=基准价±50%（超出弹窗「价格设置不合理」）；新增挂单「✏️改价」功能；卖出所得按币种分账入账（需执行v1.21.8配套SQL）。</p>
+<p><span class="verTag">v1.21.7a</span><b>管理员入口隐藏</b>：管理员账号改SHA-256哈希识别（源码无明文）；Console内置genAdminHash()工具；退出/切换账号自动复位。</p>
 <p><span class="verTag">v1.21.7</span><b>玩家名字系统</b>：注册新增“玩家名字”字段（全服唯一）；「账号」页改名（每槽独立，每天限1次，服务端强制）；排行榜与市场名字由服务端注册表提供。</p>
 <p><span class="verTag">v1.21.6</span><b>荣誉排行榜+无敌药水调整</b>：两个累计榜（转生累计制）；无敌药水改牛铃商店专属。</p>
 <p><span class="verTag">v1.21.5</span><b>登录加固+市场SQL适配多存档</b>。</p>
@@ -3354,11 +3428,11 @@ function renderPanel() {
     const armed = Date.now() - rebirthArm < 5000;
     h += `<div class="row"><span class="name">当前：${S.reb}转｜${S.sp}技能点</span><span class="info">${canRebirth()?"✅ 可转生":"❌ 需任一技能100级"}｜技能上限 <b style="color:#fa0">${effCap()}</b>（每转+60）｜品质解锁 <b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（每转+1档）｜<b style="color:#c5f">怪物属性 ×${rebCf().toFixed(2)}</b>→转后×${Math.pow(1+cfg("rebMonCf"), S.reb+1).toFixed(2)}</span></div>`;
     h += `<div class="row"><span class="name" style="color:#ffd479">🏆 转生时将累计入榜：本次+${(S.bestFloor||0)}层/+${totalLv()}级 → 终身累计 🌌${(S.cumFloor||0)+(S.bestFloor||0)}层/⭐${(S.cumLv||0)+totalLv()}级</span></div>`;
-    h += `<div class="row"><span class="name" style="color:#5c5">🧿 内丹 Lv.${S.neidan.lv}（+${(S.neidan.lv*0.5).toFixed(1)}%）与 🕊️ ${S.wing.stage?WING_NAMES[S.wing.stage-1]:"未觉醒"}（+${S.wing.stage*5}%）将完整保留</span></div>`;
+    h += `<div class="row"><span class="name" style="color:#5c5">🧿 内丹 Lv.${S.neidan.lv}（+${(S.neidan.lv*0.5).toFixed(1)}%）与 🕊️ ${S.wing.stage?WING_NAMES[S.wing.stage-1]:"未觉醒"}（+${S.wing.stage*5}%）将完整保留${S.spd10?'｜⏩ 10×加速解锁保留':""}</span></div>`;
     h += `<div class="row" style="justify-content:center;padding:12px;flex-direction:column;gap:8px">`
       +`<button class="act rebBtn" style="background:${armed?"#e55":"#2a5"}" ${canRebirth()&&S.reb<7?"":"disabled"} onclick="askRebirth()">${armed?"⚠️ 确认转生（5秒内再点一次）":"🌀 转生"}</button>`
       +`<span class="info">${armed?'<b style="color:#f80">再次点击红色按钮执行转生</b>':"点击后需5秒内二次确认，防误触（手机通用）"}</span></div>`;
-    h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；怪物属性增强；<b style="color:#fa0">但获得：等级上限+60、解锁下一品质、技能点，且🧿内丹与🕊️翅膀完整保留，当期层数/等级永久累计进排行榜</b>。7转后：上限${cfg("skillCap")+420}、品质全解锁（混沌）。</div>`;
+    h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；怪物属性增强；<b style="color:#fa0">但获得：等级上限+60、解锁下一品质、技能点，且🧿内丹、🕊️翅膀、⏩10×加速解锁完整保留，当期层数/等级永久累计进排行榜</b>。7转后：上限${cfg("skillCap")+420}、品质全解锁（混沌）。</div>`;
   }
   else if (tab === 10) {
     h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b>｜✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b>常年大量供应</b></div>`;
@@ -3371,6 +3445,13 @@ function renderPanel() {
       +`<span class="info">当前金币 ${Math.floor(S.gold).toLocaleString()}💰（可兑 ${Math.floor(S.gold/GOLD_PER_BELL)}🔔）</span>`
       +`</div>`
       +`<div class="info" style="margin-top:3px">无尽挂机刷金币 → 兑换牛铃 → 买无尽材料/神水，形成完整循环</div></div>`;
+    h += `<div class="row" style="background:#2a2413;border:1px solid #ffd47955;flex-direction:column;align-items:stretch">`
+      +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
+      +`<span class="name">⏩ 10× 加速解锁</span>`
+      +`<span class="info">${S.spd10?'<b style="color:#6f6">✅ 已解锁（本存档槽永久有效，转生保留）</b>':`未解锁｜价格 <b style="color:#fa0">${SPD10_COST}🔔</b>｜解锁后10×加速永久可用`}</span>`
+      +`<button class="act sm" style="background:#a6f" ${S.spd10?"disabled":""} onclick="buySpd10()">${S.spd10?"已解锁":"🔓 解锁10×加速"}</button>`
+      +`</div>`
+      +`<div class="info" style="margin-top:3px">1×/3×/5×免费｜解锁保存在当前存档槽${curSlot}（随云存档同步）｜离线收益不受加速影响（按真实时间结算）</div></div>`;
     h += `<div class="row"><span class="name">📦 材料购买数量</span><input type="number" min="1" value="${bellQty}" onchange="bellQty=Math.max(1,+this.value|0)"> <span class="info">对下方全部材料/星辉砂/丹药/羽翎生效</span></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">💣 弑神狂暴水（暴伤+10万% / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#a6f" onclick="buyBell('critPot',100,1)">购买</button></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">🛉 无敌药水（免疫怪物伤害 / 20分钟｜<b style="color:#f80">唯一获取途径</b>）</span><span class="info">100🔔</span><button class="act sm" style="background:#5cf" onclick="buyBell('invPot',100,1)">购买</button></div>`;
@@ -3397,7 +3478,6 @@ function renderPanel() {
   }
   else if (tab === 11) {
     const A = accs();
-    /* ★ v1.21.7：玩家名字管理（各槽独立，每天限改1次） */
     h += `<div class="row pnRow" style="flex-direction:column;align-items:stretch">`
       +`<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">`
       +`<span class="name">🪪 玩家名字</span>`
@@ -3539,7 +3619,24 @@ function render() { renderTop(); renderPanel(); }
 /* ============================================================
    ★ 模块 S：交互函数
    ============================================================ */
-function setSpd(v) { if (!SPEEDS.includes(v)) return; S.speed = v; saveGame(); renderSpd(); log(`⏩ 游戏速度：${v}×`); }
+/* ★ v1.21.8：setSpd（10×未解锁时引导购买） */
+function setSpd(v) {
+  if (!SPEEDS.includes(v)) return;
+  if (v === 10 && !S.spd10) { buySpd10(); return; }
+  S.speed = v; saveGame(); renderSpd(); log(`⏩ 游戏速度：${v}×`);
+}
+function buySpd10() {
+  if (S.spd10) return;
+  if (S.bell < SPD10_COST) {
+    log(`🔒 10×加速解锁需 ${SPD10_COST}🔔（当前 ${S.bell}🔔）——牛铃获取：无尽挂机刷金币兑换（牛铃商店）/ 玩家市场🔔计价卖材料`);
+    renderSpd();
+    return;
+  }
+  if (!confirm(`确认花费 ${SPD10_COST}🔔 解锁 10× 加速？\n\n· 解锁保存在当前存档槽${curSlot}（随云存档同步）\n· 转生保留，永久有效`)) return;
+  S.bell -= SPD10_COST; S.spd10 = 1;
+  log(`🔓 10× 加速已解锁！已扣除 ${SPD10_COST}🔔，点击「10×」按钮启用`);
+  saveGame(); renderTop(); renderSpd();
+}
 function setAutoTrash(k, v) { S.autoTrash[k] = v; saveGame(); renderPanel(); log(`⚡ 自动处理：${["关闭","💰自动出售","⚒️自动分解"][S.autoTrash.mode]}｜阈值：${RARE_NAMES[S.autoTrash.rare]}及以下（🔒锁定装备免疫）`); }
 function setPot(i, k, v) { if (!S.pots[i]) S.pots[i] = {id:"",cond:"hp",val:30}; S.pots[i][k] = v; if (k === "cond") S.pots[i].t = null; saveGame(); renderPanel(); }
 function updCmbEqN() { const s = $("cmbEq"); if (!s || !s.selectedOptions[0]) return; const n = $("cmbEqN"); if (n) n.value = Math.max(1, +s.selectedOptions[0].dataset.n || 1); }
