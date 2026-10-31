@@ -679,7 +679,7 @@ let aMode = "login";
    2) 复制输出的64位哈希，替换下面 ADMIN_HASH 引号里的 64 个 0，保存刷新
    3) 保持全 0 = 没有任何管理员（安全默认态） */
 let IS_ADMIN = false;
-const ADMIN_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
+const ADMIN_HASH = "a5b800e724c0530b8a59acd63b4aee763ef16b3776360f3ae353a28185deb143";
 async function hashStr(s) {
   const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
