@@ -284,7 +284,6 @@ const SLOT_MAX = 3;
 let curSlot = 1;
 let SLOTDOC = null;
 const GEM_DROP_CAP = 25;
-/* ★ v1.21.8：玩家名字（各槽独立）缓存 */
 let MY_PN = { 1:null, 2:null, 3:null };
 const PN_RE = /^[\u4e00-\u9fa5A-Za-z0-9_]{2,10}$/;
 
@@ -356,7 +355,6 @@ async function cloudUid() {
   return (data && data.session && data.session.user) ? data.session.user.id : null;
 }
 
-/* ★ v1.21.8：拉取本账号各槽玩家名字，并同步当前槽的存档名 */
 async function fetchMyPnames() {
   if (!pmCanUse()) return;
   try {
@@ -372,7 +370,6 @@ async function fetchMyPnames() {
     }
   } catch (e) {}
 }
-/* ★ v1.21.8：修改当前槽玩家名字（服务端每日限1次校验） */
 async function doRename() {
   if (!pmCanUse()) { log("⚠️ 游客无法设置玩家名字（需注册账号）"); return; }
   const el = $("pnNew"); if (!el) return;
@@ -910,6 +907,7 @@ const POTBUFF = {
   invPot:  { k:"inv",     v:1,      mm:20 }
 };
 const BELL_SHOP = { critPot:100, invPot:100 };
+/* ★ v1.21.9：本表现在仅作为玩家市场🔔计价的基准价参照——星辉砂已从牛铃商店下架，此处保留其市场定价参照（挂单区间=参照价±50%） */
 const BELL_MAT = {
   xingSui:5, yunTie:8, longJin:15, fengYu:25, daoZe:40, hunDunJing:70,
   xingHui1:100, xingHui2:200, xingHui3:400, xingHui4:800,
@@ -1003,7 +1001,7 @@ const EQIC = {weapon:"⚔️",helmet:"⛑️",armor:"🛡️",boots:"🥾",glove
 const ELE = ["炼气","筑基","金丹","元婴","化神","炼虚","合体","大乘","渡劫","真仙"];
 const CRE = [
   [["野猪","🐗"],["灰狼","🐺"],["毒蛇","🐍"],["山魈","👹"],["妖狐","🦊"],["黑熊","🐻"],["骷髅","💀"],["僵尸","🧟"],["鬼火","🔥"],["石鬼","🗿"]],
-  [["赤炎炎蜥","🦎"],["铁甲犀","🦏"],["噬魂蝠","🦇"],["千年藤妖","🌿"],["幽泉水鬼","💧"],["沙海毒蝎","🦂"],["风刃鹰","🦅"],["地穴魔蛛","🕷️"],["血目枭","🦉"],["腐骨尸王","🧟"]],
+  [["赤炎炎炎蜥","🦎"],["铁甲犀","🦏"],["噬魂蝠","🦇"],["千年藤妖","🌿"],["幽泉水鬼","💧"],["沙海毒蝎","🦂"],["风刃鹰","🦅"],["地穴魔蛛","🕷️"],["血目枭","🦉"],["腐骨尸王","🧟"]],
   [["雷劫虎","🐯"],["玄冰蟒","🐍"],["烈焰鸦","🔥"],["噬金鼠","🐹"],["迷魂貂","🦦"],["九幽猫","🐈"],["断岳猿","🦍"],["缚魂傀儡","🎎"],["紫电貂","⚡"],["三首蛟","🐉"]],
   [["青冥龙","🦕"],["碧眼尸魔","🧟"],["万蛊母虫","🐛"],["幽冥犬","🐕"],["摄魂使者","👁️"],["血河老祖","🩸"],["白骨将军","☠️"],["阴风鬼将","👻"],["九头蛇君","🐍"],["幻蝶仙子","🦋"]],
   [["焚天麒麟","🔥"],["玄冥龟兽","🐢"],["金翅大鹏","🦅"],["吞天巨蟒","🐍"],["血魔鲨祖","🦈"],["灭世魔猿","🦍"],["幽冥火凤","🔥"],["紫金貔貅","🐅"],["混沌凶兽","🌀"],["天雷古兽","⚡"]],
@@ -2115,7 +2113,7 @@ function pmSqlHint(e) {
     log("🛠️ 检测到服务端函数缺失或为旧版：请管理员在 Supabase → SQL Editor 执行 v1.21.8 配套SQL（市场双币种/改价/账本）");
   }
 }
-/* ★ v1.21.8：市场币种与定价区间工具
+/* ★ 市场币种与定价区间工具
    系统基准价：金币=物品基准价；牛铃=牛铃商店价（无商店价的按1亿💰=1🔔折算）
    默认挂单价=基准价90%；允许区间=基准价±50% */
 const PM_CUR = { gold:{n:"金币",ic:"💰"}, bell:{n:"牛铃",ic:"🔔"} };
@@ -2238,7 +2236,6 @@ async function pmPlace() {
   if (!qty || qty < 1) { log("⚠️ 数量必须≥1"); return; }
   if (!price || price < 1) { log("⚠️ 单价必须≥1"); return; }
   if (qty > bagN(itemId)) { log(`⚠️ 持有量不足：${IT[itemId].n}×${bagN(itemId)}`); return; }
-  /* ★ v1.21.8：价格区间校验（系统基准价±50%） */
   const rg = pmPriceRange(itemId, cur);
   if (price < rg.lo || price > rg.hi) {
     alert(`❌ 价格设置不合理！\n\n「${IT[itemId].n}」（${PM_CUR[cur].n}计价）\n系统基准价：${rg.base} ${PM_CUR[cur].ic}\n允许区间：${rg.lo} ~ ${rg.hi}（基准价的±50%）\n你设置的单价：${price}\n\n提示：默认价为系统基准价的90%（${rg.def} ${PM_CUR[cur].ic}）`);
@@ -2302,7 +2299,6 @@ async function pmCancel(orderId) {
   render();
   pmBusy = false;
 }
-/* ★ v1.21.8：挂单改价（同受±50%区间限制） */
 async function pmUpdatePrice(orderId) {
   if (pmBusy) return;
   const o = pmMine.find((x)=>x.id === orderId);
@@ -2331,7 +2327,6 @@ async function pmUpdatePrice(orderId) {
   render();
   pmBusy = false;
 }
-/* ★ v1.21.8：领取卖出所得（双币种分账入账） */
 async function claimMarket() {
   if (!pmCanUse() || !S) return;
   try {
@@ -2539,7 +2534,7 @@ function rebirth() {
   const keepPots = JSON.parse(JSON.stringify(S.pots));
   const keepNd = S.neidan, keepWing = S.wing;
   const keepName = S.name;
-  const keepSpd10 = S.spd10 || 0; /* ★ v1.21.8：10×加速解锁转生保留 */
+  const keepSpd10 = S.spd10 || 0;
   const addFloor = (S.bestFloor||0);
   const addLv = totalLv();
   const prevCumFloor = (S.cumFloor||0);
@@ -2613,7 +2608,7 @@ function loadGame() {
     if (!S.kills) S.kills = {};
     if (!S.perks) S.perks = {q:0,off:0,mk:0};
     if (!S.speed) S.speed = 1;
-    if (S.spd10 == null) S.spd10 = 0; /* ★ v1.21.8：旧档迁移 */
+    if (S.spd10 == null) S.spd10 = 0;
     if (S.autoTrash == null) S.autoTrash = {mode:0,rare:1};
     if (S.autoNext == null) S.autoNext = true;
     if (!S.floorKills) S.floorKills = {};
@@ -2834,7 +2829,7 @@ let tab = 0, zone = 0, qSel = "milk1", qNum = 10;
 const RARE_COLOR_ARR = RARE_COLOR;
 const POT_ITEMS = Object.keys(IT).filter((id)=>IT[id].heal||IT[id].mp||XPIT[id]||POTBUFF[id]);
 const BATCH_TIERS = [15,30,60,85,95,120,160,200,249];
-/* ★ v1.21.8：加速条（10×未解锁显示锁与购买按钮） */
+/* ★ 加速条（10×未解锁显示锁与购买按钮） */
 function renderSpd() {
   $("spdwrap").innerHTML = `<span class="lb">⏩ ${IS_MOBILE?"加速":"游戏加速"}</span>`
     +SPEEDS.map((v)=>{
@@ -3033,7 +3028,7 @@ function helpHTML() {
 <p>· 「🏆 排行榜」页有<b>两个榜</b>：🌌累计无尽层数榜、⭐累计总等级榜。</p>
 <p>· <b>累计规则</b>：每次转生时，你当世的无尽最高层数与17技能总等级会<b>永久累加</b>进终身成绩——每一世都在为榜单添砖加瓦。</p>
 <p>· 榜单由服务端从云存档自动提取（<b>无法伪造</b>）；显示<b>玩家名字</b>（未设置者显示“访客+数字”），名字后标注当前转生次数。</p>
-<p>· 前三名有有🥇🥈🥉；自己的行会高亮；榜取<b>当前在线存档槽</b>的成绩。<span class="warn">仅注册账号参与排行</span>。</p></div>
+<p>· 前三名有🥇🥈🥉；自己的行会高亮；榜取<b>当前在线存档槽</b>的成绩。<span class="warn">仅注册账号参与排行</span>。</p></div>
 
 <div class="helpSec"><h4>🏆 五、12品质体系</h4>
 <p>· 品质梯度：普通→精良→闪耀→传奇→<b>仙器</b>→神器→<span class="r6">鸿蒙</span>→<span class="r7">太初</span>→<span class="r8">无极</span>→<span class="r9">造化</span>→<span class="r10">天道</span>→<span class="r11">混沌</span>。</p>
@@ -3067,7 +3062,8 @@ function helpHTML() {
 <p>· 🛉 <span class="warn">无敌药水无尽已不掉落，仅🔔牛铃商店购买（100🔔，唯一途径）</span>。</p></div>
 
 <div class="helpSec"><h4>🔔 十二、牛铃商店</h4>
-<p>· 💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；星辉砂100~800🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔。</p>
+<p>· 💣弑神水/🛉无敌药水 100🔔；无尽材料：星髓5/陨铁8/龙筋15/凤羽25/道则40/混沌晶70🔔；🧿妖丹2/💊地灵丹10/🏮天元丹50/🕊️羽翎2🔔。</p>
+<p>· 💠 <span class="warn">星辉砂已从牛铃商店下架</span>——仅无尽1500层+掉落获取；可在背包中兑换金币（1000万~8000万💰/个），或🤝玩家市场交易。</p>
 <p>· ⏩ 10×加速解锁 500🔔。</p></div>
 
 <div class="helpSec"><h4>💡 十三、实用小技巧</h4>
@@ -3078,6 +3074,7 @@ function helpHTML() {
   if (isAdmin()) {
     h += `
 <div class="helpSec"><h4>📜 十四、版本更新记录（仅管理员可见）</h4>
+<p><span class="verTag">v1.21.9</span><b>星辉砂下架</b>：牛铃商店不再出售星辉砂（微/耀/炽/极）——获取途径仅剩无尽1500层+掉落；玩家市场仍可交易（🔔计价基准=原商店价100/200/400/800，区间±50%）。</p>
 <p><span class="verTag">v1.21.8</span><b>10×加速解锁＋市场双币种</b>：10×加速需500🔔解锁（5×及以下免费，存档槽级，云同步，转生保留）；玩家市场新增💰金币/🔔牛铃双币种计价；挂单默认价=系统基准价90%；价格区间=基准价±50%（超出弹窗「价格设置不合理」）；新增挂单「✏️改价」功能；卖出所得按币种分账入账（需执行v1.21.8配套SQL）。</p>
 <p><span class="verTag">v1.21.7a</span><b>管理员入口隐藏</b>：管理员账号改SHA-256哈希识别（源码无明文）；Console内置genAdminHash()工具；退出/切换账号自动复位。</p>
 <p><span class="verTag">v1.21.7</span><b>玩家名字系统</b>：注册新增“玩家名字”字段（全服唯一）；「账号」页改名（每槽独立，每天限1次，服务端强制）；排行榜与市场名字由服务端注册表提供。</p>
@@ -3205,7 +3202,7 @@ function renderPanel() {
       h += autoForgeUI(e, e.uid);
     } else if (selV && IT[selV]) {
       const it = IT[selV]; const n = bagN(selV);
-      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:it.tp==="emat"?"无尽锻造材料（仅无尽掉落/牛铃商店）｜":it.tp==="gold"?"金币兑换物｜":it.tp==="nd"?"内丹材料（修行页服用/锻造页互转）｜":it.tp==="wing"?"翅膀升阶材料（修行页）｜":""}基准价${it.val}</span>`
+      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:it.tp==="emat"?"无尽锻造材料（仅无尽掉落/牛铃商店）｜":it.tp==="gold"?"金币兑换物（仅无尽掉落，已从牛铃商店下架）｜":it.tp==="nd"?"内丹材料（修行页服用/锻造页互转）｜":it.tp==="wing"?"翅膀升阶材料（修行页）｜":""}基准价${it.val}</span>`
         +(it.heal?`<button class="act sm" onclick="eatItem('${selV}')">吃(+${it.heal}HP)</button>`:"")
         +(it.mp?`<button class="act sm" onclick="drinkItem('${selV}')">喝(+${it.mp}MP)</button>`:"")
         +(it.tp==="tea"?`<button class="act sm" onclick="if(take('${selV}',1)){S.teaMin=10;log('🫖 效率茶生效');renderPanel();}">喝(效率+10%)</button>`:"")
@@ -3346,7 +3343,7 @@ function renderPanel() {
     }
   }
   else if (tab === 5) {
-    h += `<div class="hint">拍卖行（NPC）｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜>49金收2%税｜💎宝石/✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b style="color:#f80">不出售</b>（仅掉落/🔔牛铃商店/🤝玩家市场）｜<b style="color:#8af">卖出数量上限 = 背包持有量</b></div>`;
+    h += `<div class="hint">拍卖行（NPC）｜<b style="color:#6f6">卖出价 = 买入价 × 80%</b>｜>49金收2%税｜💎宝石/✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b style="color:#f80">不出售</b>（仅掉落/🔔牛铃商店/🤝玩家市场｜💠星辉砂仅掉落+玩家市场）｜<b style="color:#8af">卖出数量上限 = 背包持有量</b></div>`;
     h += `<div class="row"><span class="name">📦 交易数量</span><input type="number" min="1" value="${mkQty}" onchange="mkQty=Math.max(1,+this.value|0)"> <span class="info">买入受市场库存限制；卖出受背包持有量限制（订单不足按兜底价成交）</span></div>`;
     h += `<table><tr><th>物品</th><th>基准价</th><th>市场库存</th><th>买入</th><th>卖出</th><th>背包</th></tr>`;
     for (const id in MK) {
@@ -3435,7 +3432,7 @@ function renderPanel() {
     h += `<div class="hint">⚠️ 转生会：重置技能/装备/房屋/怪物解锁；怪物属性增强；<b style="color:#fa0">但获得：等级上限+60、解锁下一品质、技能点，且🧿内丹、🕊️翅膀、⏩10×加速解锁完整保留，当期层数/等级永久累计进排行榜</b>。7转后：上限${cfg("skillCap")+420}、品质全解锁（混沌）。</div>`;
   }
   else if (tab === 10) {
-    h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b>｜✨无尽材料/💠星辉砂/🧿丹药/🕊️羽翎<b>常年大量供应</b></div>`;
+    h += `<div class="hint">🔔 牛铃商店｜当前牛铃：<b style="color:#ffd479">${S.bell}</b>｜✨无尽材料/🧿丹药/🕊️羽翎<b>常年大量供应</b>｜💠星辉砂已下架（仅无尽1500层+掉落）</div>`;
     h += `<div class="row" style="background:#2a1535;border:1px solid #c5f5;flex-direction:column;align-items:stretch">`
       +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
       +`<span class="name" style="color:#c5f">🔁 金币兑换牛铃（1亿💰 = 1🔔）</span>`
@@ -3452,7 +3449,7 @@ function renderPanel() {
       +`<button class="act sm" style="background:#a6f" ${S.spd10?"disabled":""} onclick="buySpd10()">${S.spd10?"已解锁":"🔓 解锁10×加速"}</button>`
       +`</div>`
       +`<div class="info" style="margin-top:3px">1×/3×/5×免费｜解锁保存在当前存档槽${curSlot}（随云存档同步）｜离线收益不受加速影响（按真实时间结算）</div></div>`;
-    h += `<div class="row"><span class="name">📦 材料购买数量</span><input type="number" min="1" value="${bellQty}" onchange="bellQty=Math.max(1,+this.value|0)"> <span class="info">对下方全部材料/星辉砂/丹药/羽翎生效</span></div>`;
+    h += `<div class="row"><span class="name">📦 材料购买数量</span><input type="number" min="1" value="${bellQty}" onchange="bellQty=Math.max(1,+this.value|0)"> <span class="info">对下方全部材料/丹药/羽翎生效</span></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">💣 弑神狂暴水（暴伤+10万% / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#a6f" onclick="buyBell('critPot',100,1)">购买</button></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">🛉 无敌药水（免疫怪物伤害 / 20分钟｜<b style="color:#f80">唯一获取途径</b>）</span><span class="info">100🔔</span><button class="act sm" style="background:#5cf" onclick="buyBell('invPot',100,1)">购买</button></div>`;
     h += `<div class="hint" style="color:#5cf;margin-top:6px">━━━━━ 🧿 内丹丹药 ━━━━━</div>`;
@@ -3467,11 +3464,8 @@ function renderPanel() {
     h += `<div class="row" style="background:#152035"><span class="name">🪶 凤羽（鸿蒙→无极升阶）</span><span class="info">25🔔/个｜持有${bagN("fengYu")}</span><button class="act sm" style="background:#49f" onclick="buyBell('fengYu',25,bellQty)">×${bellQty} 购买</button></div>`;
     h += `<div class="row" style="background:#152035"><span class="name">📜 道则碎片（无极→天道升阶/Lv425+档）</span><span class="info">40🔔/个｜持有${bagN("daoZe")}</span><button class="act sm" style="background:#49f" onclick="buyBell('daoZe',40,bellQty)">×${bellQty} 购买</button></div>`;
     h += `<div class="row" style="background:#152035"><span class="name">🔮 混沌晶（天道→混沌升阶/Lv500档）</span><span class="info">70🔔/个｜持有${bagN("hunDunJing")}</span><button class="act sm" style="background:#49f" onclick="buyBell('hunDunJing',70,bellQty)">×${bellQty} 购买</button></div>`;
-    h += `<div class="hint" style="color:#da5;margin-top:6px">━━━━━ 💠 星辉砂（金币兑换物）━━━━━</div>`;
-    h += `<div class="row" style="background:#2a2013"><span class="name">💠 星辉砂·微（兑换1000万💰）</span><span class="info">100🔔｜持有${bagN("xingHui1")}</span><button class="act sm" style="background:#da5" onclick="buyBell('xingHui1',100,1)">购买</button></div>`;
-    h += `<div class="row" style="background:#2a2013"><span class="name">🔷 星辉砂·耀（兑换2000万💰）</span><span class="info">200🔔｜持有${bagN("xingHui2")}</span><button class="act sm" style="background:#da5" onclick="buyBell('xingHui2',200,1)">购买</button></div>`;
-    h += `<div class="row" style="background:#2a2013"><span class="name">🔶 星辉砂·炽（兑换4000万💰）</span><span class="info">400🔔｜持有${bagN("xingHui3")}</span><button class="act sm" style="background:#da5" onclick="buyBell('xingHui3',400,1)">购买</button></div>`;
-    h += `<div class="row" style="background:#2a2013"><span class="name">🌟 星辉砂·极（兑换8000万💰）</span><span class="info">800🔔｜持有${bagN("xingHui4")}</span><button class="act sm" style="background:#da5" onclick="buyBell('xingHui4',800,1)">购买</button></div>`;
+    h += `<div class="hint" style="color:#da5;margin-top:6px">━━━━━ 💠 星辉砂（v1.21.9起商店不再出售）━━━━━</div>`;
+    h += `<div class="row" style="background:#2a2013"><span class="name">💠 星辉砂系列</span><span class="info">仅无尽1500层+掉落（4%）｜持有：微${bagN("xingHui1")}｜耀${bagN("xingHui2")}｜炽${bagN("xingHui3")}｜极${bagN("xingHui4")}｜背包选中可兑换金币（1000万~8000万💰/个）｜🤝玩家市场可交易</span></div>`;
     h += `<div class="hint" style="margin-top:6px">━━━━━ 🛒 其他 ━━━━━</div>`;
     h += `<div class="row"><span class="name">📦 队列位+1（每条并行通道各+1）</span><span class="info">10🔔</span><button class="act sm" onclick="buyPerk('q',10)">购买</button></div>`
       +`<div class="row"><span class="name">🌙 离线上限+2小时</span><span class="info">20🔔</span><button class="act sm" onclick="buyPerk('off',20)">购买</button></div>`;
@@ -3619,7 +3613,6 @@ function render() { renderTop(); renderPanel(); }
 /* ============================================================
    ★ 模块 S：交互函数
    ============================================================ */
-/* ★ v1.21.8：setSpd（10×未解锁时引导购买） */
 function setSpd(v) {
   if (!SPEEDS.includes(v)) return;
   if (v === 10 && !S.spd10) { buySpd10(); return; }
