@@ -3826,8 +3826,8 @@ function batchSalvageTier(t) {
   const mats = {}; let n = 0, g = 0;
   bagEquips().forEach(({key,e})=>{
     if (e.lock || e.rare>=3 || e.reqLv > t) return;
-    const {mat,mn} = salvageGain(e);
-    mats[mat] = (mats[mat]||0)+mn;
+    const {mat,n} = salvageGain(e);
+    mats[mat] = (mats[mat]||0)+n;
     g += Math.floor(sellPriceEq(e)*0.15);
     if (Array.isArray(e.gems)) e.gems.forEach((g2)=>{ if (g2) addIt(`gem_${g2.t}_${g2.l}`,1); });
     delete S.slotMap[key];
