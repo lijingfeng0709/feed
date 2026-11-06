@@ -17,6 +17,11 @@ async function lbFetch(silent) {
   try {
     const uid = await cloudUid();   // 每次重取，绝不跨登录缓存旧账号
     if (seq !== lbSeq) return;
+    // 残留旧会话（换账号竞态 / 离线回退）时不读榜，避免「我的」行仍指向上一个账号
+    if (LOGIN_UID && uid && uid !== LOGIN_UID) {
+      lbList = []; lbSelf = null; lbMyId = null; lbSlot = 0;
+      return;
+    }
     if (!uid) { lbList = []; lbSelf = null; lbMyId = null; lbSlot = 0; return; }
     if (uid !== lbMyId) { lbMyId = uid; lbSelf = null; lbList = []; }
     const col = wantTab === 0 ? "cum_floor" : "cum_lv";

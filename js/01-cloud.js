@@ -69,15 +69,25 @@ async function cloudSignUp(u, p) {
   return true;
 }
 
+let LOGIN_UID = null;   // 本次登录成功时绑定的 uid；云读写必须与之匹配，防止串档
 async function cloudSignIn(u, p) {
   if (!CLOUD_ON()) return false;
+  // 先彻底清掉上一个账号的会话：logout() 里的 signOut 未 await 会与新 signIn 并发，
+  // 残留的旧 JWT 会让 cloudUid() 指向上一个账号，把它的云端存档串给新账号
+  LOGIN_UID = null;
+  try { await sb.auth.signOut(); } catch (e) {}
   const { error } = await sb.auth.signInWithPassword({ email: sbEmail(u), password: p });
   if (error) { sbErr(error); return false; }
+  LOGIN_UID = await cloudUid();
+  if (!LOGIN_UID) {
+    try { const s = await sb.auth.getSession(); LOGIN_UID = (s && s.data && s.data.session && s.data.session.user) ? s.data.session.user.id : null; } catch (e) {}
+  }
+  if (!LOGIN_UID) sbErr(new Error("已登录但未取得用户身份，本次会话禁用云同步（防止串档）"));
   try { await cloudSetSid(); } catch (e) {}
   return true;
 }
 
-async function cloudSignOut() { if (!CLOUD_ON()) return; try { await sb.auth.signOut(); } catch (e) {} SID = null; }
+async function cloudSignOut() { if (!CLOUD_ON()) return; try { await sb.auth.signOut(); } catch (e) {} SID = null; LOGIN_UID = null; }
 
 async function cloudUid() {
   if (!CLOUD_ON()) return null;
@@ -122,7 +132,7 @@ async function doRename() {
    每账号每槽每小时最多一次；force=true 立即刷新当前槽（转生用） */
 const LB_REFRESH_MS = 3600*1000;
 function tryLbRefresh(force) {
-  if (!CLOUD_ON() || CUR === "guest") return;
+  if (!CLOUD_ON() || CUR === "guest" || !LOGIN_UID) return;
   const key = "mr_lb_t_" + CUR + "_" + curSlot;
   const last = +(localStorage.getItem(key) || 0);
   if (!force && Date.now() - last < LB_REFRESH_MS) return;
@@ -137,9 +147,13 @@ function tryLbRefresh(force) {
 }
 
 async function cloudSave() {
-  if (!CLOUD_ON() || CUR === "guest") return;
+  if (!CLOUD_ON() || CUR === "guest" || !LOGIN_UID) return;
   const id = await cloudUid();
-  if (!id) return;
+  // 会话与登录账号不一致时绝不上传，否则会把当前账号的进度写进上一个账号的 saves 行
+  if (!id || id !== LOGIN_UID) {
+    log("⚠️ 云端身份与当前账号不一致，已跳过本次同步（防止串档）");
+    return;
+  }
   const raw = localStorage.getItem(saveKeyOf(CUR, curSlot));
   if (!raw) return;
   let parsed = null;
@@ -147,13 +161,22 @@ async function cloudSave() {
   const bareS = unwrapSlot(parsed && parsed.S ? parsed.S : parsed);
   if (!bareS || !bareS.skills) return;
   let doc = { slots: {} };
+  let cloudReadOK = false;
   try {
-    const { data } = await sb.from("saves").select("data").eq("id", id).maybeSingle();
-    if (data && data.data) {
-      if (data.data.slots) doc.slots = data.data.slots;
-      else if (data.data.S) doc.slots = { 1: unwrapSlot(data.data.S) };
+    const { data, error } = await sb.from("saves").select("data").eq("id", id).maybeSingle();
+    if (!error) {
+      cloudReadOK = true;   // 空档（data=null）也算读取成功
+      if (data && data.data) {
+        if (data.data.slots) doc.slots = data.data.slots;
+        else if (data.data.S) doc.slots = { 1: unwrapSlot(data.data.S) };
+      }
     }
   } catch (e) {}
+  // 读失败时若继续 upsert，会把云端另外两个槽的存档一起抹掉
+  if (!cloudReadOK) {
+    log("⚠️ 云端存档读取失败，已跳过本次同步以避免覆盖其他存档槽");
+    return;
+  }
   doc.slots[curSlot] = bareS;
   const { error } = await sb.from("saves").upsert({ id, name: CUR, data: doc, version: 1 });
   if (error) sbErr(error);
@@ -179,9 +202,13 @@ async function maybeBackup(id) {
 }
 
 async function cloudFetch() {
-  if (!CLOUD_ON()) return null;
+  if (!CLOUD_ON() || !LOGIN_UID) return null;
   const id = await cloudUid();
-  if (!id) return null;
+  // 会话与登录账号不一致时绝不读取，否则会把上一个账号的存档灌进新账号
+  if (!id || id !== LOGIN_UID) {
+    log("⚠️ 云端身份与当前账号不一致，已跳过云存档读取（防止串档）");
+    return null;
+  }
   const { data, error } = await sb.from("saves").select("data,updated_at").eq("id", id).maybeSingle();
   if (error) { sbErr(error); return null; }
   if (!data || !data.data) return null;

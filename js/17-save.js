@@ -130,7 +130,12 @@ function exportSave() {
       try {
         const d = JSON.parse(r.result);
         if (d.app !== "galaxy-ranch-save" || typeof d.save !== "string") throw new Error("bad");
-        if (!confirm("导入会覆盖当前浏览器里的对应进度，确定继续吗？")) return;
+        const target = d.user || "guest";
+        const slot = Math.min(SLOT_MAX, Math.max(1, +(d.slot||1)));
+        if (!confirm(`⚠️ 即将把存档写入【账号 ${target} · 存档槽 ${slot}】并覆盖原有进度。\n\n`
+          + `当前登录账号：${CUR || "未登录"}\n导出时间：${d.time || "未知"}\n\n`
+          + `存档内含终身累计成绩（累计层数 / 累计等级 / 转生次数）。\n`
+          + `跨账号复制同一份存档，会让多个账号在排行榜出现完全相同的成绩。\n确定继续吗？`)) return;
         if (d.accounts) {
           try {
             const cur = JSON.parse(localStorage.getItem(ACC_KEY)||"{}");
@@ -139,8 +144,6 @@ function exportSave() {
             localStorage.setItem(ACC_KEY, JSON.stringify(cur));
           } catch (_) {}
         }
-        const target = d.user || "guest";
-        const slot = Math.min(SLOT_MAX, Math.max(1, +(d.slot||1)));
         localStorage.setItem(saveKeyOf(target, slot), d.save);
         localStorage.setItem("mr_slot_" + target, String(slot));
         localStorage.setItem(SES_KEY, target);

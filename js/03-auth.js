@@ -5,7 +5,7 @@
 const ACC_KEY = "mr_accounts";
 const SES_KEY = "mr_session";
 const REM_KEY = "mr_remember";
-const GCFG_KEY = "mr_gcfg";
+const GUEST_MIG_KEY = "mr_guest_migrated_to";   // 游客进度只能被一个注册账号继承，防止一份进度复制成多个上榜账号
 let CUR = null;
 let LOGGED_IN = false;
 let aMode = "login";
@@ -52,7 +52,7 @@ function authUI() {
   $("aTabReg").className = aMode === "reg" ? "on" : "";
   $("aGo").textContent = aMode === "login" ? "登录" : "注册并进入";
   $("aPname").style.display = aMode === "reg" ? "block" : "none";
-  $("aMigRow").style.display = (aMode === "reg" && localStorage.getItem("mr_save_guest")) ? "flex" : "none";
+  $("aMigRow").style.display = (aMode === "reg" && localStorage.getItem("mr_save_guest") && !localStorage.getItem(GUEST_MIG_KEY)) ? "flex" : "none";
   $("aMsg").textContent = ""; $("aMsg").className = "msg";
 }
 function authMsg(t, ok) { const e = $("aMsg"); e.textContent = t; e.className = "msg " + (ok ? "ok" : "err"); }
@@ -75,6 +75,9 @@ async function authGo() {
     if (!ok) {
       const localAcc = A[u];
       if (localAcc && localAcc.ph !== undefined && localAcc.ph === hashPw(p)) {
+        // 云端登录失败时旧会话可能仍在：必须清掉，否则 cloudUid() 仍指向上一个账号，
+        // showSlotPicker 会把它的云端存档灌进本账号，造成跨账号串档
+        try { await cloudSignOut(); } catch (e) {}
         ok = true;
         log("ℹ️ 云端登录未成功，已用本地账号记录进入（离线模式，云同步暂不可用）");
       } else if (localAcc && localAcc.ph !== undefined) {
@@ -126,8 +129,16 @@ async function authGo() {
     } catch (e) {
       log("⚠️ 玩家名字占用失败：" + (e.message || e) + "——账号已创建，可稍后在「账号」页设置名字");
     }
-    if ($("aMigRow").style.display !== "none" && $("aMig").checked && localStorage.getItem("mr_save_guest")) {
-      if (!localStorage.getItem(saveKeyOf(u, 1))) localStorage.setItem(saveKeyOf(u, 1), localStorage.getItem("mr_save_guest"));
+    const guestRaw = localStorage.getItem("mr_save_guest");
+    if ($("aMigRow").style.display !== "none" && $("aMig").checked && guestRaw) {
+      const owner = localStorage.getItem(GUEST_MIG_KEY);
+      if (owner && owner !== u) {
+        log("⚠️ 游客进度已由账号「" + owner + "」继承，本次不再重复继承（避免同一进度复制到多个账号刷榜）");
+      } else if (!localStorage.getItem(saveKeyOf(u, 1))) {
+        localStorage.setItem(saveKeyOf(u, 1), guestRaw);
+        localStorage.setItem(GUEST_MIG_KEY, u);
+        log("✅ 游客进度已继承到账号「" + u + "」存档槽1（同一份游客进度仅可继承一次）");
+      }
     }
     A[u] = { ph: hashPw(p), created: Date.now() };
     saveAccs(A);
@@ -141,6 +152,8 @@ async function authGo() {
 function authGuest() { doLogin("guest"); showSlotPicker(); }
 function doLogin(u) {
   if (typeof lbReset === "function") lbReset();   // 换账号时清空榜单缓存，避免串到上一个账号
+  SLOTDOC = null;                                 // 清空上一个账号的云端存档快照，防止 chooseSlot 把它写进新账号
+  if (u === "guest") LOGIN_UID = null;            // 游客入口不经过 cloudSignIn，主动解绑云端身份
   CUR = u; LOGGED_IN = true;
   IS_ADMIN = false;
   curSlot = +(localStorage.getItem("mr_slot_" + u) || 1);
