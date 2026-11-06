@@ -5,7 +5,7 @@ function pmCanUse() { return CLOUD_ON() && LOGGED_IN && CUR !== "guest"; }
 function pmSqlHint(e) {
   const m = String((e && (e.message || e)) || "");
   if (/could not find the function|market_place_order|market_buy_order|market_cancel_order|market_claim_payouts|market_update_price|refresh_leaderboard|claim_pname|pname_registry|schema cache/i.test(m)) {
-    log("🛠️ 检测到服务端函数缺失或为旧版：请管理员在 Supabase → SQL Editor 执行 v1.21.8 配套SQL（市场双币种/改价/账本）");
+    log("🛠️ 检测到服务端函数缺失或为旧版：请管理员在 Supabase → SQL Editor 执行最新配套 SQL（市场/名字/排行榜）");
   }
 }
 /* ★ 市场币种与定价区间工具

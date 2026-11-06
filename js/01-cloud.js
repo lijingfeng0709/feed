@@ -118,15 +118,22 @@ async function doRename() {
     pmSqlHint(e);
   }
 }
-/* ★ 榜单快照刷新节流：每玩家每小时最多重算一次；force=true 立即刷新（转生用） */
+/* ★ 榜单刷新：服务端 pg_cron 每小时整点全量重算（权威）；此处仅作客户端兜底，
+   每账号每槽每小时最多一次；force=true 立即刷新当前槽（转生用） */
 const LB_REFRESH_MS = 3600*1000;
 function tryLbRefresh(force) {
   if (!CLOUD_ON() || CUR === "guest") return;
-  const key = "mr_lb_t_" + CUR;
+  const key = "mr_lb_t_" + CUR + "_" + curSlot;
   const last = +(localStorage.getItem(key) || 0);
   if (!force && Date.now() - last < LB_REFRESH_MS) return;
   localStorage.setItem(key, String(Date.now()));
-  try { sb.rpc("refresh_leaderboard", { p_slot: curSlot }); } catch (e) {}
+  try {
+    // sb.rpc() 返回惰性 thenable，必须调用 .then() 才会真正发出请求
+    sb.rpc("refresh_leaderboard", { p_slot: curSlot }).then(
+      () => {},
+      (e) => { log("⚠️ 榜单刷新失败（服务端整点任务仍会兜底）：" + ((e && e.message) || e)); }
+    );
+  } catch (e) {}
 }
 
 async function cloudSave() {
