@@ -263,6 +263,7 @@ function chooseSlot(n) {
   $("slotPick").style.display = "none";
   enterGame();
   fetchMyPnames();
+  if (typeof lbFetch === "function") lbFetch(true);   // 切槽后立即按新槽重拉榜单
 }
 async function deleteSlot(n) {
   const d = slotData(n);

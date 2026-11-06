@@ -140,6 +140,7 @@ async function authGo() {
 
 function authGuest() { doLogin("guest"); showSlotPicker(); }
 function doLogin(u) {
+  if (typeof lbReset === "function") lbReset();   // 换账号时清空榜单缓存，避免串到上一个账号
   CUR = u; LOGGED_IN = true;
   IS_ADMIN = false;
   curSlot = +(localStorage.getItem("mr_slot_" + u) || 1);
@@ -156,6 +157,7 @@ function doLogin(u) {
 }
 function logout() {
   saveGame(); cloudSignOut();
+  if (typeof lbReset === "function") lbReset();
   if (pmSub) { try { sb.removeChannel(pmSub); } catch (e) {} pmSub = null; }
   CUR = null; LOGGED_IN = false; SLOTDOC = null; IS_ADMIN = false;
   MY_PN = { 1:null, 2:null, 3:null };
