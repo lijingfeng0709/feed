@@ -3,8 +3,53 @@
    ★ 模块 H：游戏状态 + 全局数值配置
    ============================================================ */
 const PAGE_SIZE = 100, MAX_PAGES = 1000, SPEEDS = [1,3,5,10], DIFF_MIN = 0.3, DIFF_MAX = 5;
-/* ★ v1.21.8：10×加速解锁价（存档槽级，随云存档同步，转生保留） */
+/* ★ 10×加速解锁价：账号级购买，一次解锁 3 个存档槽通用（转生/清档/删槽均不失效） */
 const SPD10_COST = 500;
+const SPD10_KEY = "mr_spd10_";
+function spd10Key(u) { return SPD10_KEY + (u || CUR || "guest"); }
+function spd10Unlocked() {
+  try { return localStorage.getItem(spd10Key(CUR)) === "1"; } catch (e) { return false; }
+}
+function setSpd10Account() {
+  if (!CUR) return;
+  try { localStorage.setItem(spd10Key(CUR), "1"); } catch (e) {}
+}
+/* 旧版本把解锁存在单个存档槽：登录/读档时扫描本地 3 槽 + 云端快照，自动升级为账号级 */
+function migrateSpd10Account() {
+  if (!CUR) return;
+  try { if (localStorage.getItem(spd10Key(CUR)) === "1") return; } catch (e) { return; }
+  try {
+    for (let n = 1; n <= SLOT_MAX; n++) {
+      const raw = localStorage.getItem(saveKeyOf(CUR, n)) || (n === 1 ? localStorage.getItem(saveKeyOf(CUR)) : null);
+      if (!raw) continue;
+      const d = JSON.parse(raw);
+      const s = unwrapSlot(d && d.S != null ? d.S : d);
+      if (s && s.spd10) { setSpd10Account(); return; }
+    }
+    if (SLOTDOC && SLOTDOC.slots) {
+      for (const n in SLOTDOC.slots) {
+        const s = unwrapSlot(SLOTDOC.slots[n]);
+        if (s && s.spd10) { setSpd10Account(); return; }
+      }
+    }
+  } catch (e) {}
+}
+/* 把解锁镜像写回每个已存在的本地存档槽，兼容旧版读取与导出文件 */
+function syncSpd10ToSlots() {
+  try {
+    for (let n = 1; n <= SLOT_MAX; n++) {
+      const key = saveKeyOf(CUR, n);
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const d = JSON.parse(raw);
+      const s = unwrapSlot(d && d.S != null ? d.S : d);
+      if (!s || typeof s !== "object") continue;
+      s.spd10 = 1;                       // unwrapSlot 返回原对象引用，保留原有封装结构
+      localStorage.setItem(key, JSON.stringify(d));
+    }
+    if (S) S.spd10 = 1;
+  } catch (e) {}
+}
 let uid = 1;
 
 const CFG_DEFAULT = {
@@ -108,7 +153,7 @@ function newGameState() {
     autoHp:30, autoMp:20, teaMin:0, xpMin:0, xpMult:0,
     buffHit:0, buffHitMin:0, buffCd:0, buffCdMin:0, buffInv:0, buffInvMin:0,
     pots:[null,null,null,null,null], houses:{}, badge:0, tasks:[],
-    reb:0, sp:0, kills:{}, perks:{q:0,off:0,mk:0}, spd10:0,
+    reb:0, sp:0, kills:{}, perks:{q:0,off:0,mk:0}, spd10:(spd10Unlocked()?1:0),
     neidan:{lv:0,xp:0}, wing:{stage:0},
     speed:1, autoTrash:{mode:0,rare:1},
     deadUntil:0, lastTick:Date.now() };

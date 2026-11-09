@@ -339,7 +339,7 @@ function renderPanel() {
     const armed = Date.now() - rebirthArm < 5000;
     h += `<div class="row"><span class="name">当前：${S.reb}转｜${S.sp}技能点</span><span class="info">${canRebirth()?"✅ 可转生":"❌ 需任一技能100级"}｜技能上限 <b style="color:#fa0">${effCap()}</b>（每转+60）｜品质解锁 <b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（每转+1档）｜<b style="color:#c5f">怪物属性 ×${rebCf().toFixed(2)}</b>→转后×${Math.pow(1+cfg("rebMonCf"), S.reb+1).toFixed(2)}</span></div>`;
     h += `<div class="row"><span class="name" style="color:#ffd479">🏆 转生时将定格计入榜单：本次 +${S.lifeBest||0}层 / +${totalLv()}级 → 终身累计 🌌${((S.cumFloor||0)+(S.lifeBest||0)).toLocaleString()}层 / ⭐${((S.cumLv||0)+totalLv()).toLocaleString()}级</span></div>`;
-    h += `<div class="row"><span class="name" style="color:#5c5">🧿 内丹 Lv.${S.neidan.lv}（+${(S.neidan.lv*0.5).toFixed(1)}%）与 🕊️ ${S.wing.stage?WING_NAMES[S.wing.stage-1]:"未觉醒"}（+${S.wing.stage*5}%）将完整保留${S.spd10?'｜⏩ 10×加速解锁保留':""}</span></div>`;
+    h += `<div class="row"><span class="name" style="color:#5c5">🧿 内丹 Lv.${S.neidan.lv}（+${(S.neidan.lv*0.5).toFixed(1)}%）与 🕊️ ${S.wing.stage?WING_NAMES[S.wing.stage-1]:"未觉醒"}（+${S.wing.stage*5}%）将完整保留${spd10Unlocked()?'｜⏩ 10×加速解锁保留':""}</span></div>`;
     h += `<div class="row" style="justify-content:center;padding:12px;flex-direction:column;gap:8px">`
       +`<button class="act rebBtn" style="background:${armed?"#e55":"#2a5"}" ${canRebirth()&&S.reb<7?"":"disabled"} onclick="askRebirth()">${armed?"⚠️ 确认转生（5秒内再点一次）":"🌀 转生"}</button>`
       +`<span class="info">${armed?'<b style="color:#f80">再次点击红色按钮执行转生</b>':"点击后需5秒内二次确认，防误触（手机通用）"}</span></div>`;
@@ -359,10 +359,10 @@ function renderPanel() {
     h += `<div class="row" style="background:#2a2413;border:1px solid #ffd47955;flex-direction:column;align-items:stretch">`
       +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
       +`<span class="name">⏩ 10× 加速解锁</span>`
-      +`<span class="info">${S.spd10?'<b style="color:#6f6">✅ 已解锁（本存档槽永久有效，转生保留）</b>':`未解锁｜价格 <b style="color:#fa0">${SPD10_COST}🔔</b>｜解锁后10×加速永久可用`}</span>`
-      +`<button class="act sm" style="background:#a6f" ${S.spd10?"disabled":""} onclick="buySpd10()">${S.spd10?"已解锁":"🔓 解锁10×加速"}</button>`
+      +`<span class="info">${spd10Unlocked()?'<b style="color:#6f6">✅ 已解锁（账号级 · 3 个存档槽通用，转生/清档/删槽不失效）</b>':`未解锁｜价格 <b style="color:#fa0">${SPD10_COST}🔔</b>｜一次解锁，3 个存档槽全部可用`}</span>`
+      +`<button class="act sm" style="background:#a6f" ${spd10Unlocked()?"disabled":""} onclick="buySpd10()">${spd10Unlocked()?"已解锁":"🔓 解锁10×加速"}</button>`
       +`</div>`
-      +`<div class="info" style="margin-top:3px">1×/3×/5×免费｜解锁保存在当前存档槽${curSlot}（随云存档同步）｜离线收益不受加速影响（按真实时间结算）</div></div>`;
+      +`<div class="info" style="margin-top:3px">1×/3×/5×免费｜解锁绑定<b>当前账号</b>（不分存档槽，随云存档同步）｜各槽当前速度档位独立选择｜离线收益不受加速影响（按真实时间结算）</div></div>`;
     h += `<div class="row"><span class="name">📦 材料购买数量</span><input type="number" min="1" value="${bellQty}" onchange="bellQty=Math.max(1,+this.value|0)"> <span class="info">对下方全部材料/丹药/羽翎生效</span></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">💣 弑神狂暴水（暴伤+10万% / 20分钟）</span><span class="info">100🔔</span><button class="act sm" style="background:#a6f" onclick="buyBell('critPot',100,1)">购买</button></div>`;
     h += `<div class="row" style="background:#2a2413"><span class="name">🛉 无敌药水（免疫怪物伤害 / 20分钟｜<b style="color:#f80">唯一获取途径</b>）</span><span class="info">100🔔</span><button class="act sm" style="background:#5cf" onclick="buyBell('invPot',100,1)">购买</button></div>`;

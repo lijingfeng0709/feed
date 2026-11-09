@@ -4,20 +4,28 @@
    ============================================================ */
 function setSpd(v) {
   if (!SPEEDS.includes(v)) return;
-  if (v === 10 && !S.spd10) { buySpd10(); return; }
+  if (v === 10 && !spd10Unlocked()) { buySpd10(); return; }
   S.speed = v; saveGame(); renderSpd(); log(`⏩ 游戏速度：${v}×`);
 }
 function buySpd10() {
-  if (S.spd10) return;
+  if (spd10Unlocked()) return;
   if (S.bell < SPD10_COST) {
     log(`🔒 10×加速解锁需 ${SPD10_COST}🔔（当前 ${S.bell}🔔）——牛铃获取：无尽挂机刷金币兑换（牛铃商店）/ 玩家市场🔔计价卖材料`);
     renderSpd();
     return;
   }
-  if (!confirm(`确认花费 ${SPD10_COST}🔔 解锁 10× 加速？\n\n· 解锁保存在当前存档槽${curSlot}（随云存档同步）\n· 转生保留，永久有效`)) return;
-  S.bell -= SPD10_COST; S.spd10 = 1;
-  log(`🔓 10× 加速已解锁！已扣除 ${SPD10_COST}🔔，点击「10×」按钮启用`);
-  saveGame(); renderTop(); renderSpd();
+  if (!confirm(`确认花费 ${SPD10_COST}🔔 解锁 10× 加速？\n\n`
+    + `· 解锁绑定当前账号，3 个存档槽全部通用（随云存档同步）\n`
+    + `· 转生 / 清档 / 删槽都不失效，永久有效，只需支付一次\n`
+    + `· 从当前存档槽${curSlot}扣除 ${SPD10_COST}🔔`)) return;
+  S.bell -= SPD10_COST;
+  S.spd10 = 1;
+  setSpd10Account();
+  try { saveGame._t = 0; } catch (e) {}   // 本次存档立即触发一次云同步，跨设备即时生效
+  saveGame();
+  syncSpd10ToSlots();                     // 镜像写回其它槽，兼容旧版与导出文件
+  log(`🔓 10× 加速已解锁！已扣除 ${SPD10_COST}🔔，当前账号 3 个存档槽通用，点击「10×」按钮启用`);
+  renderTop(); renderSpd();
 }
 function setAutoTrash(k, v) { S.autoTrash[k] = v; saveGame(); renderPanel(); log(`⚡ 自动处理：${["关闭","💰自动出售","⚒️自动分解"][S.autoTrash.mode]}｜阈值：${RARE_NAMES[S.autoTrash.rare]}及以下（🔒锁定装备免疫）`); }
 function setPot(i, k, v) { if (!S.pots[i]) S.pots[i] = {id:"",cond:"hp",val:30}; S.pots[i][k] = v; if (k === "cond") S.pots[i].t = null; saveGame(); renderPanel(); }
@@ -272,6 +280,7 @@ function delAcc(u) {
   delete A[u]; saveAccs(A);
   for (let n = 1; n <= SLOT_MAX; n++) localStorage.removeItem(saveKeyOf(u, n));
   localStorage.removeItem(saveKeyOf(u));
+  localStorage.removeItem(spd10Key(u));
   localStorage.removeItem("mr_slot_" + u);
   if (u === CUR) logout(); else renderPanel();
 }

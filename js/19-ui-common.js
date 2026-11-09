@@ -12,14 +12,15 @@ let tab = 0, zone = 0, qSel = "milk1", qNum = 10;
 const RARE_COLOR_ARR = RARE_COLOR;
 const POT_ITEMS = Object.keys(IT).filter((id)=>IT[id].heal||IT[id].mp||XPIT[id]||POTBUFF[id]);
 const BATCH_TIERS = [15,30,60,85,95,120,160,200,249];
-/* ★ 加速条（10×未解锁显示锁与购买按钮） */
+/* ★ 加速条（10×未解锁显示锁与购买按钮；解锁状态为账号级，3 个存档槽通用） */
 function renderSpd() {
+  const unlocked = spd10Unlocked();
   $("spdwrap").innerHTML = `<span class="lb">⏩ ${IS_MOBILE?"加速":"游戏加速"}</span>`
     +SPEEDS.map((v)=>{
-      const lk = (v === 10 && !S.spd10);
+      const lk = (v === 10 && !unlocked);
       return `<button class="spd ${S.speed===v?"on":""}"${lk?" style='opacity:.5'":""} onclick="setSpd(${v})">${v}×${lk?"🔒":""}</button>`;
     }).join("")
-    +(!S.spd10?`<button class="spd" style="background:#a6f;border-color:#a6f;color:#141729" onclick="buySpd10()">🔓10×加速（${SPD10_COST}🔔）</button>`:"")
+    +(!unlocked?`<button class="spd" style="background:#a6f;border-color:#a6f;color:#141729" onclick="buySpd10()">🔓10×加速（${SPD10_COST}🔔·3槽通用）</button>`:"")
     +`<span class="info" style="margin-left:8px">当前 <b style="color:#ffd479">${S.speed}×</b>｜难度 <b style="color:#f80">${diff().toFixed(1)}×</b>${S.reb?`｜转生增强 <b style="color:#c5f">×${rebCf().toFixed(2)}</b>`:""}${isAdmin()?' <span class="adminTag">👑管理员</span>':''}｜`
     +(CLOUD_ON()&&CUR!=="guest"?'<span class="cloudOk">☁️ 云同步中</span>':'<span style="color:#889">☁️ 本地模式</span>')
     +`</span><span style="flex:1"></span>`

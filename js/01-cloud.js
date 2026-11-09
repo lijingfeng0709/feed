@@ -167,6 +167,7 @@ async function cloudSave() {
     if (!error) {
       cloudReadOK = true;   // 空档（data=null）也算读取成功
       if (data && data.data) {
+        if (data.data.spd10) { doc.spd10 = 1; setSpd10Account(); }   // 云端账号级解锁回写本地
         if (data.data.slots) doc.slots = data.data.slots;
         else if (data.data.S) doc.slots = { 1: unwrapSlot(data.data.S) };
       }
@@ -178,6 +179,7 @@ async function cloudSave() {
     return;
   }
   doc.slots[curSlot] = bareS;
+  if (spd10Unlocked()) doc.spd10 = 1;   // 账号级：放在 data 顶层，不属于任何存档槽
   const { error } = await sb.from("saves").upsert({ id, name: CUR, data: doc, version: 1 });
   if (error) sbErr(error);
   else {
@@ -245,8 +247,12 @@ async function showSlotPicker() {
     SLOTDOC = null;
     if (CLOUD_ON() && CUR !== "guest") {
       const res = await cloudFetch();
-      if (res && res.data) SLOTDOC = res.data;
+      if (res && res.data) {
+        SLOTDOC = res.data;
+        if (res.data.spd10) setSpd10Account();   // 跨设备：云端账号级解锁
+      }
     }
+    migrateSpd10Account();                       // 兼容旧版：任一槽已解锁即升级为账号级
     let h = "";
     for (let n = 1; n <= SLOT_MAX; n++) {
       const d = slotData(n);
@@ -300,8 +306,9 @@ async function deleteSlot(n) {
   localStorage.removeItem(saveKeyOf(CUR, n));
   if (n === 1) localStorage.removeItem(saveKeyOf(CUR));
   if (CLOUD_ON() && CUR !== "guest" && SLOTDOC) {
-    if (!SLOTDOC.slots) SLOTDOC = { slots: { 1: SLOTDOC.S ? unwrapSlot(SLOTDOC.S) : null } };
+    if (!SLOTDOC.slots) SLOTDOC = { slots: { 1: SLOTDOC.S ? unwrapSlot(SLOTDOC.S) : null }, spd10: SLOTDOC.spd10 || 0 };
     SLOTDOC.slots[n] = null;
+    if (spd10Unlocked()) SLOTDOC.spd10 = 1;   // 删槽不影响账号级解锁标记
     const id = await cloudUid();
     if (id) {
       const { error } = await sb.from("saves").upsert({ id, name: CUR, data: SLOTDOC, version: 1 });

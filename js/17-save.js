@@ -31,6 +31,7 @@ function sanitizeSave() {
   }
 }
 function loadGame() {
+  migrateSpd10Account();   // 旧版槽级解锁 → 账号级（扫描本地 3 槽 + 云端快照）
   let r = localStorage.getItem(saveKeyOf(CUR, curSlot));
   if (!r && curSlot === 1) r = localStorage.getItem(saveKeyOf(CUR));
   if (!r) return false;
@@ -46,7 +47,8 @@ function loadGame() {
     if (!S.kills) S.kills = {};
     if (!S.perks) S.perks = {q:0,off:0,mk:0};
     if (!S.speed) S.speed = 1;
-    if (S.spd10 == null) S.spd10 = 0;
+    S.spd10 = spd10Unlocked() ? 1 : (S.spd10 || 0);   // 账号级解锁同步镜像到本槽
+    if (S.speed === 10 && !spd10Unlocked()) S.speed = 5;  // 防止导入/改档绕过解锁
     if (S.autoTrash == null) S.autoTrash = {mode:0,rare:1};
     if (S.autoNext == null) S.autoNext = true;
     if (!S.floorKills) S.floorKills = {};

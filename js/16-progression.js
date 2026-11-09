@@ -125,7 +125,7 @@ async function rebirth() {
   const keepPots = JSON.parse(JSON.stringify(S.pots));
   const keepNd = S.neidan, keepWing = S.wing;
   const keepName = S.name;
-  const keepSpd10 = S.spd10 || 0;
+  const keepSpd10 = spd10Unlocked() ? 1 : (S.spd10 || 0);
   const addFloor = (S.lifeBest||0);
   const addLv = totalLv();
   const prevCumFloor = (S.cumFloor||0);
