@@ -57,8 +57,8 @@ function forgeRow(e, ref) {
   const ra = refAttr(ref);
   const ic = EQIC[e.slot] || "⚔️";
   const upBlock = uc && !canWearAt(e, uc.to);
-  let h = `<div class="row"><span class="name r${e.rare}">${ic} ${eqName(e)}</span>`
-    +`<span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}档】${eqValStr(e)}</span></div>`;
+  let h = `<div class="row"><span class="name r${e.rare}" title="${eqFullTitle(e)}">${ic} ${eqNameFull(e)}</span>`
+    +`<span class="info">【${RARE_NAMES[e.rare]}·${nameBandName(e.reqLv)}·Lv${e.reqLv}档】${eqValStr(e)}</span></div>`;
   h += `<div class="row" style="background:#1c2036;margin-left:14px">`
     +`<span class="info">🔨 强化 ${e.plus}/${ENH_MAX}：${maxed?"已满":`${matStr(ef.mats)}＋${ef.gold}💰｜${(r*100).toFixed(0)}%｜失败不掉级`}</span>`
     +`<button class="act sm" ${maxed||!canAfford(ef.mats,ef.gold)?"disabled":""} onclick="doEnh(${ra});renderPanel()">强化</button>`
@@ -131,7 +131,7 @@ function bagSearchHTML() {
       }
     } else {
       if (v.n.toLowerCase().includes(q)) {
-        rows += `<div class="row srchRow"><span class="name r${v.rare}">${EQIC[v.slot]||"⚔️"} ${eqName(v)}</span><span class="info">【${RARE_NAMES[v.rare]}·Lv${v.reqLv}档】${eqValStr(v)}｜位于第${(+k.split("_")[0])+1}页${v.lock?"｜🔒已锁定":""}</span><button class="act sm" onclick="gotoPage(${+k.split("_")[0]});selSlot='${k}';renderPanel()">跳转</button></div>`;
+        rows += `<div class="row srchRow"><span class="name r${v.rare}" title="${eqFullTitle(v)}">${EQIC[v.slot]||"⚔️"} ${eqName(v)}</span><span class="info">【${RARE_NAMES[v.rare]}·${nameBandName(v.reqLv)}·Lv${v.reqLv}档】${eqValStr(v)}｜位于第${(+k.split("_")[0])+1}页${v.lock?"｜🔒已锁定":""}</span><button class="act sm" onclick="gotoPage(${+k.split("_")[0]});selSlot='${k}';renderPanel()">跳转</button></div>`;
       }
     }
   }
@@ -156,8 +156,8 @@ function openEqMenu(key, ev) {
   const uc = upgCfg(e);
   const pc = punchCost(e);
   const okWear = canWear(e);
-  let h = `<div style="padding:4px 6px;color:#ffd479;font-size:12px;font-weight:bold" class="r${e.rare}">${EQIC[e.slot]} ${eqName(e)}</div>`
-    +`<div style="padding:0 6px 4px;color:#889;font-size:10px">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}档】${eqValStr(e)}</div>`
+  let h = `<div style="padding:4px 6px;color:#ffd479;font-size:12px;font-weight:bold" class="r${e.rare}">${EQIC[e.slot]} ${eqNameFull(e)}</div>`
+    +`<div style="padding:0 6px 4px;color:#889;font-size:10px">【${RARE_NAMES[e.rare]}·${nameBandName(e.reqLv)}·Lv${e.reqLv}档】${eqValStr(e)}</div>`
     +`<button onclick="hideEqMenu();doEnh(${ra});renderPanel()" ${e.plus>=ENH_MAX||!canAfford(ef.mats,ef.gold)?"disabled":""}>🔨 强化（${e.plus>=ENH_MAX?"已满":(enhRate(e)*100).toFixed(0)+"%｜"+ef.gold+"💰"}）</button>`
     +`<button onclick="hideEqMenu();upQuality(${ra})" ${qMaxed||!qc||!canAfford(qc.mats,qc.gold)?"disabled":""}>🏆 升阶（${qMaxed?(e.rare>=11?"最高":"转生解锁上限"):(qualRate(e.rare)*100).toFixed(0)+"%｜"+qc.gold+"💰"}）</button>`
     +`<button onclick="hideEqMenu();upTier(${ra})" ${!uc||!canWearAt(e,uc.to)||!canAfford(uc.mats,uc.gold)?"disabled":""}>⬆️ 升级档位（${uc?(canWearAt(e,uc.to)?"→Lv"+uc.to+"｜"+(tierRate(e)*100).toFixed(0)+"%":"需"+(e.slot==="weapon"?"单项":"均")+"Lv"+uc.to+"🔒"):"已满档"}）</button>`

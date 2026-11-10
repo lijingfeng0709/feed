@@ -149,7 +149,7 @@ function dropEq(m) {
     if (q > rr) rr = q;
   }
   rr = Math.min(rr, maxRare());
-  if (rr > e.rare) { e.rare = rr; e.n = PREFIX[rr]+e.n.replace(RARE_STRIP,""); rollSpecials(e); }
+  if (rr > e.rare) { e.rare = rr; refreshEqName(e); rollSpecials(e); }
   const hp = m.hp;
   if (S.endless) e.plus = Math.min(ENH_MAX, Math.floor(hp/8000*Math.random()));
   else e.plus = Math.min(ENH_DROP_CAP, Math.floor(hp/2500*Math.random()));

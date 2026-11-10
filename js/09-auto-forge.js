@@ -45,7 +45,7 @@ function autoForgeTick() {
         const oldR = e.rare; e.rare++;
         const ratio = RARE_MULT[e.rare]/RARE_MULT[oldR];
         ["atk","hp","def","eva"].forEach((k)=>{ if (e[k]) e[k] = Math.floor(e[k]*ratio); });
-        e.n = PREFIX[e.rare]+e.n.replace(RARE_STRIP,"");
+        refreshEqName(e);
         rollSpecials(e);
         log(`🎯 自动升阶成功 → 【${RARE_NAMES[e.rare]}】${eqName(e)}`);
       } else log(`🎯 自动升阶失败`);
@@ -69,6 +69,7 @@ function autoForgeTick() {
           if (e.critDmg) e.critDmg = Math.min(cfg("critDmgMax"), Math.floor(e.critDmg*ratio));
           if (e.ls) e.ls = Math.min(cfg("lsMax"), Math.floor(e.ls*ratio));
           e.reqLv = c.to;
+          refreshEqName(e);
           log(`🎯 自动升级成功 → ${eqName(e)}（Lv${e.reqLv}档）`);
         } else log(`🎯 自动升级失败（成功率 ${(tierRate(e)*100).toFixed(0)}%）`);
         return;

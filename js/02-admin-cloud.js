@@ -99,11 +99,11 @@ async function adGrantEq() {
   if (!d.bag) d.bag = {};
   if (d.uid == null) d.uid = 1;
   const e = rollEq(fam, tier, slot, 0);
-  e.rare = rare; e.n = PREFIX[rare]+e.n.replace(RARE_STRIP,"");
-  e.plus = plus; e.lock = false;
+  e.uid = d.uid++;
+  e.rare = rare; e.plus = plus; e.lock = false;
+  refreshEqName(e);
   if (holes > 0) { e.holes = holes; e.gems = Array.from({length:holes}, ()=>gemT?{t:gemT,l:GEM_MAX}:null); }
   rollSpecials(e);
-  e.uid = d.uid++;
   let placed = false;
   outer: for (let p = 0; p < MAX_PAGES; p++) for (let c = 0; c < PAGE_SIZE; c++) {
     const k = p+"_"+c;

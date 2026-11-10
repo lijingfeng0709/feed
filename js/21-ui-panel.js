@@ -94,7 +94,7 @@ function renderPanel() {
       else if (typeof v === "object") {
         const e = v; const rc = RARE_COLOR_ARR[e.rare] || "#888";
         const hiCls = e.rare >= 5 ? " hiRare" : "";
-        h += `<div class="cell${hiCls} ${selSlot===k?"sel":""} ${e.lock?"locked":""}" onclick="selSlot='${k}';renderPanel()" oncontextmenu="openEqMenu('${k}',event)" title="${e.n} +${e.plus}【${RARE_NAMES[e.rare]}】${e.lock?"（已锁定）":""}" style="border-color:${rc}77"><span class="idx">${c+1}</span><span class="ic">${EQIC[e.slot]||"⚔️"}</span><span class="cnt" style="color:${rc}">${e.lock?"🔒":""}${e.auto&&e.auto.on?"🎯":""}+${e.plus}${gemCount(e)?"💎"+gemCount(e):""}</span></div>`;
+        h += `<div class="cell${hiCls} ${selSlot===k?"sel":""} ${e.lock?"locked":""}" onclick="selSlot='${k}';renderPanel()" oncontextmenu="openEqMenu('${k}',event)" title="${eqFullTitle(e)} +${e.plus}${e.lock?"（已锁定）":""}" style="border-color:${rc}77"><span class="idx">${c+1}</span><span class="ic">${EQIC[e.slot]||"⚔️"}</span><span class="cnt" style="color:${rc}">${e.lock?"🔒":""}${e.auto&&e.auto.on?"🎯":""}+${e.plus}${gemCount(e)?"💎"+gemCount(e):""}</span></div>`;
       } else {
         const it = IT[v];
         if (!it) { h += `<div class="cell" onclick="delete S.slotMap['${k}'];renderPanel()" title="异常数据（点击清除）"><span class="idx">${c+1}</span><span class="ic">⚠️</span><span class="cnt" style="color:#f66">点我清</span></div>`; continue; }
@@ -105,7 +105,7 @@ function renderPanel() {
     const selV = selSlot ? S.slotMap[selSlot] : null;
     if (selV && typeof selV === "object") {
       const e = selV; const ok = canWear(e); const ra = e.uid;
-      h += `<div class="row"><span class="name r${e.rare}">${eqName(e)}</span><span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}】${eqValStr(e)}｜宝石 ${(e.gems||[]).filter(Boolean).map((g)=>`${GEM_T[g.t].ic}Lv${g.l}`).join(" ")||"无"}/${e.holes||0}孔${e.lock?"｜<b style='color:#e55'>🔒已锁定</b>":""}</span>`
+      h += `<div class="row"><span class="name r${e.rare}" title="${eqFullTitle(e)}">${eqNameFull(e)}</span><span class="info">【${RARE_NAMES[e.rare]}·${nameBandName(e.reqLv)}·Lv${e.reqLv}】${eqValStr(e)}｜宝石 ${(e.gems||[]).filter(Boolean).map((g)=>`${GEM_T[g.t].ic}Lv${g.l}`).join(" ")||"无"}/${e.holes||0}孔${e.lock?"｜<b style='color:#e55'>🔒已锁定</b>":""}</span>`
         +`<button class="act sm" ${ok?"":"disabled"} onclick="equipIt(${ra})">${ok?"穿戴":wearNeedTxt(e)}</button>`
         +`<button class="act sm" style="background:${e.lock?"#e55":"#8af"}" onclick="toggleEqLock(${ra})">${e.lock?"🔓解锁":"🔒锁定"}</button>`
         +`<button class="act sm" style="background:#da5" ${e.lock?"disabled":""} onclick="sellEq(${ra})">💰出售 ${sellPriceEq(e)}</button>`
@@ -130,7 +130,7 @@ function renderPanel() {
     h += `<div class="hint" style="margin-top:10px">已穿戴（6槽位，手动锻造请到锻造页）：</div><div class="grid3">`;
     SLOTS.forEach((sl)=>{
       const e = S.eq[sl.id];
-      h += `<div class="card"><b>${sl.ic} ${sl.n}</b><br>`+(e?`<span class="r${e.rare}">${eqName(e)}</span><br><span class="info">【${RARE_NAMES[e.rare]}·Lv${e.reqLv}】${eqValStr(e)}</span><br><button class="act sm" style="background:#e55" onclick="unequip('${sl.id}')">卸下</button>`:'<span class="info">空</span>')+`</div>`;
+      h += `<div class="card"><b>${sl.ic} ${sl.n}</b><br>`+(e?`<span class="r${e.rare}" title="${eqFullTitle(e)}">${eqName(e)}</span><br><span class="info">【${RARE_NAMES[e.rare]}·${nameBandName(e.reqLv)}·Lv${e.reqLv}】${eqValStr(e)}</span><br><button class="act sm" style="background:#e55" onclick="unequip('${sl.id}')">卸下</button>`:'<span class="info">空</span>')+`</div>`;
     });
     h += `</div>`;
     h += `<div class="hint" style="margin-top:8px">⚡ 批量操作（🔒锁定装备自动排除，传奇及以上分解返还升阶材料）：</div>`;
@@ -474,7 +474,7 @@ function renderPanel() {
     SK.forEach((s)=>{ h += `<div class="row"><span class="name">${s.ic} ${s.n}</span><input type="number" value="${lv(s.id)}" min="1" max="${effCap()}" onchange="setSkill('${s.id}',+this.value)"></div>`; });
     h += `</div>`;
     h += `<div class="hint">物品：</div><div class="row"><select id="adIt">${Object.keys(IT).map((id)=>`<option value="${id}">${IT[id].ic}${IT[id].n}</option>`).join("")}</select><input type="number" id="adN" value="100"><button class="act sm" onclick="const i=$('adIt').value;if(addIt(i,+$('adN').value)){renderPanel();}">增加</button></div>`
-      +`<div class="row"><span class="name">👾 跳转怪物</span><input type="number" value="${S.monI}" min="0" max="99" id="adI"><input type="number" value="${S.monLv}" min="1" max="5" id="adL"><button class="act sm" onclick="pickMon(Math.min(99,Math.max(0,+$('adI').value|0)),Math.min(5,Math.max(1,+$('adL').value|0)))">跳转</button> <span class="name">🎁 装备</span><button class="act sm" onclick="addEq(rollEq(['iron','steel','bow','staff','leather','robe'][Math.random()*6|0],60));renderPanel()">随机</button><button class="act sm" onclick="const e=rollEq('steel',${EQ_MAX_LV});e.rare=11;e.plus=20;e.holes=4;e.gems=[{t:'atk',l:${GEM_MAX}},{t:'atk',l:${GEM_MAX}},{t:'critDmg',l:${GEM_MAX}},{t:'critDmg',l:${GEM_MAX}}];e.n='混沌的'+e.n.replace(RARE_STRIP,'');rollSpecials(e);addEq(e);renderPanel()">满配混沌</button></div>`
+      +`<div class="row"><span class="name">👾 跳转怪物</span><input type="number" value="${S.monI}" min="0" max="99" id="adI"><input type="number" value="${S.monLv}" min="1" max="5" id="adL"><button class="act sm" onclick="pickMon(Math.min(99,Math.max(0,+$('adI').value|0)),Math.min(5,Math.max(1,+$('adL').value|0)))">跳转</button> <span class="name">🎁 装备</span><button class="act sm" onclick="addEq(rollEq(['iron','steel','bow','staff','leather','robe'][Math.random()*6|0],60));renderPanel()">随机</button><button class="act sm" onclick="const e=rollEq('steel',${EQ_MAX_LV});e.rare=11;e.plus=20;e.holes=4;e.gems=[{t:'atk',l:${GEM_MAX}},{t:'atk',l:${GEM_MAX}},{t:'critDmg',l:${GEM_MAX}},{t:'critDmg',l:${GEM_MAX}}];refreshEqName(e);rollSpecials(e);addEq(e);renderPanel()">满配混沌</button></div>`
       +`<div class="row"><span class="name">🔓 解锁全部怪物</span><button class="act sm" onclick="for(let i=0;i<100;i++)for(let l=1;l<=5;l++)S.kills[i+'-'+l]=1;renderPanel()">解锁</button> <span class="name">🗑️ 清档（重置当前槽${curSlot}）</span><button class="act sm" style="background:#e55" onclick="resetSlot()">重置</button></div>`;
   }
   else if (tab === T_CFG && isAdmin()) {

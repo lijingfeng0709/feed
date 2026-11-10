@@ -5,6 +5,7 @@
 const RARE_NAMES = ["普通","精良","闪耀","传奇","仙器","神器","鸿蒙","太初","无极","造化","天道","混沌"];
 const PREFIX = ["","精良的","闪耀的","传奇的","仙器的","神器的","鸿蒙的","太初的","无极的","造化的","天道的","混沌的"];
 const RARE_MULT = [1,1.5,2.2,3,5,10,20,40,80,160,320,640];
+/* 旧命名常量：新命名统一由 08a-equip-names.js 组装，此处仅保留以兼容旧存档字符串清理 */
 const RARE_STRIP = /^精良的|^闪耀的|^传奇的|^仙器的|^神器的|^鸿蒙的|^太初的|^无极的|^造化的|^天道的|^混沌的|^新手/;
 const RARE_COLOR = ["#888","#6f6","#5af","#c5f","#fa0","#f44","#ffd700","#ffa54a","#00e5ff","#d500f9","#ffffff","#ff4dd2"];
 const ENH_MAX = 20;
@@ -79,7 +80,8 @@ function rollEq(fam, reqLv, slotId, rb) {
   if (r < p3) rare = 3; else if (r < p3+p2) rare = 2; else if (r < p3+p2+p1) rare = 1;
   const mult = RARE_MULT[rare];
   const base = f.base*(1+reqLv*0.15)*mult;
-  const e = { uid:uid++, fam, reqLv, rare, plus:0, slot:slot.id, n:PREFIX[rare]+f.n+slot.n, dt:f.dt||"thrust", holes:0, gems:[], lock:false };
+  const e = { uid:uid++, fam, reqLv, rare, plus:0, slot:slot.id, n:"", dt:f.dt||"thrust", holes:0, gems:[], lock:false };
+  refreshEqName(e);   /* 名称部件基于 uid 一次固定，之后只随品质/档位确定性重组 */
   if (slot.id === "weapon") { e.atk = Math.floor(base*(0.8+Math.random()*0.4)); e.dmgT = f.dt || ["thrust","slash","blunt"][Math.random()*3|0]; }
   if (slot.id === "helmet") e.hp = Math.floor(base*2.5);
   if (slot.id === "armor") e.def = Math.floor(base*0.6)+1;
@@ -112,7 +114,8 @@ function eqValStr(e) {
   }).join(" ");
 }
 const gemCount = (e) => (Array.isArray(e.gems) ? e.gems.filter(Boolean).length : 0);
-const eqName = (e) => `${e.lock?"🔒":""}${e.n} +${e.plus}${gemCount(e)?` 💎${gemCount(e)}/${e.holes||0}`:""}`;
+const eqName = (e) => `${e.lock?"🔒":""}${eqShortName(e)} +${e.plus}${gemCount(e)?` 💎${gemCount(e)}/${e.holes||0}`:""}`;
+const eqNameFull = (e) => `${e.lock?"🔒":""}${eqFullName(e)} +${e.plus}${gemCount(e)?` 💎${gemCount(e)}/${e.holes||0}`:""}`;
 function combatLvAvg() { return (lv("acc")+lv("pow")+lv("def")+lv("hp")+lv("rng")+lv("eva")+lv("mag"))/7|0; }
 function canWear(e) {
   if (e.slot === "weapon") return maxCombatLv() >= e.reqLv;
@@ -134,15 +137,18 @@ function giveStarterGear() {
   S.eq.boots = mk("boots",0,8,0,0);
   S.eq.gloves = mk("gloves",0,0,0,0); S.eq.gloves.aspd = 25;
   S.eq.ring = mk("ring",0,0,0,3);
-  log("🎁 初始赠送：新手六件套（含🥾鞋子、🧤手套），已自动穿上！");
+  Object.values(S.eq).forEach((e)=>{ if (e) refreshEqName(e); });
+  log("🎁 初始赠送：玄铁新手六件套（含🥾鞋子、🧤手套），已自动穿上！");
 }
 function migrateEquips() {
   const fix = (e) => {
     if (!e) return;
+    if (e.uid == null) e.uid = uid++;
     if (e.holes == null) e.holes = 0;
     if (!Array.isArray(e.gems)) e.gems = [];
     if (e.lock == null) e.lock = false;
     e.ench = 0; e.affix = null;
+    refreshEqName(e);   /* 旧档补固定名称部件；新档只重算缓存，绝不重新随机 */
   };
   bagEquips().forEach(({e})=>fix(e));
   Object.values(S.eq).forEach((e)=>{ fix(e); if (e && e.auto && e.auto.on) e.auto.on = false; });
@@ -204,7 +210,7 @@ function upQuality(ref) {
     const oldR = e.rare; e.rare++;
     const ratio = RARE_MULT[e.rare]/RARE_MULT[oldR];
     ["atk","hp","def","eva"].forEach((k)=>{ if (e[k]) e[k] = Math.floor(e[k]*ratio); });
-    e.n = PREFIX[e.rare]+e.n.replace(RARE_STRIP,"");
+    refreshEqName(e);
     rollSpecials(e);
     log(`🏆 ${e.n}→ 升阶为【${RARE_NAMES[e.rare]}】品质！（基础属性×${ratio.toFixed(2)}）`);
   } else { log(`💔 升阶失败，材料已消耗（装备无损，可再试）`); }
@@ -233,6 +239,7 @@ function upTier(ref) {
     if (e.critDmg) e.critDmg = Math.min(cfg("critDmgMax"), Math.floor(e.critDmg*ratio));
     if (e.ls) e.ls = Math.min(cfg("lsMax"), Math.floor(e.ls*ratio));
     e.reqLv = c.to;
+    refreshEqName(e);
     log(`⬆️ 装备升级成功！${eqName(e)} 现为 Lv${e.reqLv} 档（基础属性×${ratio.toFixed(2)}）`);
   } else { log(`💔 装备升级失败，材料已消耗（装备无损｜成功率 ${(r*100).toFixed(0)}%）`); }
   renderPanel();
@@ -295,6 +302,7 @@ function combineEquip(key, n) {
     if (keep.ls) keep.ls = Math.min(cfg("lsMax"), Math.floor(keep.ls*ratio));
     keep.reqLv = next;
     keep.holes = 0; keep.gems = [];
+    refreshEqName(keep);
     list.slice(1).forEach(({key:k3})=>{ delete S.slotMap[k3]; if (selSlot===k3) selSlot = null; });
     done++;
   }
