@@ -10,6 +10,7 @@ function mkSeed() {
     if (id === "token") continue;
     if (/^gem_/.test(id)) continue;
     if (BELL_SHOP[id]) continue;
+    if (GOLD_SHOP[id]) continue;
     if (ENDLESS_ONLY[id]) continue;
     MK[id] = { mid:IT[id].val*(0.95+Math.random()*0.1), p0:IT[id].val };
     mkRefresh(id);

@@ -159,7 +159,7 @@ function newGameState() {
     deadUntil:0, lastTick:Date.now() };
   migrateBag();
 }
-let S = null, selSlot = null, bagPage = 0, potSel = null, bagSearch = "", bellQty = 1, ndQty = 1, gbQty = 1, xhQty = 1;
+let S = null, selSlot = null, bagPage = 0, potSel = null, bagSearch = "", bellQty = 1, ndQty = 1, gbQty = 1, xhQty = 1, goldShopQty = 1;
 function deadLeftMs() { return S.deadUntil - Date.now(); }
 function isDead() { return S.deadUntil > Date.now(); }
 function reviveNow() { S.deadUntil = 0; const p = P(); S.hp = p.maxHp; S.mp = p.maxMp; S.monHp = curMon().hp; atkCd = 0; monCd = 1.0; }

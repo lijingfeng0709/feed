@@ -72,6 +72,17 @@ function gotoFreeSlot() {
   }
   log("背包全满了！");
 }
+function useHpPot(id) {
+  if (!IT[id] || !IT[id].hpPct) return;
+  if (isDead()) { log("💀 死亡状态无法使用物品"); return; }
+  const p = P();
+  if (S.hp >= p.maxHp) { log("❤️ 当前生命已满，无需服用"); return; }
+  if (!take(id,1)) return;
+  const before = S.hp;
+  S.hp = Math.min(p.maxHp, S.hp + p.maxHp*IT[id].hpPct);
+  log(`💗 服用 ${IT[id].n}：恢复 ${Math.floor(S.hp-before).toLocaleString()} HP（当前总血量 ${(IT[id].hpPct*100)|0}%），当前 ${Math.floor(S.hp).toLocaleString()}/${Math.floor(p.maxHp).toLocaleString()}`);
+  renderTop(); renderPanel();
+}
 function eatItem(id) { if (isDead()) { log("💀 死亡状态无法使用物品"); return; } if (take(id,1)) { S.hp = Math.min(P().maxHp, S.hp+IT[id].heal); log(`吃掉 ${IT[id].n}`); renderPanel(); } }
 function drinkItem(id) { if (isDead()) { log("💀 死亡状态无法使用物品"); return; } if (take(id,1)) { S.mp = Math.min(P().maxMp, S.mp+IT[id].mp); log(`喝掉 ${IT[id].n}`); renderPanel(); } }
 function equipIt(eqUid) {

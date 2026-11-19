@@ -113,8 +113,9 @@ function renderPanel() {
       h += autoForgeUI(e, e.uid);
     } else if (selV && IT[selV]) {
       const it = IT[selV]; const n = bagN(selV);
-      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:it.tp==="emat"?"无尽锻造材料（仅无尽掉落/牛铃商店）｜":it.tp==="gold"?"金币兑换物（仅无尽掉落，已从牛铃商店下架）｜":it.tp==="nd"?"内丹材料（修行页服用/锻造页互转）｜":it.tp==="wing"?"翅膀升阶材料（修行页）｜":""}基准价${it.val}</span>`
+      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:it.tp==="emat"?"无尽锻造材料（仅无尽掉落/牛铃商店）｜":it.tp==="gold"?"金币兑换物（仅无尽掉落，已从牛铃商店下架）｜":it.tp==="nd"?"内丹材料（修行页服用/锻造页互转）｜":it.tp==="wing"?"翅膀升阶材料（修行页）｜":it.hpPct?"回复药（背包内服用，恢复当前总血量10%）｜":""}基准价${it.val}</span>`
         +(it.heal?`<button class="act sm" onclick="eatItem('${selV}')">吃(+${it.heal}HP)</button>`:"")
+        +(it.hpPct?`<button class="act sm" style="background:#e55" onclick="useHpPot('${selV}')">服用(+${(it.hpPct*100)|0}%HP)</button>`:"")
         +(it.mp?`<button class="act sm" onclick="drinkItem('${selV}')">喝(+${it.mp}MP)</button>`:"")
         +(it.tp==="tea"?`<button class="act sm" onclick="if(take('${selV}',1)){S.teaMin=10;log('🫖 效率茶生效');renderPanel();}">喝(效率+10%)</button>`:"")
         +(it.tp==="xp"?`<button class="act sm" style="background:#5a5" onclick="useXpItem('${selV}')">喝(经验+${(XPIT[selV].m*100)|0}%/${XPIT[selV].mm}分)</button>`:"")
@@ -356,6 +357,14 @@ function renderPanel() {
       +`<span class="info">当前金币 ${Math.floor(S.gold).toLocaleString()}💰（可兑 ${Math.floor(S.gold/GOLD_PER_BELL)}🔔）</span>`
       +`</div>`
       +`<div class="info" style="margin-top:3px">无尽挂机刷金币 → 兑换牛铃 → 买无尽材料/神水，形成完整循环</div></div>`;
+    h += `<div class="row" style="background:#2a1a1a;border:1px solid #ff666655;flex-direction:column;align-items:stretch">`
+      +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
+      +`<span class="name">💗 回春丹（服用恢复当前总血量 10%）</span>`
+      +`<span class="info">单价 <b style="color:#fa0">${GOLD_SHOP.hpPot10.toLocaleString()}💰/瓶</b>｜持有 ${bagN("hpPot10")} 瓶｜当前 ${Math.floor(S.gold).toLocaleString()}💰</span>`
+      +`<span class="info">数量</span><input type="number" min="1" value="${goldShopQty}" onchange="goldShopQty=Math.max(1,Math.floor(+this.value|0))" style="width:70px">`
+      +`<button class="act sm" style="background:#e55" onclick="buyGoldShop('hpPot10',goldShopQty)">🛒 购买 ×${goldShopQty}（${(GOLD_SHOP.hpPot10*goldShopQty).toLocaleString()}💰）</button>`
+      +`</div>`
+      +`<div class="info" style="margin-top:3px">金币固定价，不进 NPC 市场浮动池；购买后在「背包」选中回春丹点「服用」；满血或死亡时不可用</div></div>`;
     h += `<div class="row" style="background:#2a2413;border:1px solid #ffd47955;flex-direction:column;align-items:stretch">`
       +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
       +`<span class="name">⏩ 10× 加速解锁</span>`
