@@ -274,6 +274,14 @@ function renderPanel() {
         +`<td>${bagN(id)||0}</td></tr>`;
     }
     h += `</table>`;
+    h += `<div class="row" style="background:#2a1a1a;border:1px solid #ff666655;flex-direction:column;align-items:stretch">`
+      +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
+      +`<span class="name">💗 回春丹（服用恢复当前总血量 10%）</span>`
+      +`<span class="info">固定价 <b style="color:#fa0">${GOLD_SHOP.hpPot10.toLocaleString()}💰/瓶</b>｜持有 ${bagN("hpPot10")} 瓶｜当前 ${Math.floor(S.gold).toLocaleString()}💰</span>`
+      +`<span class="info">数量</span><input type="number" min="1" value="${goldShopQty}" onchange="goldShopQty=Math.max(1,Math.floor(+this.value|0))" style="width:70px">`
+      +`<button class="act sm" style="background:#e55" onclick="buyGoldShop('hpPot10',goldShopQty)">🛒 购买 ×${goldShopQty}（${(GOLD_SHOP.hpPot10*goldShopQty).toLocaleString()}💰）</button>`
+      +`</div>`
+      +`<div class="info" style="margin-top:3px">固定价专柜：不进上方 NPC 市场浮动价池，也不参与玩家市场挂单；购买后在「背包」选中回春丹点「服用」；满血或死亡时不可用</div></div>`;
     h += pmUI();
   }
   else if (tab === 6) {
@@ -357,14 +365,6 @@ function renderPanel() {
       +`<span class="info">当前金币 ${Math.floor(S.gold).toLocaleString()}💰（可兑 ${Math.floor(S.gold/GOLD_PER_BELL)}🔔）</span>`
       +`</div>`
       +`<div class="info" style="margin-top:3px">无尽挂机刷金币 → 兑换牛铃 → 买无尽材料/神水，形成完整循环</div></div>`;
-    h += `<div class="row" style="background:#2a1a1a;border:1px solid #ff666655;flex-direction:column;align-items:stretch">`
-      +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
-      +`<span class="name">💗 回春丹（服用恢复当前总血量 10%）</span>`
-      +`<span class="info">单价 <b style="color:#fa0">${GOLD_SHOP.hpPot10.toLocaleString()}💰/瓶</b>｜持有 ${bagN("hpPot10")} 瓶｜当前 ${Math.floor(S.gold).toLocaleString()}💰</span>`
-      +`<span class="info">数量</span><input type="number" min="1" value="${goldShopQty}" onchange="goldShopQty=Math.max(1,Math.floor(+this.value|0))" style="width:70px">`
-      +`<button class="act sm" style="background:#e55" onclick="buyGoldShop('hpPot10',goldShopQty)">🛒 购买 ×${goldShopQty}（${(GOLD_SHOP.hpPot10*goldShopQty).toLocaleString()}💰）</button>`
-      +`</div>`
-      +`<div class="info" style="margin-top:3px">金币固定价，不进 NPC 市场浮动池；购买后在「背包」选中回春丹点「服用」；满血或死亡时不可用</div></div>`;
     h += `<div class="row" style="background:#2a2413;border:1px solid #ffd47955;flex-direction:column;align-items:stretch">`
       +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
       +`<span class="name">⏩ 10× 加速解锁</span>`
