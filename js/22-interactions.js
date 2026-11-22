@@ -33,12 +33,19 @@ function updCmbEqN() { const s = $("cmbEq"); if (!s || !s.selectedOptions[0]) re
 function updCmbGemN() { const s = $("cmbGem"); if (!s || !s.selectedOptions[0]) return; const n = $("cmbGemN"); if (n) n.value = Math.max(1, +s.selectedOptions[0].dataset.n || 1); }
 function pickEndlessFloor(f) {
   if (!S.endless) { log("⚠️ 请先进入无尽模式"); return; }
-  f = Math.max(1, Math.min(S.floor|0, f|0));   /* 只允许回退到本世已到达层，禁止向前跳层 */
-  if (f >= S.floor) { log("🌌 每次转生后需从最底层重新往上打，不能跳层"); return; }
+  const maxUnlock = Math.max(1, S.bestFloor|0);      /* 本世已解锁的最高层 */
+  const want = Math.max(1, f|0);
+  if (want > maxUnlock) {
+    log(`🔒 第 ${want} 层尚未解锁（本世已解锁至第 ${maxUnlock} 层，通关该层才能继续前进）`);
+    return;
+  }
+  f = want;
+  if (f === S.floor) { log(`🌌 已在无尽第 ${f} 层`); return; }
+  const forward = f > S.floor;
   S.floor = f; S.monHp = endlessMon(S.floor).hp; atkCd = 0; monCd = 1.0;
   S.floorStart = Date.now();
   saveGame(); renderTop(); renderPanel();
-  log(`🌌 回退到无尽第 ${S.floor} 层（计时重置）`);
+  log(forward ? `🌌 跳转到无尽第 ${f} 层（已解锁，计时重置）` : `🌌 回退到无尽第 ${f} 层（计时重置）`);
 }
 function setAutoNext(v) { S.autoNext = !!v; saveGame(); renderPanel(); log(v?"🌌 通关后自动下一层":"🌌 通关后停留本层"); }
 function toggleEndless(on) {
@@ -49,7 +56,10 @@ function toggleEndless(on) {
   }
   S.endless = on;
   S.floorStart = Date.now();
-  if (on) { S.monHp = endlessMon(S.floor).hp; atkCd = 0; monCd = 1.0; log(`🌌 进入无尽模式：第 ${S.floor} 层起｜每层限时${FLOOR_LIMIT/60}分钟`); }
+  if (on) {
+    S.floor = Math.max(1, Math.min(S.floor|0, Math.max(1, S.bestFloor|0)));
+    S.monHp = endlessMon(S.floor).hp; atkCd = 0; monCd = 1.0; log(`🌌 进入无尽模式：第 ${S.floor} 层起｜每层限时${FLOOR_LIMIT/60}分钟`);
+  }
   else { S.monHp = mon(S.monI, S.monLv).hp; log(`⏸ 退出无尽模式`); }
   saveGame(); renderTop(); renderPanel();
 }

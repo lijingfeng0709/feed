@@ -180,7 +180,7 @@ function renderPanel() {
     const endlessOK = canEndless();
     h += `<div class="row endless"><span class="name" style="color:#c5f">🌌 无尽模式</span> `
       +(S.endless
-        ?`<span style="color:#c5f;font-size:16px;font-weight:bold">当前第 ${S.floor} 层</span><span class="info">当世最高 <b style="color:#ffd479">${S.lifeBest||0}</b> 层｜本世纪录 <b style="color:#ffd479">${S.bestFloor||0}</b> 层</span>
+        ?`<span style="color:#c5f;font-size:16px;font-weight:bold">当前第 ${S.floor} 层</span><span class="info">当世通关最高 <b style="color:#ffd479">${S.lifeBest||0}</b> 层｜本世已解锁至 <b style="color:#ffd479">${Math.max(1,S.bestFloor||0)}</b> 层</span>
 <span class="timerTxt">⏱ ${Math.max(0,Math.ceil(floorLeftMs()/1000))}s / ${FLOOR_LIMIT/60}min</span><button class="act sm" style="background:#a4a" onclick="toggleEndless(false)">⏸ 退出无尽</button>`
         :(endlessOK
           ?`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">300层+羽翎｜1500层+新档装备/新品质/星辉砂/星髓｜每300层一档装备、每400层一档品质</span>`
@@ -189,9 +189,13 @@ function renderPanel() {
     if (S.endless) {
       h += `<div class="bar timerbar"><div style="width:${Math.max(0,Math.min(100,floorLeftMs()/(FLOOR_LIMIT*1000)*100))}%"></div></div>`;
       h += `<div class="row endless" style="background:#241a3a">`
+        +`<span class="info">⏩ 跳转楼层</span><input type="number" id="efloor" min="1" max="${Math.max(1,S.bestFloor||0)}" value="${S.floor}" style="width:70px">`
+        +`<button class="act sm" style="background:#a4a" onclick="pickEndlessFloor(+$('efloor').value)">跳转</button>`
+        +`<span class="info" style="color:#889">可跳转 1~${Math.max(1,S.bestFloor||0)} 层（本世已解锁）</span></div>`;
+      h += `<div class="row endless" style="background:#241a3a">`
         +`<button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(true)">▶ 自动下一层</button>`
         +`<button class="act sm" style="background:${S.autoNext===false?"#d73":"#555"}" onclick="setAutoNext(false)">⏸ 停留本层</button>`
-        +`<span class="info">本层通关 <b style="color:#ffd479">${S.floorKills[S.floor]||0}</b> 次｜每世从第 1 层重新往上打，不能跳层</span></div>`;
+        +`<span class="info">本层通关 <b style="color:#ffd479">${S.floorKills[S.floor]||0}</b> 次｜转生后从第 1 层重爬，通关解锁下一层</span></div>`;
       const drop = endlessMon(S.floor);
       const seg = Math.floor((S.floor-1)/100);
       const gemL = S.floor >= 1000 ? Math.min(GEM_DROP_CAP, 1+Math.floor((S.floor-1000)/50)) : 0;
@@ -475,7 +479,7 @@ function renderPanel() {
         });
       }
     }
-    h += `<div class="row" style="background:#2a1535;border:1px solid #c5f5"><span class="name" style="color:#c5f">🌌 无尽模式</span><span class="info">当前层</span><input type="number" min="1" value="${S.floor}" onchange="S.floor=Math.max(1,+this.value|0);S.monHp=endlessMon(S.floor).hp;S.floorStart=Date.now();saveGame()"><button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(${S.autoNext===false})">通关后${S.autoNext!==false?"自动下一层":"停留本层"}</button><button class="act sm" style="background:#a4a" onclick="toggleEndless(${!S.endless})">${S.endless?"退出无尽":"进入无尽"}</button><button class="act sm" style="background:#49f" onclick="S.floorStart=Date.now();log('⏱ 计时已重置');renderPanel();">重置计时</button></div>`
+    h += `<div class="row" style="background:#2a1535;border:1px solid #c5f5"><span class="name" style="color:#c5f">🌌 无尽模式</span><span class="info">当前层</span><input type="number" min="1" max="${Math.max(1,S.bestFloor||0)}" value="${S.floor}" onchange="S.floor=Math.max(1,Math.min(Math.max(1,S.bestFloor||0),+this.value|0));S.monHp=endlessMon(S.floor).hp;S.floorStart=Date.now();saveGame()"><button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(${S.autoNext===false})">通关后${S.autoNext!==false?"自动下一层":"停留本层"}</button><button class="act sm" style="background:#a4a" onclick="toggleEndless(${!S.endless})">${S.endless?"退出无尽":"进入无尽"}</button><button class="act sm" style="background:#49f" onclick="S.floorStart=Date.now();log('⏱ 计时已重置');renderPanel();">重置计时</button></div>`
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">⚡ 并行通道</span><button class="act sm" style="background:#2a5" onclick="S.lanes.forEach(l=>l.open=1);saveGame();renderPanel();">解锁全部</button><button class="act sm" style="background:#e55" onclick="S.lanes.forEach((l,i)=>l.open=i===0?1:0);saveGame();renderPanel();">重置通道</button></div>`
       +`<div class="row" style="background:#1a2440;border:1px solid #4a9eff44"><span class="name" style="color:#8af">💀 死亡复活</span><span class="info">${isDead()?`复活中 ${Math.ceil(deadLeftMs()/1000)}s`:"未死亡"}</span>`+(isDead()?`<button class="act sm" style="background:#49f" onclick="reviveNow();log('⚡ 立即复活');renderPanel();">立即复活</button>`:"")+`</div>`
       +`<div class="row" style="background:#2a2413;border:1px solid #ffd47944"><span class="name" style="color:#fa0">🧪 神水buff</span><button class="act sm" style="background:#a6f" onclick="S.buffHit=100;S.buffHitMin=20;log('🧪 命中+20分');renderPanel();">命中+20分</button><button class="act sm" style="background:#a6f" onclick="S.buffCd=100000;S.buffCdMin=20;log('💣 暴伤+20分');renderPanel();">暴伤+20分</button><button class="act sm" style="background:#5cf" onclick="S.buffInv=1;S.buffInvMin=20;log('🛉 无敌+20分');renderPanel();">无敌+20分</button><button class="act sm" style="background:#e55" onclick="S.buffHit=0;S.buffHitMin=0;S.buffCd=0;S.buffCdMin=0;S.buffInv=0;S.buffInvMin=0;log('🧪 已清除');renderPanel();">清除</button></div>`

@@ -173,11 +173,15 @@ function killMon(m, q, lane) {
     S.floorKills[S.floor] = (S.floorKills[S.floor]||0)+1;
     if (S.floor > (S.lifeBest||0)) S.lifeBest = S.floor;
     S.floorStart = Date.now();
+    const nextF = S.floor + 1;                       /* 通关即解锁下一层（与是否自动前进无关） */
+    if (nextF > (S.bestFloor||0)) {
+      S.bestFloor = nextF;
+      if (S.bestFloor%100 === 0) log(`🌌 无尽模式：解锁第 ${S.bestFloor} 层！`);
+    }
     if (S.autoNext !== false) {
-      S.floor++;
-      if (S.floor > S.bestFloor) { S.bestFloor = S.floor; if (S.bestFloor%100 === 0) log(`🌌 无尽模式：突破第 ${S.bestFloor} 层大关！`); }
+      S.floor = nextF;
     } else {
-      if (Date.now()-lastFloorLog > 3000) { log(`🌌 第 ${S.floor} 层通关（累计 ${S.floorKills[S.floor]} 次），停留本层`); lastFloorLog = Date.now(); }
+      if (Date.now()-lastFloorLog > 3000) { log(`🌌 第 ${S.floor} 层通关（累计 ${S.floorKills[S.floor]} 次），停留本层｜已解锁至第 ${S.bestFloor} 层`); lastFloorLog = Date.now(); }
     }
     S.monHp = endlessMon(S.floor).hp;
     if (q.n <= 0) lane.items.shift();

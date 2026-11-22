@@ -75,6 +75,7 @@ function loadGame() {
     if (S.endless && !canEndless()) { S.endless = false; S.floor = 1; }   /* 新增前置条件前的旧档：未通关真仙十层则强制退出无尽 */
     if (!S.floor) S.floor = 1;
     if (!S.bestFloor) S.bestFloor = 0;
+    if (S.endless && (S.floor|0) > Math.max(1, S.bestFloor|0)) S.floor = Math.max(1, S.bestFloor|0);   /* 楼层不得超过本世已解锁层 */
     if (S.lifeBest == null) S.lifeBest = S.endless ? (S.floor||1) : 0;
     if (!S.floorStart || isNaN(S.floorStart)) S.floorStart = Date.now();
     if (!S.lanes || !Array.isArray(S.lanes)) { S.lanes = defLanes(); S.lanes[0].items = Array.isArray(S.queue)?S.queue:[]; }
