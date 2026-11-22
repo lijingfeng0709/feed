@@ -9,6 +9,22 @@ function lbReset() {
   lbList = []; lbSelf = null; lbMyId = null; lbLast = 0; lbSlot = 0; lbLoadedTab = -1;
 }
 
+/* ★ 每日冲榜：把当世成绩结算进终身累计并触发服务端刷新当前槽；每槽每天 1 次 */
+function lbDayKey() { const d = new Date(); return d.getFullYear() + "-" + (d.getMonth()+1) + "-" + d.getDate(); }
+function lbRushLeft() { return (S && S.lbRushDay === lbDayKey()) ? 0 : 1; }
+async function lbRush() {
+  if (!pmCanUse()) { log("⚠️ 冲榜需注册账号并登录云端（游客无法上榜）"); return; }
+  if (lbRushLeft() <= 0) { log("🚀 今日冲榜次数已用完，明天再来；转生也会立即刷新当前槽"); return; }
+  const { df, dl } = settleLife();
+  S.lbRushDay = lbDayKey();
+  saveGame();
+  log(`🚀 冲榜：结算 +${df} 层 / +${dl} 级 → 终身 🌌${lbTotalFloor().toLocaleString()} 层 / ⭐${lbTotalLv().toLocaleString()} 级，正在同步云端…`);
+  renderPanel();
+  try { await cloudSave(); } catch (e) {}
+  tryLbRefresh(true);
+  setTimeout(() => { try { lbFetch(true); renderPanel(); } catch (e) {} }, 2500);
+}
+
 async function lbFetch(silent) {
   if (!pmCanUse()) { lbReset(); return; }
   const seq = ++lbSeq;           // 允许并发，但只认最后一次请求的结果
@@ -60,11 +76,13 @@ function lbUI() {
   // 只有「确实是当前账号 + 当前槽」的数据才能标成「我的」，否则一律显示同步中
   const selfValid = !!(lbSelf && lbMyId && lbSelf.user_id === lbMyId && lbSlot === curSlot);
   const rows = lbRows();
-  let h = `<div class="hint" style="color:#ffd479;margin-top:10px">🏆 荣誉排行榜｜数据由服务端从云存档自动提取（<b>无法伪造</b>）｜两项均为<b style="color:#f80">转生累计值</b>：每次转生时，当世无尽最高层数与总等级定格计入终身累计｜⏱ <b>服务端每小时整点全局重算</b>，转生后立即刷新当前槽（当世实时成绩见顶栏🏆）｜📌 <b>每个存档槽独立上榜</b>，显示该槽的玩家名字（未设置者显示“访客+数字”）</div>`;
+  const rush = lbRushLeft();
+  let h = `<div class="hint" style="color:#ffd479;margin-top:10px">🏆 荣誉排行榜｜数据由服务端从云存档自动提取（<b>无法伪造</b>）｜两项均为<b style="color:#f80">终身累计值</b>：转生或<b style="color:#c5f">每日冲榜</b>时，把当世无尽最高层数与总等级结算进终身累计｜⏱ 服务端每小时整点全局重算，转生/冲榜后立即刷新当前槽（当世实时成绩见顶栏🏆）｜📌 <b>每个存档槽独立上榜</b>，显示该槽的玩家名字（未设置者显示“访客+数字”）</div>`;
   h += `<div class="row">`
     +`<button class="act sm" style="background:${lbTab===0?"#2a5":"#555"}" onclick="lbTab=0;lbFetch()">🌌 累计无尽层数</button>`
     +`<button class="act sm" style="background:${lbTab===1?"#2a5":"#555"}" onclick="lbTab=1;lbFetch()">⭐ 累计总等级</button>`
     +`<button class="act sm" onclick="lbFetch()">↻ 刷新</button>`
+    +`<button class="act sm" style="background:${rush?"#c5f":"#555"}" ${rush?"":"disabled"} onclick="lbRush()">🚀 冲榜${rush?"（今日 1 次）":"（今日已用）"}</button>`
     +(selfValid
       ? `<span class="info">我的（槽${curSlot}）：${lbTab===0?`🌌${(lbSelf.cum_floor||0).toLocaleString()}层`:`⭐${(lbSelf.cum_lv||0).toLocaleString()}级`}（${lbSelf.reb||0}转）</span>`
       : `<span class="info">我的（槽${curSlot}）：同步中…</span>`)
@@ -90,6 +108,6 @@ function lbUI() {
       h += `<div class="row lbMine" style="margin-top:6px"><span>…</span><span>#${curSlot} ✦</span><span>${lbSelf.name || "我"}（${lbSelf.reb||0}转）</span><b style="color:#ffd479">${((lbTab===0?lbSelf.cum_floor:lbSelf.cum_lv)||0).toLocaleString()}</b><span class="info">未进前100，继续加油！</span></div>`;
     }
   }
-  h += `<div class="hint">📌 规则说明：榜单按「转生时累加的终身成绩」排序——转生会让当期进度归零，但你在每一世打出的最高层数与总等级都会永久累加入榜；<b>每个存档槽独立占一行</b>（#1/#2/#3，当前登录槽标 ✦），服务端每小时整点全量重算，转生时立即重算当前槽，清档/删槽不抹除已累计成绩；同分按成绩达成时间先后排序。切换账号/存档槽/榜单会重新拉取，避免数据串台。玩家名字在「账号」页设置/修改（每槽独立，每天限改1次）。</div>`;
+  h += `<div class="hint">📌 规则说明：榜单按「终身累计成绩」排序——转生或<b>每日冲榜</b>时，当世打出的最高层数与总等级会结算入榜（同一段进度不会重复计算）；<b>每个存档槽独立占一行</b>（#1/#2/#3，当前登录槽标 ✦），服务端每小时整点全量重算，转生/冲榜时立即重算当前槽，清档/删槽不抹除已累计成绩；同分按成绩达成时间先后排序。冲榜每槽每天 1 次，切账号/槽/榜会重新拉取，避免数据串台。玩家名字在「账号」页设置/修改（每槽独立，每天限改1次）。</div>`;
   return h;
 }

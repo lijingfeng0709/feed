@@ -54,6 +54,9 @@ function loadGame() {
     if (!S.floorKills) S.floorKills = {};
     if (S.cumFloor == null) S.cumFloor = 0;
     if (S.cumLv == null) S.cumLv = 0;
+    if (S.lbSnapFloor == null) S.lbSnapFloor = 0;
+    if (S.lbSnapLv == null) S.lbSnapLv = 0;
+    if (!S.lbRushDay) S.lbRushDay = "";
     if (S.xpMin == null) S.xpMin = 0;
     if (S.xpMult == null) S.xpMult = 0;
     if (S.buffHit == null) S.buffHit = 0;
@@ -69,6 +72,7 @@ function loadGame() {
     if (S.deadUntil == null || isNaN(S.deadUntil)) S.deadUntil = 0;
     if (S.dead) { S.deadUntil = Date.now()+S.dead*1000; delete S.dead; }
     if (S.endless == null) S.endless = false;
+    if (S.endless && !canEndless()) { S.endless = false; S.floor = 1; }   /* 新增前置条件前的旧档：未通关真仙十层则强制退出无尽 */
     if (!S.floor) S.floor = 1;
     if (!S.bestFloor) S.bestFloor = 0;
     if (S.lifeBest == null) S.lifeBest = S.endless ? (S.floor||1) : 0;

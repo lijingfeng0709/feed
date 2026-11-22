@@ -59,7 +59,7 @@ function renderPanel() {
   else if (tab === 2) {
     const nd = S.neidan, w = S.wing;
     const ndMax = nd.lv >= ND_MAX_LV;
-    h += `<div class="hint">🧿 <b style="color:#c5f">内丹 · 万法增幅</b> —— 每级全属性 <b style="color:#fa0">+0.5%</b>（乘算面板，Lv100=+50%）｜<b style="color:#5c5">转生完整保留</b>｜🧿妖丹(怪5%/无尽5%)+1经验｜💊地灵丹(无尽1000层+3%)=10｜🏮天元丹(无尽2500层+2%/🔔50)=100｜丹药可在锻造页4合1/1拆4，可在🤝玩家市场交易</div>`;
+    h += `<div class="hint">🧿 <b style="color:#c5f">内丹 · 万法增幅</b> —— 每级全属性 <b style="color:#fa0">+0.5%</b>（乘算面板，Lv${ND_MAX_LV}=+${(ND_MAX_LV*0.5).toFixed(0)}%）｜<b style="color:#5c5">转生完整保留</b>｜🧿妖丹(怪5%/无尽5%)+1经验｜💊地灵丹(无尽1000层+3%)=10｜🏮天元丹(无尽2500层+2%/🔔50)=100｜丹药可在锻造页4合1/1拆4，可在🤝玩家市场交易</div>`;
     h += `<div class="row"><span class="name" style="color:#c5f">🧿 内丹 Lv.${nd.lv}${ndMax?' <span style="color:#fa0">MAX</span>':""}</span><span class="info">当前全属性加成 <b style="color:#fa0">+${(nd.lv*0.5).toFixed(1)}%</b>｜经验 ${ndMax?"—":(nd.xp|0)+"/"+ndXpNeed(nd.lv)}</span></div>`;
     if (!ndMax) h += `<div class="bar"><div class="xp" style="width:${Math.min(100,nd.xp/ndXpNeed(nd.lv)*100)}%"></div></div>`;
     h += `<div class="row"><span class="name">服用数量</span><input type="number" min="1" value="${ndQty}" onchange="ndQty=Math.max(1,+this.value|0)">`
@@ -177,20 +177,21 @@ function renderPanel() {
       +["melee","ranged","magic"].map((s)=>`<button class="act sm" style="background:${S.style===s?"#2a5":"#555"}" onclick="S.style='${s}';renderPanel()"> ${ {melee:"⚔️近战",ranged:"🏹远程",magic:"🔮魔法"}[s] }</button>`).join("")
       +` <span class="info">命中 <b class="buffTxt">${S.buffHitMin>0?"100%（神水）":(hitRate(S.style==="melee"?p.acc:S.style==="ranged"?p.rng:p.mag, S.style==="melee"?m.evT:S.style==="ranged"?m.evR:m.evM)*100).toFixed(1)+"%"}</b></span>`
       +` <span style="color:#f80">👹 难度 ${D.toFixed(1)}×${S.reb?`｜转生增强 ×${rebCf().toFixed(2)}`:""}</span></div>`;
+    const endlessOK = canEndless();
     h += `<div class="row endless"><span class="name" style="color:#c5f">🌌 无尽模式</span> `
       +(S.endless
-        ?`<span style="color:#c5f;font-size:16px;font-weight:bold">当前第 ${S.floor} 层</span><span class="info">当世最高 <b style="color:#ffd479">${S.lifeBest||0}</b> 层｜历史纪录 <b style="color:#ffd479">${S.bestFloor}</b> 层</span>
+        ?`<span style="color:#c5f;font-size:16px;font-weight:bold">当前第 ${S.floor} 层</span><span class="info">当世最高 <b style="color:#ffd479">${S.lifeBest||0}</b> 层｜本世纪录 <b style="color:#ffd479">${S.bestFloor||0}</b> 层</span>
 <span class="timerTxt">⏱ ${Math.max(0,Math.ceil(floorLeftMs()/1000))}s / ${FLOOR_LIMIT/60}min</span><button class="act sm" style="background:#a4a" onclick="toggleEndless(false)">⏸ 退出无尽</button>`
-        :`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">300层+羽翎｜1500层+新档装备/新品质/星辉砂/星髓｜每300层一档装备、每400层一档品质</span>`)
+        :(endlessOK
+          ?`<button class="act sm" style="background:#a4a" onclick="toggleEndless(true)">▶ 进入无尽模式</button><span class="info">300层+羽翎｜1500层+新档装备/新品质/星辉砂/星髓｜每300层一档装备、每400层一档品质</span>`
+          :`<button class="act sm" style="background:#555" disabled>🔒 无尽模式未解锁</button><span class="info" style="color:#f80">通关炼气→真仙十个境界的第 10 层后解锁（转生后会重新上锁）</span>`))
       +`</div>`;
     if (S.endless) {
       h += `<div class="bar timerbar"><div style="width:${Math.max(0,Math.min(100,floorLeftMs()/(FLOOR_LIMIT*1000)*100))}%"></div></div>`;
       h += `<div class="row endless" style="background:#241a3a">`
-        +`<span class="info">⏩ 跳转楼层</span><input type="number" id="efloor" min="1" max="${Math.max(1,S.bestFloor)}" value="${S.floor}" style="width:70px">`
-        +`<button class="act sm" style="background:#a4a" onclick="pickEndlessFloor(+$('efloor').value)">跳转</button>`
         +`<button class="act sm" style="background:${S.autoNext!==false?"#2a5":"#555"}" onclick="setAutoNext(true)">▶ 自动下一层</button>`
         +`<button class="act sm" style="background:${S.autoNext===false?"#d73":"#555"}" onclick="setAutoNext(false)">⏸ 停留本层</button>`
-        +`<span class="info">本层通关 <b style="color:#ffd479">${S.floorKills[S.floor]||0}</b> 次</span></div>`;
+        +`<span class="info">本层通关 <b style="color:#ffd479">${S.floorKills[S.floor]||0}</b> 次｜每世从第 1 层重新往上打，不能跳层</span></div>`;
       const drop = endlessMon(S.floor);
       const seg = Math.floor((S.floor-1)/100);
       const gemL = S.floor >= 1000 ? Math.min(GEM_DROP_CAP, 1+Math.floor((S.floor-1000)/50)) : 0;
@@ -347,7 +348,7 @@ function renderPanel() {
   else if (tab === 9) {
     const armed = Date.now() - rebirthArm < 5000;
     h += `<div class="row"><span class="name">当前：${S.reb}转｜${S.sp}技能点</span><span class="info">${canRebirth()?"✅ 可转生":"❌ 需任一技能100级"}｜技能上限 <b style="color:#fa0">${effCap()}</b>（每转+60）｜品质解锁 <b style="color:#fa0">${RARE_NAMES[maxRare()]}</b>（每转+1档）｜<b style="color:#c5f">怪物属性 ×${rebCf().toFixed(2)}</b>→转后×${Math.pow(1+cfg("rebMonCf"), S.reb+1).toFixed(2)}</span></div>`;
-    h += `<div class="row"><span class="name" style="color:#ffd479">🏆 转生时将定格计入榜单：本次 +${S.lifeBest||0}层 / +${totalLv()}级 → 终身累计 🌌${((S.cumFloor||0)+(S.lifeBest||0)).toLocaleString()}层 / ⭐${((S.cumLv||0)+totalLv()).toLocaleString()}级</span></div>`;
+    h += `<div class="row"><span class="name" style="color:#ffd479">🏆 转生 / 每日冲榜都会结算入榜：待结算 +${Math.max(0,(S.lifeBest||0)-(S.lbSnapFloor||0))}层 / +${Math.max(0,totalLv()-(S.lbSnapLv||0))}级 → 终身累计 🌌${lbTotalFloor().toLocaleString()}层 / ⭐${lbTotalLv().toLocaleString()}级</span></div>`;
     h += `<div class="row"><span class="name" style="color:#5c5">🧿 内丹 Lv.${S.neidan.lv}（+${(S.neidan.lv*0.5).toFixed(1)}%）与 🕊️ ${S.wing.stage?WING_NAMES[S.wing.stage-1]:"未觉醒"}（+${S.wing.stage*5}%）将完整保留${spd10Unlocked()?'｜⏩ 10×加速解锁保留':""}</span></div>`;
     h += `<div class="row" style="justify-content:center;padding:12px;flex-direction:column;gap:8px">`
       +`<button class="act rebBtn" style="background:${armed?"#e55":"#2a5"}" ${canRebirth()&&S.reb<7?"":"disabled"} onclick="askRebirth()">${armed?"⚠️ 确认转生（5秒内再点一次）":"🌀 转生"}</button>`
@@ -431,7 +432,7 @@ function renderPanel() {
     h += `<div class="hint">👑 管理员面板（仅管理员可见）｜当前存档槽 ${curSlot}</div>`
       +`<div class="row"><span class="name">💰 金币</span><input type="number" value="${S.gold|0}" onchange="S.gold=Math.max(0,+this.value);saveGame()"> <span class="name">🔔 牛铃</span><input type="number" value="${S.bell}" onchange="S.bell=Math.max(0,+this.value);saveGame()"> <span class="name">⏩ 加速</span><select onchange="setSpd(+this.value)">`+SPEEDS.map((v)=>`<option value="${v}" ${S.speed===v?"selected":""}>${v}×</option>`).join("")+`</select></div>`;
     h += `<div class="row"><span class="name">🧿 内丹等级</span><input type="number" min="0" max="${ND_MAX_LV}" value="${S.neidan.lv}" onchange="S.neidan.lv=Math.min(${ND_MAX_LV},Math.max(0,+this.value|0));S.neidan.xp=0;saveGame();renderTop();renderPanel()"> <span class="name">🕊️ 翅膀阶数</span><input type="number" min="0" max="12" value="${S.wing.stage}" onchange="S.wing.stage=Math.min(12,Math.max(0,+this.value|0));saveGame();renderTop();renderPanel()"> <span class="info">当前：内丹+${(S.neidan.lv*0.5).toFixed(1)}%｜翅膀+${S.wing.stage*5}%</span></div>`;
-    h += `<div class="row"><span class="name">🏆 累计成绩</span><span class="info">🌌累计无尽层数</span><input type="number" min="0" value="${S.cumFloor||0}" onchange="S.cumFloor=Math.max(0,+this.value|0);saveGame();renderTop();renderPanel()"> <span class="info">⭐累计总等级</span><input type="number" min="0" value="${S.cumLv||0}" onchange="S.cumLv=Math.max(0,+this.value|0);saveGame();renderTop();renderPanel()"> <span class="info">当世最高层</span><input type="number" min="0" value="${S.lifeBest||0}" onchange="S.lifeBest=Math.max(0,+this.value|0);saveGame();renderTop();renderPanel()"> <span class="info">排行榜数据（转生时定格累加）</span></div>`;
+    h += `<div class="row"><span class="name">🏆 累计成绩</span><span class="info">🌌累计无尽层数</span><input type="number" min="0" value="${S.cumFloor||0}" onchange="S.cumFloor=Math.max(0,+this.value|0);saveGame();renderTop();renderPanel()"> <span class="info">⭐累计总等级</span><input type="number" min="0" value="${S.cumLv||0}" onchange="S.cumLv=Math.max(0,+this.value|0);saveGame();renderTop();renderPanel()"> <span class="info">当世最高层</span><input type="number" min="0" value="${S.lifeBest||0}" onchange="S.lifeBest=Math.max(0,+this.value|0);saveGame();renderTop();renderPanel()"> <span class="info">已结算快照 🌌/⭐</span><input type="number" min="0" value="${S.lbSnapFloor||0}" onchange="S.lbSnapFloor=Math.max(0,+this.value|0);saveGame()"><input type="number" min="0" value="${S.lbSnapLv||0}" onchange="S.lbSnapLv=Math.max(0,+this.value|0);saveGame()"> <span class="info">排行榜数据（转生/冲榜时结算，快照用于防重复累加）</span></div>`;
     h += `<div class="hint" style="color:#5cf;margin-top:8px">━━━━━ 💰 账号充值 / 装备发放（写入云端槽1，对方强制下线重登生效）━━━━━</div>`
       +`<div class="row" style="background:#152035;border:1px solid #5cf"><span class="name" style="color:#5cf">👤 目标账号</span>`
       +`<input id="adAcc" placeholder="账号名" style="min-width:120px" onchange="adQueryAcc()">`

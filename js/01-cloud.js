@@ -263,7 +263,7 @@ async function showSlotPicker() {
         const tl = use.skills ? Object.values(use.skills).reduce((a,s)=>a+(s.lv||1),0) : 0;
         const src = (d.local && d.cloud) ? ((d.cloud.lastTick||0) >= (d.local.lastTick||0) ? "☁️云端" : "💾本地") : (d.cloud ? "☁️云端" : "💾本地");
         const t = new Date(use.lastTick || 0).toLocaleString();
-        info = `👤 <b>${use.name || "-"}</b>｜总等级 <b style="color:#ffd479">${tl}</b>｜💰${Math.floor(use.gold||0).toLocaleString()}｜🌀${use.reb||0}转｜🌌最高${use.bestFloor||0}层<br><span class="info">${src}保存于 ${t}</span>`;
+        info = `👤 <b>${use.name || "-"}</b>｜总等级 <b style="color:#ffd479">${tl}</b>｜💰${Math.floor(use.gold||0).toLocaleString()}｜🌀${use.reb||0}转｜🌌当世${use.lifeBest||0}层<br><span class="info">${src}保存于 ${t}</span>`;
       }
       h += `<div class="row" style="background:#1c2036;flex-direction:column;align-items:stretch">`
         +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="name" style="color:#8af">存档槽 ${n}</span></div>`

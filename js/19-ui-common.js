@@ -45,7 +45,7 @@ function renderTop() {
     +deadTag+endTag+atTag+xpTag+hitTag+cdTag+invTag
     +`<div>🧿 <b>Lv${S.neidan.lv}</b></div><div>🕊️ <b>+${S.wing.stage*5}%</b></div>`
     +`<div>🎒 <b>${usedSlots()}</b>格</div><div>✨ <b>Lv${lv("enh")}</b></div><div>🌀 <b>${S.reb}</b>/7<span style="color:#889">（上限${effCap()}｜品质${RARE_NAMES[maxRare()]}）</span></div>`
-    +`<div>🏆 <b>累计${((S.cumFloor||0)+(S.lifeBest||0)).toLocaleString()}层/${((S.cumLv||0)+totalLv()).toLocaleString()}级</b><span style="color:#889">（含当世·转生定格入榜）</span></div>`
+    +`<div>🏆 <b>累计${lbTotalFloor().toLocaleString()}层/${lbTotalLv().toLocaleString()}级</b><span style="color:#889">（含当世·转生或冲榜入榜）</span></div>`
     +`<div>🗺️ <b>${Object.keys(S.kills).length}/500</b></div><div style="color:#f80">👹 <b>${diff().toFixed(1)}×</b></div>`;
 }
 function forgeRow(e, ref) {

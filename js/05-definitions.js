@@ -138,4 +138,9 @@ function unlocked(i, l) {
   if (l === 1) return maxCleared(i-1) >= 1;
   return maxCleared(i) >= l-1 || maxCleared(i-1) >= l;
 }
+/* 无尽模式解锁条件：炼气→真仙十个境界的第 10 层全部通关（转生重置怪物解锁后会重新上锁） */
+function canEndless() {
+  for (let z = 0; z < ELE.length; z++) if (maxCleared(z*10+9) < 1) return false;
+  return true;
+}
 

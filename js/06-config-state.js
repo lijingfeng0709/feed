@@ -149,7 +149,7 @@ function newGameState() {
     eq:{weapon:null,helmet:null,armor:null,boots:null,gloves:null,ring:null},
     style:"melee", monI:0, monLv:1, monHp:mon(0,1).hp, hp:60, mp:25,
     endless:false, floor:1, bestFloor:0, lifeBest:0, autoNext:true,floorKills:{}, floorStart:Date.now(),
-    cumFloor:0, cumLv:0,
+    cumFloor:0, cumLv:0, lbSnapFloor:0, lbSnapLv:0, lbRushDay:"",
     autoHp:30, autoMp:20, teaMin:0, xpMin:0, xpMult:0,
     buffHit:0, buffHitMin:0, buffCd:0, buffCdMin:0, buffInv:0, buffInvMin:0,
     pots:[null,null,null,null,null], houses:{}, badge:0, tasks:[],

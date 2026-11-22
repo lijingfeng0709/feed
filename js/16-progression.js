@@ -78,14 +78,14 @@ function redeemGold(id, qty) {
 
 /* 内丹 */
 const ND_PILL_XP = { yaoDan:1, diLingDan:10, tianYuanDan:100 };
-const ND_MAX_LV = 100;
+const ND_MAX_LV = 250;
 function ndXpNeed(n) { return Math.floor(50*Math.pow(1.05,n)); }
 function usePill(id, n) {
   if (!ND_PILL_XP[id]) return;
   n = Math.max(1, Math.min(n|0, bagN(id)));
   if (n < 1) { log(`背包中没有${IT[id].n}`); return; }
   const nd = S.neidan;
-  if (nd.lv >= ND_MAX_LV) { log(`🧿 内丹已达 Lv${ND_MAX_LV} 满级（全属性+50%）`); return; }
+  if (nd.lv >= ND_MAX_LV) { log(`🧿 内丹已达 Lv${ND_MAX_LV} 满级（全属性+${(ND_MAX_LV*0.5).toFixed(0)}%）`); return; }
   take(id, n);
   nd.xp += n*ND_PILL_XP[id];
   let ups = 0;
@@ -113,6 +113,19 @@ function upWing() {
   saveGame(); renderTop(); renderPanel();
 }
 
+/* ★ 榜单结算（转生 / 每日冲榜共用）
+   cum 只存「已结算」的部分；当世实时成绩 = cum + (lifeBest - 快照) / (totalLv - 快照)。
+   重复结算幂等，同一段进度不会被算两次。 */
+function settleLife() {
+  const f = Math.max(0, S.lifeBest|0), l = Math.max(0, totalLv());
+  const sf = Math.max(0, S.lbSnapFloor|0), sl = Math.max(0, S.lbSnapLv|0);
+  const df = Math.max(0, f - sf), dl = Math.max(0, l - sl);
+  if (df) { S.cumFloor = (S.cumFloor||0) + df; S.lbSnapFloor = f; }
+  if (dl) { S.cumLv = (S.cumLv||0) + dl; S.lbSnapLv = l; }
+  return { df, dl };
+}
+const lbTotalFloor = () => (S.cumFloor||0) + Math.max(0, (S.lifeBest||0) - (S.lbSnapFloor||0));
+const lbTotalLv = () => (S.cumLv||0) + Math.max(0, totalLv() - (S.lbSnapLv||0));
 function canRebirth() { return SK.some((s)=>lv(s.id) >= 100); }
 let rebirthArm = 0;
 function askRebirth() {
@@ -139,14 +152,10 @@ async function rebirth() {
   const keepNd = S.neidan, keepWing = S.wing;
   const keepName = S.name;
   const keepSpd10 = spd10Unlocked() ? 1 : (S.spd10 || 0);
-  const addFloor = (S.lifeBest||0);
-  const addLv = totalLv();
-  const prevCumFloor = (S.cumFloor||0);
-  const prevCumLv = (S.cumLv||0);
+  const settled = settleLife();     /* 先结算当世成绩；幂等，冲榜已结算过的部分不会重复累加 */
+  const addFloor = settled.df, addLv = settled.dl;
   S.sp = 20+S.reb*20;
   S.reb++;
-  S.cumFloor = prevCumFloor + addFloor;
-  S.cumLv = prevCumLv + addLv;
   S.name = keepName;
   S.skills = defSkills();
   for (const k in S.slotMap) { if (typeof S.slotMap[k] === "object") delete S.slotMap[k]; }
@@ -163,6 +172,9 @@ async function rebirth() {
   S.deadUntil = 0;
   S.endless = false;
   S.floor = 1;
+  S.bestFloor = 0;        /* 转生后无尽不继承上一世层数，从最底层重新解锁 */
+  S.lbSnapFloor = 0;      /* 新一世尚无已结算成绩 */
+  S.lbSnapLv = 0;
   S.floorKills = {};
   S.lifeBest = 0;
   S.monI = 0;

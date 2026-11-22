@@ -33,14 +33,20 @@ function updCmbEqN() { const s = $("cmbEq"); if (!s || !s.selectedOptions[0]) re
 function updCmbGemN() { const s = $("cmbGem"); if (!s || !s.selectedOptions[0]) return; const n = $("cmbGemN"); if (n) n.value = Math.max(1, +s.selectedOptions[0].dataset.n || 1); }
 function pickEndlessFloor(f) {
   if (!S.endless) { log("⚠️ 请先进入无尽模式"); return; }
-  f = Math.max(1, Math.min(Math.max(1,S.bestFloor), f|0));
+  f = Math.max(1, Math.min(S.floor|0, f|0));   /* 只允许回退到本世已到达层，禁止向前跳层 */
+  if (f >= S.floor) { log("🌌 每次转生后需从最底层重新往上打，不能跳层"); return; }
   S.floor = f; S.monHp = endlessMon(S.floor).hp; atkCd = 0; monCd = 1.0;
   S.floorStart = Date.now();
   saveGame(); renderTop(); renderPanel();
-  log(`🌌 跳转到无尽第 ${S.floor} 层（计时重置）`);
+  log(`🌌 回退到无尽第 ${S.floor} 层（计时重置）`);
 }
 function setAutoNext(v) { S.autoNext = !!v; saveGame(); renderPanel(); log(v?"🌌 通关后自动下一层":"🌌 通关后停留本层"); }
 function toggleEndless(on) {
+  if (on && !canEndless()) {
+    log("🔒 无尽模式未解锁：需先通关炼气→真仙全部十个境界的第 10 层（转生后会重新上锁）");
+    renderPanel();
+    return;
+  }
   S.endless = on;
   S.floorStart = Date.now();
   if (on) { S.monHp = endlessMon(S.floor).hp; atkCd = 0; monCd = 1.0; log(`🌌 进入无尽模式：第 ${S.floor} 层起｜每层限时${FLOOR_LIMIT/60}分钟`); }
