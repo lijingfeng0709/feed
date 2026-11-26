@@ -17,6 +17,7 @@ function tickPots(dt) {
     if (!take(slot.id, 1)) continue;
     let used = false;
     if (it.heal) { S.hp = Math.min(p.maxHp, S.hp+it.heal); used = true; }
+    if (it.hpPct) { S.hp = Math.min(p.maxHp, S.hp+p.maxHp*it.hpPct); used = true; }
     if (it.mp) { S.mp = Math.min(p.maxMp, S.mp+it.mp); used = true; }
     if (XPIT[slot.id]) { S.xpMult = XPIT[slot.id].m; S.xpMin = XPIT[slot.id].mm; used = true; }
     if (POTBUFF[slot.id]) {

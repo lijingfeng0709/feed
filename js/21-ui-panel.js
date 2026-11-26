@@ -113,7 +113,7 @@ function renderPanel() {
       h += autoForgeUI(e, e.uid);
     } else if (selV && IT[selV]) {
       const it = IT[selV]; const n = bagN(selV);
-      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:it.tp==="emat"?"无尽锻造材料（仅无尽掉落/牛铃商店）｜":it.tp==="gold"?"金币兑换物（仅无尽掉落，已从牛铃商店下架）｜":it.tp==="nd"?"内丹材料（修行页服用/锻造页互转）｜":it.tp==="wing"?"翅膀升阶材料（修行页）｜":it.hpPct?"回复药（背包内服用，恢复当前总血量10%）｜":""}基准价${it.val}</span>`
+      h += `<div class="row"><span class="name">${it.ic} ${it.n} ×${n}</span><span class="info">${it.tp==="gem"?`宝石（镶嵌/合成请到锻造页）｜`:it.tp==="emat"?"无尽锻造材料（仅无尽掉落/牛铃商店）｜":it.tp==="gold"?"金币兑换物（仅无尽掉落，已从牛铃商店下架）｜":it.tp==="nd"?"内丹材料（修行页服用/锻造页互转）｜":it.tp==="wing"?"翅膀升阶材料（修行页）｜":it.hpPct?"回复药（背包服用／放入消耗品格子可战斗中自动使用，恢复当前总血量10%）｜":""}基准价${it.val}</span>`
         +(it.heal?`<button class="act sm" onclick="eatItem('${selV}')">吃(+${it.heal}HP)</button>`:"")
         +(it.hpPct?`<button class="act sm" style="background:#e55" onclick="useHpPot('${selV}')">服用(+${(it.hpPct*100)|0}%HP)</button>`:"")
         +(it.mp?`<button class="act sm" onclick="drinkItem('${selV}')">喝(+${it.mp}MP)</button>`:"")
@@ -279,14 +279,6 @@ function renderPanel() {
         +`<td>${bagN(id)||0}</td></tr>`;
     }
     h += `</table>`;
-    h += `<div class="row" style="background:#2a1a1a;border:1px solid #ff666655;flex-direction:column;align-items:stretch">`
-      +`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">`
-      +`<span class="name">💗 回春丹（服用恢复当前总血量 10%）</span>`
-      +`<span class="info">固定价 <b style="color:#fa0">${GOLD_SHOP.hpPot10.toLocaleString()}💰/瓶</b>｜持有 ${bagN("hpPot10")} 瓶｜当前 ${Math.floor(S.gold).toLocaleString()}💰</span>`
-      +`<span class="info">数量</span><input type="number" min="1" value="${goldShopQty}" onchange="goldShopQty=Math.max(1,Math.floor(+this.value|0))" style="width:70px">`
-      +`<button class="act sm" style="background:#e55" onclick="buyGoldShop('hpPot10',goldShopQty)">🛒 购买 ×${goldShopQty}（${(GOLD_SHOP.hpPot10*goldShopQty).toLocaleString()}💰）</button>`
-      +`</div>`
-      +`<div class="info" style="margin-top:3px">固定价专柜：不进上方 NPC 市场浮动价池，也不参与玩家市场挂单；购买后在「背包」选中回春丹点「服用」；满血或死亡时不可用</div></div>`;
     h += pmUI();
   }
   else if (tab === 6) {

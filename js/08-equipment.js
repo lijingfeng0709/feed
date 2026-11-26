@@ -58,15 +58,24 @@ const tierFactor = (req) => 1+req*0.15;
 const forgeBonus = () => Math.min(0.10, lv("enh")*0.002);
 const forgeCf = () => cfg("forgeCf");
 
+/* 手套副属性：攻速封顶后仍随档位/品质持续成长，避免后期升级/升品质属性不变
+   每升一档 +2×档位差，每升一级品质 +100，复用已有暴伤词条，不新增属性字段 */
+const gloveBonusCd = (e) => Math.min(cfg("critDmgMax"), Math.floor((e.reqLv||0)*2) + (e.rare||0)*100);
+function applyGloveBonus(e) {
+  if (!e || e.slot !== "gloves") return;
+  const v = gloveBonusCd(e);
+  if (v > (e.critDmg||0)) e.critDmg = v;
+}
 function rollSpecials(e) {
   const nSp = Math.min(4, e.rare + 1);
   const pool = ["crit","critDmg","aspd","ls"].sort(()=>Math.random()-0.5).slice(0, nSp);
   const t = Math.min(1, 0.15 + e.rare*0.1 + e.reqLv*0.002);
   for (const k of pool) {
-    if (k === "crit") e.crit = Math.round(cfg("critMin") + (cfg("critMax")-cfg("critMin"))*t*Math.random());
-    if (k === "critDmg") e.critDmg = Math.round(cfg("critDmgMin") + (cfg("critDmgMax")-cfg("critDmgMin"))*t*Math.random());
-    if (k === "aspd") e.aspd = Math.round(cfg("aspdMin") + (cfg("aspdMax")-cfg("aspdMin"))*t*Math.random());
-    if (k === "ls") e.ls = Math.round(cfg("lsMin") + (cfg("lsMax")-cfg("lsMin"))*t*Math.random());
+    /* 只增不减：升品质时重掷词条不得把已有攻速/词条洗低 */
+    if (k === "crit") e.crit = Math.max(e.crit||0, Math.round(cfg("critMin") + (cfg("critMax")-cfg("critMin"))*t*Math.random()));
+    if (k === "critDmg") e.critDmg = Math.max(e.critDmg||0, Math.round(cfg("critDmgMin") + (cfg("critDmgMax")-cfg("critDmgMin"))*t*Math.random()));
+    if (k === "aspd") e.aspd = Math.max(e.aspd||0, Math.round(cfg("aspdMin") + (cfg("aspdMax")-cfg("aspdMin"))*t*Math.random()));
+    if (k === "ls") e.ls = Math.max(e.ls||0, Math.round(cfg("lsMin") + (cfg("lsMax")-cfg("lsMin"))*t*Math.random()));
   }
 }
 function rollEq(fam, reqLv, slotId, rb) {
@@ -86,7 +95,7 @@ function rollEq(fam, reqLv, slotId, rb) {
   if (slot.id === "helmet") e.hp = Math.floor(base*2.5);
   if (slot.id === "armor") e.def = Math.floor(base*0.6)+1;
   if (slot.id === "boots") e.hp = Math.floor(base*1.5);
-  if (slot.id === "gloves") e.aspd = Math.min(cfg("aspdMax"), 25+Math.floor(base*1.2));
+  if (slot.id === "gloves") { e.aspd = Math.min(cfg("aspdMax"), 25+Math.floor(base*1.2)); applyGloveBonus(e); }
   if (slot.id === "ring") e.eva = Math.floor(base*0.5)+2;
   rollSpecials(e);
   return e;
@@ -210,6 +219,7 @@ function upQuality(ref) {
     const oldR = e.rare; e.rare++;
     const ratio = RARE_MULT[e.rare]/RARE_MULT[oldR];
     ["atk","hp","def","eva"].forEach((k)=>{ if (e[k]) e[k] = Math.floor(e[k]*ratio); });
+    applyGloveBonus(e);
     refreshEqName(e);
     rollSpecials(e);
     log(`🏆 ${e.n}→ 升阶为【${RARE_NAMES[e.rare]}】品质！（基础属性×${ratio.toFixed(2)}）`);
@@ -239,6 +249,7 @@ function upTier(ref) {
     if (e.critDmg) e.critDmg = Math.min(cfg("critDmgMax"), Math.floor(e.critDmg*ratio));
     if (e.ls) e.ls = Math.min(cfg("lsMax"), Math.floor(e.ls*ratio));
     e.reqLv = c.to;
+    applyGloveBonus(e);
     refreshEqName(e);
     log(`⬆️ 装备升级成功！${eqName(e)} 现为 Lv${e.reqLv} 档（基础属性×${ratio.toFixed(2)}）`);
   } else { log(`💔 装备升级失败，材料已消耗（装备无损｜成功率 ${(r*100).toFixed(0)}%）`); }
@@ -301,6 +312,7 @@ function combineEquip(key, n) {
     if (keep.critDmg) keep.critDmg = Math.min(cfg("critDmgMax"), Math.floor(keep.critDmg*ratio));
     if (keep.ls) keep.ls = Math.min(cfg("lsMax"), Math.floor(keep.ls*ratio));
     keep.reqLv = next;
+    applyGloveBonus(keep);
     keep.holes = 0; keep.gems = [];
     refreshEqName(keep);
     list.slice(1).forEach(({key:k3})=>{ delete S.slotMap[k3]; if (selSlot===k3) selSlot = null; });

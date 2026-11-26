@@ -10,7 +10,6 @@ function mkSeed() {
     if (id === "token") continue;
     if (/^gem_/.test(id)) continue;
     if (BELL_SHOP[id]) continue;
-    if (GOLD_SHOP[id]) continue;
     if (ENDLESS_ONLY[id]) continue;
     MK[id] = { mid:IT[id].val*(0.95+Math.random()*0.1), p0:IT[id].val };
     mkRefresh(id);
@@ -32,7 +31,7 @@ function mkRefresh(id) {
   }
   const bp = Math.max(1, Math.floor(m.mid));
   for (let i = 0; i < 5; i++) {
-    const sp = Math.max(1, Math.floor(bp*(1+i*0.05)));
+    const sp = FIXED_SELL[id] || Math.max(1, Math.floor(bp*(1+i*0.05)));
     m.sell.push({ p:sp, q:3+Math.random()*15|0 });
     m.buy.push({ p:Math.max(1, Math.floor(sp*MK_SPREAD)), q:3+Math.random()*15|0 });
   }
@@ -40,6 +39,7 @@ function mkRefresh(id) {
 function mkDrift() {
   for (const id in MK) {
     const m = MK[id];
+    if (FIXED_SELL[id]) { m.mid = m.p0; mkRefresh(id); continue; }
     if (POT_MK[id]) { mkRefresh(id); continue; }
     m.mid = Math.max(m.p0*0.6, Math.min(m.p0*1.8, m.mid*(1+(Math.random()-0.5)*0.06)));
     mkRefresh(id);

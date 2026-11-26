@@ -51,19 +51,6 @@ function goldToBell(qty) {
   log(`🔁 金币兑换成功：${cost.toLocaleString()}💰 → ${qty}🔔（当前牛铃 ${S.bell}）`);
   renderTop(); renderPanel();
 }
-/* 固定金币价商品：牛铃商店页金币专区，单价恒定，不进 NPC 市场浮动池 */
-function buyGoldShop(id, n) {
-  const p = GOLD_SHOP[id]; if (!p) return;
-  n = Math.max(1, Math.floor(+n || 1));
-  const cost = p*n;
-  if (S.gold < cost) { log(`💰 金币不足：购买 ${IT[id].n}×${n} 需 ${cost.toLocaleString()}💰，现有 ${Math.floor(S.gold).toLocaleString()}💰`); return; }
-  let got = 0;
-  for (; got < n; got++) { if (!addIt(id,1)) break; }
-  if (!got) { log("🎒 背包已满，购买取消"); return; }
-  S.gold -= p*got;
-  log(`🛒 花费 ${(p*got).toLocaleString()}💰 购买 ${IT[id].ic}${IT[id].n}×${got}（单价 ${p.toLocaleString()}💰/瓶）`);
-  renderTop(); renderPanel();
-}
 function redeemGold(id, qty) {
   const g = GOLD_REDEEM[id]; if (!g) return;
   const have = bagN(id);

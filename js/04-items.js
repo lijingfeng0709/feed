@@ -57,8 +57,8 @@ const POTBUFF = {
   invPot:  { k:"inv",     v:1,      mm:20 }
 };
 const BELL_SHOP = { critPot:100, invPot:100 };
-/* 固定金币价商店：只在牛铃商店页的金币专区出售，不进 NPC 市场的浮动价/库存池 */
-const GOLD_SHOP = { hpPot10:1000000 };
+/* NPC 市场普通商品，但卖价锁定为基准价（不随行情漂移）；玩家市场仍可自由挂单 */
+const FIXED_SELL = { hpPot10:1000000 };
 /* ★ v1.21.9：本表现在仅作为玩家市场🔔计价的基准价参照——星辉砂已从牛铃商店下架，此处保留其市场定价参照（挂单区间=参照价±50%） */
 const BELL_MAT = {
   xingSui:5, yunTie:8, longJin:15, fengYu:25, daoZe:40, hunDunJing:70,

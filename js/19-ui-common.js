@@ -10,7 +10,7 @@ function buildTabs() {
 }
 let tab = 0, zone = 0, qSel = "milk1", qNum = 10;
 const RARE_COLOR_ARR = RARE_COLOR;
-const POT_ITEMS = Object.keys(IT).filter((id)=>IT[id].heal||IT[id].mp||XPIT[id]||POTBUFF[id]);
+const POT_ITEMS = Object.keys(IT).filter((id)=>IT[id].heal||IT[id].hpPct||IT[id].mp||XPIT[id]||POTBUFF[id]);
 const BATCH_TIERS = [15,30,60,85,95,120,160,200,249];
 /* ★ 加速条（10×未解锁显示锁与购买按钮；解锁状态为账号级，3 个存档槽通用） */
 function renderSpd() {
